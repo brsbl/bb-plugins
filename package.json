@@ -1,0 +1,30 @@
+{
+  "name": "bb-plugin-playgrounds",
+  "version": "0.1.0",
+  "description": "Answers you can play with: calculators, guides, previews.",
+  "type": "module",
+  "license": "UNLICENSED",
+  "files": [
+    "dist",
+    "docs",
+    "icons",
+    "README.md",
+    "skills"
+  ],
+  "engines": {
+    "bb": ">=0.46.0",
+    "bbPluginSdk": "^0.6.37"
+  },
+  "bb": {
+    "name": "Playgrounds",
+    "description": "Answers you can play with: calculators, guides, previews.",
+    "branding": {
+      "icon": "./icons/playgrounds.svg"
+    },
+    "server": "./dist/install-server.mjs",
+    "app": "./dist/install-app.mjs",
+    "skills": [
+      "skills"
+    ]
+  }
+}
