@@ -46,7 +46,7 @@ function action(c) {
   const s = selector(c);
   if (c.disabled) return null;
   if (c.tag === 'canvas' || (c.tag === 'input' && ['file','color','date','time','datetime-local','month','week'].includes(c.type))) return null;
-  if (c.type === 'range' || c.type === 'slider' || c.type === 'dial' || /grab|move|resize/.test(c.cursor || '')) return [['drag', s, 0.2, 0.5, 0.85, 0.5, 20]];
+  if (c.type === 'range' || c.type === 'slider' || c.type === 'dial' || /grab|move|resize/.test(c.cursor || '')) return [['drag', s, 0.2, 0.8, 0.85, 0.15, 20]];
   if (c.tag === 'select') return [['click', s], ['key', 'ArrowDown', s], ['key', 'Enter', s]];
   if (c.tag === 'textarea' || (c.tag === 'input' && ['text','search','email','url','password','tel','number'].includes(c.type))) {
     if (c.type === 'number') return [['click', s], ['key', 'ArrowUp', s]];

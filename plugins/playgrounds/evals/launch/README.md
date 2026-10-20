@@ -82,7 +82,7 @@ non-default model for Personal, reset the **isolated instance** before measuring
   the source. A visible card with a dead control retains its measured delivery time
   and fails the control criterion.
 - The bundled `scripts/drive.mjs` opens the actual served frame URL and uses real
-  pointer/keyboard input. Range controls are dragged; toggles/buttons clicked;
+  pointer/keyboard input. Range and custom slider controls are dragged diagonally to exercise either horizontal or vertical input; toggles/buttons clicked;
   text/select controls receive key events. HTML is not reconstructed. Native
   controls are driven in the real thread UI. Narrow-toggle is tested at 360,
   390, and 480 px. Every exposed control must be proven, including newly exposed,
