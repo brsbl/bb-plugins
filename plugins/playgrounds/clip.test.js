@@ -35,7 +35,7 @@ it("rejects a corrupted browser archive before extraction and gives one recovery
   vi.stubEnv("BB_CLIP_PORTABLE_BROWSER", "1");
   vi.stubGlobal("fetch", vi.fn(async () => new Response("corrupted browser archive")));
   try {
-    await expect(clipBrowserPath(work, join(work, "cache"))).rejects.toThrow("Could not prepare the clip browser; set BB_CLIP_HEADLESS_SHELL to a working Chrome headless shell executable and retry.");
+    await expect(clipBrowserPath(work, join(work, "cache"))).rejects.toThrow("Could not prepare the clip browser; set CHROME_PATH to a working Chrome or Chromium executable and retry.");
     expect(existsSync(join(work, "cache", "chrome.zip"))).toBe(false);
     expect(existsSync(join(work, "browser"))).toBe(false);
   } finally { vi.unstubAllGlobals(); vi.unstubAllEnvs(); rmSync(work, { recursive: true, force: true }); }

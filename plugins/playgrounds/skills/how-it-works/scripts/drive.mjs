@@ -5,7 +5,7 @@ import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { chromePath } from "./clip-browser.mjs";
 import { recordClip } from "./clip-record.mjs";
-import { clipClock, FRAME_MS } from "./clip-clock.mjs";
+import { clipClock, FRAME_MS, CLOCK_SOURCE } from "./clip-clock.mjs";
 import { LINE_ENDS } from "./line-ends.mjs";
 
 if (typeof WebSocket === "undefined" && !process.execArgv.includes("--experimental-websocket")) {
@@ -96,7 +96,7 @@ async function main() {
     process.exit(1);
   }
   const profile = mkdtempSync(join(options.profileRoot ?? tmpdir(), "iso-drive-"));
-  const chrome = spawn(binary, ["--headless=new", ...(options.clip ? ["--force-webrtc-ip-handling-policy=disable_non_proxied_udp", "--enable-begin-frame-control", "--run-all-compositor-stages-before-draw", "--disable-new-content-rendering-timeout", "--disable-gpu"] : []), "--remote-debugging-port=0", `--user-data-dir=${profile}`, "--no-first-run", "--no-default-browser-check", "--hide-scrollbars", "--allow-file-access-from-files", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist", "about:blank"]);
+  const chrome = spawn(binary, ["--headless=new", ...(options.clip ? ["--force-webrtc-ip-handling-policy=disable_non_proxied_udp"] : []), "--remote-debugging-port=0", `--user-data-dir=${profile}`, "--no-first-run", "--no-default-browser-check", "--hide-scrollbars", "--allow-file-access-from-files", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist", "about:blank"]);
   const stopChrome = () => { chrome.kill("SIGKILL"); try { rmSync(profile, { recursive: true, force: true }); } catch {} };
   process.once("SIGINT", () => { stopChrome(); process.exit(130); });
   process.once("SIGTERM", () => { stopChrome(); process.exit(143); });
@@ -129,16 +129,10 @@ async function main() {
     let id = 0;
     const pending = new Map();
     const problems = [];
-    const events = new Map();
-    const onceEvent = (method) => new Promise((done, fail) => {
-      const timer = setTimeout(() => { events.delete(method); fail(new Error(`Chrome event timed out: ${method}`)); }, 30000);
-      events.set(method, () => { clearTimeout(timer); events.delete(method); done(); });
-    });
     socket.onmessage = (message) => {
       const data = JSON.parse(message.data);
-      if (!data.id) events.get(data.method)?.();
       if (data.id && pending.has(data.id)) {
-        if(process.env.BB_CLIP_TRACE) console.error("DONE",data.id);pending.get(data.id)(data);
+        pending.get(data.id)(data);
         pending.delete(data.id);
       } else if (data.method === "Fetch.requestPaused" && options.clip) {
         const allowed = [options.clip.cardUrl, options.clip.endUrl].includes(data.params.request.url);
@@ -153,7 +147,7 @@ async function main() {
     await new Promise((done) => (socket.onopen = done));
     const send = (method, params = {}) =>
       new Promise((done, fail) => {
-        const call = ++id; if(process.env.BB_CLIP_TRACE) console.error("SEND",call,method);
+        const call = ++id;
         const timer = setTimeout(() => { pending.delete(call); fail(new Error(`Chrome timed out: ${method}\n${chromeLog}`)); }, 30000);
         pending.set(call, result => { clearTimeout(timer); if (options.clip && result.error) fail(new Error(`${method}: ${JSON.stringify(result.error)}`)); else done(result); });
         socket.send(JSON.stringify({ id: call, method, params }));
@@ -176,12 +170,13 @@ async function main() {
     // Fetch interception does not cover WebRTC ICE/STUN traffic. Install in every
     // document/frame before card scripts can keep a reference to these constructors.
     const NO_RTC = `for(const name of ["RTCPeerConnection","webkitRTCPeerConnection"])Object.defineProperty(globalThis,name,{value:undefined,writable:false,configurable:false});`;
-    const early = [options.clip ? NO_RTC : "", options.clip ? "" : SLOW, options.noWebgl ? NO_GL : "", options.preload ?? ""].filter(Boolean).join("\n");
+    const early = [options.clip ? NO_RTC : "", options.clip ? CLOCK_SOURCE : SLOW, options.noWebgl ? NO_GL : "", options.preload ?? ""].filter(Boolean).join("\n");
     await send("Page.addScriptToEvaluateOnNewDocument", { source: early });
     await send("Emulation.setDeviceMetricsOverride", { width: options.width, height: options.height, deviceScaleFactor: options.scale, mobile: options.width < 600 });
-    const clock = options.clip ? await clipClock(send, onceEvent) : null;
+    if (options.clip) { await send("Animation.enable"); await send("Animation.setPlaybackRate", { playbackRate: 0 }); }
     await send("Page.navigate", { url });
     await sleep(1200);
+    const clock = options.clip ? clipClock(send, evaluate) : null;
     const boxOf = (selector) => evaluate(`(()=>{const el=document.querySelector(${JSON.stringify(selector ?? ".iso-plate")})||document.body;const r=el.getBoundingClientRect();return {x:r.left,y:r.top,w:r.width,h:r.height,sx:scrollX,sy:scrollY}})()`);
     const readout = () => evaluate(`(document.querySelector("[data-readout]")||{}).textContent||""`);
     const capture = async (selector, scale = 1, region) => {
