@@ -55,7 +55,7 @@ and the actual dev UI. Infrastructure failures here abort without counting
 forty spurious product failures. The tiny preflight fixture is not an eval prompt
 and is never given to an agent. Generic fixtures also verify live pointer,
 click-only and keyboard-only surfaces, output changes while a page resizes, and
-geometry inside the tested drawing. Matching inert fixtures change only
+geometry inside the tested drawing, and independent `role="status"` readouts. Matching inert fixtures change only
 hover/focus/color/padding; they must stay unproven.
 Mixed stable/ticking readouts, selected sibling choices, and a runtime exception
 with an otherwise working control are covered too. Saved-card replay scripts can
@@ -73,8 +73,15 @@ non-default model for Personal, reset the **isolated instance** before measuring
 
 - Time starts immediately before the HTTP prompt send. The real thread page is
   opened in Chrome. A loaded iframe or native card must be on screen, with a
-  nonblank screenshot. A tool return or stored HTML alone never counts. The
-  observer polls at 150 ms; loading and browser startup stay in the measurement.
+  nonblank screenshot of its exposed interior. The capture keeps the same DOM
+  node, source, bounds, scroll position and layout version before and after the
+  screenshot; a replaced/moved frame is retried, never replaced by a body capture.
+  Surrounding thread text and host overlays cannot supply the required pixels.
+  Time ends at accepted screenshot completion, an observed upper bound. The
+  iframe load time is retained separately. A tool return or stored HTML alone
+  never counts; loading and browser startup stay in the measurement. Generic
+  preflight cases cover blank frames, delayed paint, replacement and scrolling.
+  `visible-capture.json` records every attempt and rejection.
 - Progress evidence contains assistant text observed in visible message columns
   before the card, matched to real timeline rows. Tool logs are not progress.
 - Question evidence includes structured `user_question` interactions and assistant
