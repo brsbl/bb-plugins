@@ -487,7 +487,7 @@ it("dismisses a waiting item from the Decision log with a reason, telling its th
     const reason = screen.getByRole("textbox", { name: "Reason (optional)" });
     fireEvent.change(reason, { target: { value: "Paused the campaign" } });
     fireEvent.keyDown(reason, { key: "Enter" });
-    await waitFor(() => expect(submittedMessages).toEqual(["brsbl dismissed: Raise the ads budget · Paused the campaign"]));
+    await waitFor(() => expect(submittedMessages).toEqual(["Dismissed: Raise the ads budget · Paused the campaign"]));
     const saved = JSON.parse((await host.harness.behavior.runCli(["get", "budget", "--thread", "thr_test"])).stdout!);
     expect(saved).toMatchObject({ state: "succeeded", attempt: null, result: { message: "Dismissed · Paused the campaign" }, dismissed: { reason: "Paused the campaign" } });
     const context = JSON.parse((await host.harness.registrations.mentionProviders[0]!.resolve(submittedMentions[0]!.id)).context);

@@ -58,7 +58,7 @@ If a card needs more than that, the decision is too big: split it, or, when the 
 
 Bad cards:
 
-- “Run the code review on the Live Markdown stack?” A routine step; just do it.
+- “Run the code review on the sample change?” A routine step; just do it.
 - “Approve the claim lines on the comparison page?” It needs a careful read, so ask for a review instead.
 - “Cancel the stray trial yourself, then reply done.” An agent with browser access can do it.
 - “Unlist the theme after the takedown request?” when the user has never heard of the request.
@@ -66,7 +66,7 @@ Bad cards:
 - “Move the trip two days later?” with no fares for either option and the wrong number of travelers.
 - “Approve?” with a five-bullet What/Why now/Options/Recommendation/Next brief: busy, and the user doesn't read it.
 
-**Good:** “Merge the Live Markdown stack?” once its required checks pass; labels “Merge both PRs” / “Keep them open”; `recommended: "yes"`; context “[Checks and review](https://example.com/checks) passed on the final heads.”
+**Good (fictional example):** question “Use the Moonbase Garden Club’s draft as the planting plan?”; labels “Use this plan” / “Revise it first”; `recommended: "yes"`; context “The club needs the plan by Friday.”
 
 Every example in this skill is illustrative. Use verified facts, include the exact head when approval depends on a revision, and never claim a gate passed because an example says so.
 
