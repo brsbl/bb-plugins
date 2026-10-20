@@ -193,7 +193,8 @@ for (const axis of ['x','y']) for (const live of [true, false]) {
   const dragFixture = join(dragDir, 'fixture.html');
   writeFileSync(dragFixture, `<!doctype html><html><body style="margin:16px;width:300px;height:260px;background:white;color:black"><style>[role=slider]{width:280px;height:90px;background:#ddd;cursor:grab}[role=slider]:hover{background:#acf}</style><div role="slider" tabindex="0" aria-label="Position"></div><output style="display:block;font-size:32px">0</output><svg width="280" height="100"><rect width="20" height="90" fill="blue"/></svg><script>const surface=document.querySelector('[role=slider]');let timer;const draw=n=>{document.querySelector('output').textContent=n;document.querySelector('rect').setAttribute('width',20+n*2)};if(${live}){surface.addEventListener('pointermove',e=>{clearTimeout(timer);draw(Math.round(${axis === 'x' ? '(e.clientX-surface.getBoundingClientRect().left)/2.8' : '(e.clientY-surface.getBoundingClientRect().top)/0.9'}))});surface.addEventListener('pointerleave',()=>{timer=setTimeout(()=>draw(0),600)})}</script></body></html>`);
   const checked = await checkControls({target:dragFixture,width:480,dir:dragDir,drive});
-  if (checked.pass !== live || checked.controls.length !== 1 || (!live && checked.controls[0].reason !== 'no proven output change outside controls'))
+  // Structured verdicts are the contract; diagnostic wording may change.
+  if (checked.pass !== live || checked.controls.length !== 1 || (!live && (checked.status !== 'unproven' || checked.controls[0].status !== 'unproven' || checked.runtimeErrors.length !== 0)))
     throw new Error(`Preflight: drag ${live ? 'live' : 'inert'} regression failed; see ${dragDir}/controls.json`);
 }
 // A button can change geometry inside a separate interactive drawing. Keep
