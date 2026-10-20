@@ -50,21 +50,21 @@ function setup(options: { settings?: Record<string, string>; openInMoss?: boolea
     settings: options.settings ?? {},
     sdk: {
       threads: { get: async ({ threadId }) => makeThreadResponse({ id: threadId, environmentId: "env-mac", projectId: "proj_1", title: "Launch" }) },
-      environments: { get: async () => ({ hostId: "mac", path: "/Users/me/project" }) },
+      environments: { get: async () => ({ hostId: "mac", path: "/Users/alex/project" }) },
       hosts: { list: async () => [makeHostResponse({ id: "mac", name: "My Mac", status: "connected" }), makeHostResponse({ id: "linux", name: "Worker", status: "disconnected" })] },
     },
     experimental_callHostRpc: async ({ method, input }) => {
-      if (method === "resolveFile") return { path: "/Users/me/Moss/Notes/Draft.md", name: "Draft.md" };
+      if (method === "resolveFile") return { path: "/Users/alex/Moss/Notes/Draft.md", name: "Draft.md" };
       if (method === "openInMoss") return options.openInMoss === false ? { opened: false, reason: "Only notes under ~/Moss open in Moss." } : { opened: true };
       if (method === "inspect") return { files: (input as { paths: string[] }).paths.map((path) => ({ path, status: path.includes("gone") ? "missing" : "available" })) };
-      return { root: "/Users/me/Moss/Notes", files: [] };
+      return { root: "/Users/alex/Moss/Notes", files: [] };
     },
   });
   plugin(bb);
   disposers.push(() => harness.lifecycle.dispose());
   return harness;
 }
-const cli = (h: ReturnType<typeof setup>, argv: string[], threadId?: string) => h.behavior.runCli(argv, { signal, ...(threadId ? { threadId, cwd: "/Users/me/project" } : {}) });
+const cli = (h: ReturnType<typeof setup>, argv: string[], threadId?: string) => h.behavior.runCli(argv, { signal, ...(threadId ? { threadId, cwd: "/Users/alex/project" } : {}) });
 
 describe("content-calendar CLI", () => {
   it("lists a week as one line per item and pages through the service", async () => {
@@ -173,9 +173,9 @@ describe("content-calendar CLI", () => {
     const h = setup();
     const result = await cli(h, ["attach", "cc_abc123", "--file", "notes/Draft.md", "--json"], "thr_invoking");
     expect(result.exitCode).toBe(0);
-    expect(h.inspection.experimental_hostRpcCalls.at(-1)).toMatchObject({ method: "resolveFile", hostId: "mac", input: { path: "notes/Draft.md", cwd: "/Users/me/project" } });
-    expect(service.strict.attach).toHaveBeenCalledWith({ id: "cc_abc123", attachment: { kind: "file", machineId: "mac", path: "/Users/me/Moss/Notes/Draft.md", name: "Draft.md" } });
-    expect(service.trustFile).toHaveBeenCalledWith("mac", "/Users/me/Moss/Notes/Draft.md");
+    expect(h.inspection.experimental_hostRpcCalls.at(-1)).toMatchObject({ method: "resolveFile", hostId: "mac", input: { path: "notes/Draft.md", cwd: "/Users/alex/project" } });
+    expect(service.strict.attach).toHaveBeenCalledWith({ id: "cc_abc123", attachment: { kind: "file", machineId: "mac", path: "/Users/alex/Moss/Notes/Draft.md", name: "Draft.md" } });
+    expect(service.trustFile).toHaveBeenCalledWith("mac", "/Users/alex/Moss/Notes/Draft.md");
     const offline = await cli(h, ["attach", "cc_abc123", "--file", "/x.md", "--machine", "linux", "--json"], "thr_invoking");
     expect(JSON.parse(offline.stdout ?? "")).toMatchObject({ ok: false, error: { code: "offline" } });
   });
@@ -209,10 +209,10 @@ describe("content-calendar CLI", () => {
 
 describe("attachments", () => {
   const attachments: Item["attachments"] = [
-    { id: "a1", kind: "file", machineId: "mac", path: "/Users/me/Moss/Notes/Draft.md", name: "Draft.md" },
-    { id: "a2", kind: "file", machineId: "mac", path: "/Users/me/Desktop/shot.png", name: "shot.png" },
+    { id: "a1", kind: "file", machineId: "mac", path: "/Users/alex/Moss/Notes/Draft.md", name: "Draft.md" },
+    { id: "a2", kind: "file", machineId: "mac", path: "/Users/alex/Desktop/shot.png", name: "shot.png" },
     { id: "a3", kind: "pr", repo: "get-bb/bb", number: 4772 },
-    { id: "a4", kind: "file", machineId: "linux", path: "/home/me/gone.md", name: "gone.md" },
+    { id: "a4", kind: "file", machineId: "linux", path: "/home/user/gone.md", name: "gone.md" },
   ];
 
   it("opens Moss notes on the Mac and sends every other file to the preview", async () => {
@@ -222,7 +222,7 @@ describe("attachments", () => {
     expect(await h.behavior.callRpc("openAttachment", { id: "cc_abc123", attachmentId: "a1" })).toEqual({ opened: "moss" });
     expect(h.inspection.experimental_hostRpcCalls.at(-1)).toMatchObject({ method: "openInMoss", hostId: "mac" });
     const calls = h.inspection.experimental_hostRpcCalls.length;
-    expect(await h.behavior.callRpc("openAttachment", { id: "cc_abc123", attachmentId: "a2" })).toEqual({ opened: "preview", hostId: "mac", path: "/Users/me/Desktop/shot.png" });
+    expect(await h.behavior.callRpc("openAttachment", { id: "cc_abc123", attachmentId: "a2" })).toEqual({ opened: "preview", hostId: "mac", path: "/Users/alex/Desktop/shot.png" });
     expect(h.inspection.experimental_hostRpcCalls).toHaveLength(calls);
     expect(await h.behavior.callRpc("openAttachment", { id: "cc_abc123", attachmentId: "a3" })).toEqual({ opened: "url", url: "https://github.com/get-bb/bb/pull/4772" });
   });
@@ -231,12 +231,12 @@ describe("attachments", () => {
     const h = setup({ openInMoss: false });
     await trustAll(attachments);
     service.get.mockResolvedValue(item({ attachments }));
-    expect(await h.behavior.callRpc("openAttachment", { id: "cc_abc123", attachmentId: "a1" })).toEqual({ opened: "preview", hostId: "mac", path: "/Users/me/Moss/Notes/Draft.md" });
+    expect(await h.behavior.callRpc("openAttachment", { id: "cc_abc123", attachmentId: "a1" })).toEqual({ opened: "preview", hostId: "mac", path: "/Users/alex/Moss/Notes/Draft.md" });
   });
 
   it("reports available, missing, and offline files", async () => {
     const h = setup();
-    const all: Item["attachments"] = [...attachments, { id: "a5", kind: "file", machineId: "mac", path: "/Users/me/gone.md", name: "gone.md" }];
+    const all: Item["attachments"] = [...attachments, { id: "a5", kind: "file", machineId: "mac", path: "/Users/alex/gone.md", name: "gone.md" }];
     await trustAll(all);
     service.get.mockResolvedValue(item({ attachments: all }));
     expect(await h.behavior.callRpc("inspectFiles", { id: "cc_abc123" })).toEqual({ files: [
