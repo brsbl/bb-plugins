@@ -1,0 +1,19 @@
+{
+  "id": "fixture-brief",
+  "name": "Morning brief",
+  "emoji": "\ud83d\udcec",
+  "projectId": "fixture-project",
+  "instructions": "Show messages that need a reply and group routine updates.",
+  "connectionIds": [
+    "gmail"
+  ],
+  "schedule": {
+    "cron": "0 10 * * 1-5",
+    "timezone": "Etc/UTC"
+  },
+  "afterReading": "keep-unread",
+  "enabled": false,
+  "providerId": null,
+  "model": null,
+  "createdAt": 1792368000000
+}

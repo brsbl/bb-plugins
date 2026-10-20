@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
 
 const message = { id: "msg_1", threadId: "thr_issue", turnId: "turn_1", projectId: "proj_1" };
@@ -35,7 +35,7 @@ const definition = {
   automationId: null,
 };
 
-afterEach(cleanup);
+afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 describe("Digests app", () => {
   it("shows the newsletter immediately with safe rich text and optional more detail", async () => {
@@ -45,7 +45,7 @@ describe("Digests app", () => {
     const slot = renderSlot(app.messageDirectives[0]!, directiveProps, {
       rpc: { getIssue: () => ({ ...readyIssue,
         lede: "A quiet weekend: **14 new emails**, but only **2 need you**. Google flagged a sign-in to ==confirm today==.",
-        details: "## Reply to\n\n[**Ada Example**](https://example.test/ada) :chip[Example Co] suggested **Thursday at 3pm**.\n\n**[Review reply](https://example.test/reply)**\n\n## The rest\n\nYour scorecard gained :gain[+12 followers]. An [unsafe link](javascript:alert%281%29) stays inert.\n\n<script>window.untrusted = true</script>\n\n<!-- more -->\n\nEarlier context: `:chip[not a chip]`.",
+        details: "## Reply to\n\n[**Example Sender**](https://example.test/sender) :chip[Example Co] suggested **Thursday at 3pm**.\n\n**[Review reply](https://example.test/reply)**\n\n## The rest\n\nYour scorecard gained :gain[+12 followers]. An [unsafe link](javascript:alert%281%29) stays inert.\n\n<script>window.untrusted = true</script>\n\n<!-- more -->\n\nEarlier context: `:chip[not a chip]`.",
       }) },
     });
     expect(await slot.findByRole("heading", { name: readyIssue.headline })).toBeDefined();
@@ -54,7 +54,7 @@ describe("Digests app", () => {
     expect(slot.getByText("Example Co").className).toBe("digest-chip");
     expect(slot.getByText("+12 followers").className).toBe("digest-gain");
     expect(slot.getByRole("heading", { name: "Reply to" }).closest("details")).toBeNull();
-    expect(slot.getByRole("link", { name: "Ada Example" }).getAttribute("href")).toBe("https://example.test/ada");
+    expect(slot.getByRole("link", { name: "Example Sender" }).getAttribute("href")).toBe("https://example.test/sender");
     expect(slot.getByRole("link", { name: "Review reply" }).closest("p")?.className).toBe("digest-item-actions");
     expect(slot.queryByRole("link", { name: "unsafe link" })).toBeNull();
     expect(slot.container.querySelector("script, dl, time")).toBeNull();
@@ -171,7 +171,7 @@ describe("Digests app", () => {
   it("retries the failed digest from its persisted Settings error without enabling it", async () => {
     const app = await loadPluginApp(() => import("./app.js"));
     const slot = renderSlot(app.settingsSections[0]!, {}, { rpc: {
-      overview: () => ({ definitions: [definition], connections: [{ id: "gmail", name: "Gmail", status: "unknown" }], organizerReady: true, actionCardsAvailable: false, runErrors: { reading: "My Mac is offline. Open bb on that computer, then Retry." } }),
+      overview: () => ({ definitions: [definition], connections: [{ id: "gmail", name: "Gmail", status: "unknown" }], organizerReady: true, actionCardsAvailable: false, runErrors: { reading: "Fixture computer is offline. Open bb on that computer, then Retry." } }),
       run: () => ({ threadId: "thr_retry" }),
     } });
     fireEvent.click(await slot.findByRole("button", { name: "Retry" }));
@@ -239,6 +239,10 @@ describe("Digests app", () => {
 
   it("creates a prompt digest at 10am and edits the same nested row", async () => {
     const app = await loadPluginApp(() => import("./app.js"));
+    const resolved = Intl.DateTimeFormat.prototype.resolvedOptions;
+    vi.spyOn(Intl.DateTimeFormat.prototype, "resolvedOptions").mockImplementation(function (this: Intl.DateTimeFormat) {
+      return { ...resolved.call(this), timeZone: "Europe/Paris" };
+    });
     let definitions: typeof definition[] = [];
     const slot = renderSlot(app.settingsSections[0]!, {}, { rpc: {
       overview: () => ({ definitions, connections: [{ id: "gmail", name: "Gmail", status: "signed-in" }], organizerReady: true, actionCardsAvailable: false }),
@@ -249,6 +253,7 @@ describe("Digests app", () => {
       },
     } });
     fireEvent.click(await slot.findByRole("button", { name: "+ Add brief" }));
+    expect(slot.getByText("Europe/Paris")).toBeDefined();
     const name = slot.getByLabelText("Name");
     expect(document.activeElement).toBe(name);
     expect(slot.getByLabelText("Emoji")).toBeDefined();
@@ -257,7 +262,7 @@ describe("Digests app", () => {
     fireEvent.change(slot.getByLabelText("What should it tell you?"), { target: { value: "Only messages that need a reply." } });
     fireEvent.click(slot.getByRole("button", { name: "Create brief" }));
     expect(await slot.findByText("Run now to preview")).toBeDefined();
-    expect(slot.inspection.rpcCalls).toContainEqual({ method: "saveDigest", input: { name: "My inbox", emoji: "📰", instructions: "Only messages that need a reply.", connectionId: "gmail", afterReading: "keep-unread", schedule: { cron: "0 10 * * 1-5", timezone: "America/Los_Angeles" } } });
+    expect(slot.inspection.rpcCalls).toContainEqual({ method: "saveDigest", input: { name: "My inbox", emoji: "📰", instructions: "Only messages that need a reply.", connectionId: "gmail", afterReading: "keep-unread", schedule: { cron: "0 10 * * 1-5", timezone: "Europe/Paris" } } });
     expect(slot.getByText("Only messages that need a reply.").className).toContain("digest-prompt-preview");
     expect(slot.getByRole("heading", { name: "My inbox" }).textContent).toBe("My inbox");
     fireEvent.click(slot.getByRole("button", { name: "Edit My inbox" }));
@@ -270,10 +275,29 @@ describe("Digests app", () => {
     expect(slot.inspection.rpcCalls.filter((call) => call.method === "saveDigest").at(-1)?.input).toMatchObject({ id: "digest-new", name: "Replies", emoji: "📮", afterReading: "mark-read" });
   });
 
+  it("keeps a saved timezone and prompt when editing on a computer in another timezone", async () => {
+    const resolved = Intl.DateTimeFormat.prototype.resolvedOptions;
+    vi.spyOn(Intl.DateTimeFormat.prototype, "resolvedOptions").mockImplementation(function (this: Intl.DateTimeFormat) {
+      return { ...resolved.call(this), timeZone: "Asia/Tokyo" };
+    });
+    const app = await loadPluginApp(() => import("./app.js"));
+    const slot = renderSlot(app.settingsSections[0]!, {}, { rpc: {
+      overview: () => ({ definitions: [definition], connections: [{ id: "gmail", name: "Gmail", status: "signed-in" }], organizerReady: true, actionCardsAvailable: false }),
+      saveDigest: (input) => ({ ...definition, ...input as object }),
+    } });
+    fireEvent.click(await slot.findByRole("button", { name: "Edit Reading" }));
+    expect(slot.getByText("PT")).toBeDefined();
+    fireEvent.change(slot.getByLabelText("Name"), { target: { value: "Saved reading" } });
+    fireEvent.click(slot.getByRole("button", { name: "Save changes" }));
+    await waitFor(() => expect(slot.inspection.rpcCalls.filter((call) => call.method === "saveDigest").at(-1)?.input).toMatchObject({
+      id: definition.id, instructions: definition.instructions, schedule: definition.schedule,
+    }));
+  });
+
   it("shows source rows and a collapsed tail without performing account actions", async () => {
     const app = await loadPluginApp(() => import("./app.js"));
     const slot = renderSlot(app.messageDirectives[0]!, directiveProps, { rpc: { getIssue: () => ({ ...readyIssue, brief: {
-      heading: "Needs you", items: [{ title: "Reply to Ada", text: "Coffee Thursday at 3pm.", urgency: "today", action: { label: "Review reply", url: "https://example.test/reply" } }],
+      heading: "Needs you", items: [{ title: "Reply to Example Sender", text: "Coffee Thursday at 3pm.", urgency: "today", action: { label: "Review reply", url: "https://example.test/reply" } }],
       later: [], laterLabel: "Later", tail: { label: "12 routine emails", details: "Receipts and newsletters." },
     } }) } });
     const action = await slot.findByRole("button", { name: "Review reply" });
@@ -284,6 +308,31 @@ describe("Digests app", () => {
     expect(slot.inspection.navigateCalls).toContainEqual({ method: "openUrl", url: "https://example.test/reply" });
   });
 
+  it("keeps a card's title, long context, deadline and both source actions", async () => {
+    const app = await loadPluginApp(() => import("./app.js"));
+    const slot = renderSlot(app.messageDirectives[0]!, directiveProps, { rpc: { getIssue: () => ({ ...readyIssue, brief: {
+      heading: "Needs you", items: [{
+        title: "Confirm Room B for the workshop", text: "The previous reply suggested Room A, which is unavailable.",
+        context: "The workshop team requests confirmation of Room B.", deadline: "Due Tuesday at 15:00",
+        secondaryAction: { label: "View workshop details", url: "https://example.test/workshop" },
+        action: { label: "Review room request", url: "https://example.test/room" },
+      }], later: [], laterLabel: "Later",
+    } }) } });
+    const title = await slot.findByRole("heading", { name: "Confirm Room B for the workshop" });
+    const card = title.closest("li")!;
+    expect(card.contains(slot.getByText("The workshop team requests confirmation of Room B."))).toBe(true);
+    expect(card.contains(slot.getByText("Due Tuesday at 15:00"))).toBe(true);
+    for (const label of ["View workshop details", "Review room request"]) {
+      const action = slot.getByRole("button", { name: label });
+      expect(card.contains(action)).toBe(true);
+      fireEvent.click(action);
+    }
+    expect(slot.inspection.navigateCalls).toEqual([
+      { method: "openUrl", url: "https://example.test/workshop" },
+      { method: "openUrl", url: "https://example.test/room" },
+    ]);
+  });
+
   it("opens one email section at a time from counts and preserves source links", async () => {
     const app = await loadPluginApp(() => import("./app.js"));
     const slot = renderSlot(app.messageDirectives[0]!, directiveProps, { rpc: { getIssue: () => ({ ...readyIssue, brief: {
@@ -291,17 +340,17 @@ describe("Digests app", () => {
       heading: "Needs you", items: [], later: [], laterLabel: "Later",
       all: { label: "All unread (4)", items: [{ title: "Meeting", text: "Confirm Thursday.", url: "https://example.test/meeting" }] },
       tail: { label: "Routine (2)", details: "Old Markdown fallback.", items: [
-        { title: "Amex · Autopay processed", text: "Payment complete.", url: "https://example.test/amex" },
+        { title: "Example Bank · Autopay processed", text: "Payment complete.", url: "https://example.test/bank" },
         { title: "Newsletter · This week", text: "Product news.", url: "https://example.test/news" },
       ] },
     } }) } });
     fireEvent.click(await slot.findByRole("link", { name: "2 need nothing from you" }));
     expect(slot.container.querySelector<HTMLDetailsElement>("details[id$='-tail']")?.open).toBe(true);
     expect(document.activeElement).toBe(slot.container.querySelector("details[id$='-tail'] > summary"));
-    fireEvent.click(slot.getByRole("link", { name: /Amex · Autopay processed/ }));
+    fireEvent.click(slot.getByRole("link", { name: /Example Bank · Autopay processed/ }));
     fireEvent.click(slot.getByRole("link", { name: "4 unread emails" }));
     expect(slot.inspection.navigateCalls).toEqual([
-      { method: "openUrl", url: "https://example.test/amex" },
+      { method: "openUrl", url: "https://example.test/bank" },
     ]);
     expect(slot.getByText("All unread").closest("details")?.open).toBe(true);
     expect(slot.container.querySelector<HTMLDetailsElement>("details[id$='-tail']")?.open).toBe(false);
@@ -311,13 +360,13 @@ describe("Digests app", () => {
 
   it("keeps repeat senders flat and preserves every source link and semantic accent", async () => {
     const app = await loadPluginApp(() => import("./app.js"));
-    const rows = ["Robinhood", "Figma", "robinhood", "Robinhood", "Figma"].map((sender, index) => ({
-      title: `${sender} · Notice ${index}`, text: index === 2 ? "September statement is ready." : `Detail ${index}`, url: `https://example.test/mail/${index}`,
+    const rows = ["Example Finance", "Example Design", "example finance", "Example Finance", "Example Design"].map((sender, index) => ({
+      title: `${sender} · Notice ${index}`, text: index === 2 ? "September statement is ready." : index === 3 ? "Investment account update." : `Detail ${index}`, url: `https://example.test/mail/${index}`,
       ...(index === 0 ? { kind: "receipt", receivedAt: 1791043200000 } : {}),
     }));
     const slot = renderSlot(app.messageDirectives[0]!, directiveProps, { rpc: { getIssue: () => ({ ...readyIssue, brief: {
       heading: "Needs you", items: [
-        { title: "Reply to Ada", text: "Confirm Thursday.", action: { label: "Review reply", url: "https://example.test/reply" } },
+        { title: "Reply to Example Sender", text: "Confirm Thursday.", action: { label: "Review reply", url: "https://example.test/reply" } },
         { title: "Check a new sign-in", tone: "danger", text: "An unfamiliar device.", action: { label: "Review alert", url: "https://example.test/alert" } },
       ], later: [], laterLabel: "Later", tail: { label: "Routine (5)", details: "", items: rows },
     } }) } });
