@@ -627,7 +627,7 @@ export default function plugin(bb: BbPluginApi): void {
             size: { type: "string", required: true, description: "Clip shape: square, landscape or portrait" },
             "duration-bucket": { type: "string", required: true, description: "under_15s, 15_30s, 30_60s or over_60s" },
           },
-          async handler({ options }) {
+          async run({ options }) {
             const properties = clipExportPropertiesSchema.parse({
               kind: options.kind, format: options.format, size: options.size,
               duration_bucket: options["duration-bucket"],
