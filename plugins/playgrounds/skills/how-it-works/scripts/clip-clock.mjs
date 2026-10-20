@@ -6,7 +6,6 @@ export const FRAME_MS = 1000 / 30;
 export async function clipClock(send, onceEvent) {
   const paused = await send("Emulation.setVirtualTimePolicy", { policy: "pause" });
   const base = paused.result.virtualTimeTicksBase;
-  await send("HeadlessExperimental.beginFrame", { frameTimeTicks: base });
   let elapsed = 0;
   return {
     async advanceTo(ms) {

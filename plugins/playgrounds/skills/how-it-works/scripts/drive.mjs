@@ -96,7 +96,7 @@ async function main() {
     process.exit(1);
   }
   const profile = mkdtempSync(join(options.profileRoot ?? tmpdir(), "iso-drive-"));
-  const chrome = spawn(binary, ["--headless=new", ...(options.clip ? ["--force-webrtc-ip-handling-policy=disable_non_proxied_udp", "--enable-begin-frame-control", "--run-all-compositor-stages-before-draw", "--disable-new-content-rendering-timeout"] : []), "--remote-debugging-port=0", `--user-data-dir=${profile}`, "--no-first-run", "--no-default-browser-check", "--hide-scrollbars", "--allow-file-access-from-files", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist", "about:blank"]);
+  const chrome = spawn(binary, ["--headless=new", ...(options.clip ? ["--force-webrtc-ip-handling-policy=disable_non_proxied_udp", "--enable-begin-frame-control", "--run-all-compositor-stages-before-draw", "--disable-new-content-rendering-timeout", "--disable-gpu"] : []), "--remote-debugging-port=0", `--user-data-dir=${profile}`, "--no-first-run", "--no-default-browser-check", "--hide-scrollbars", "--allow-file-access-from-files", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist", "about:blank"]);
   const stopChrome = () => { chrome.kill("SIGKILL"); try { rmSync(profile, { recursive: true, force: true }); } catch {} };
   process.once("SIGINT", () => { stopChrome(); process.exit(130); });
   process.once("SIGTERM", () => { stopChrome(); process.exit(143); });
