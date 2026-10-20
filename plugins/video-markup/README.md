@@ -2,7 +2,7 @@
 
 Review product films without leaving bb. Open a video, mark a paused frame, and hand precise feedback to the agent alongside the captured still. The Video Markup thread panel keeps each demo's versions and unresolved notes together.
 
-![The Video Markup panel with a marked frame, an open frame note, and selected notes in the prompt box](docs/screenshot.png)
+![The Video Markup panel paused on a sample tasks clip, with a box around the edited title and the note "Keep the title visible while editing" selected](docs/screenshot.png)
 
 ## Install
 
@@ -23,6 +23,10 @@ Composer attachments are temporary host files: pass `attachment: true` / `--atta
 Pause and choose **Note** in the Notes section. In the note editor, pick **Box**, **Arrow**, or **Zoom region** to draw on the frame, then type the note. Each note keeps its timestamp, captured still, and drawn shapes. ←/→ step one frame; space plays or pauses while the player is focused. Frame stepping uses packet timestamps, including variable frame rates; the probed or supplied FPS provides a constant-rate fallback if timestamp indexing is unavailable. Zoom regions mark desired focus; they do not alter the rendered film.
 
 Select open notes and choose **Add to prompt**. A composer mention resolves to structured version/time/region feedback plus captured JPEG stills when sent. This preserves the existing draft and leaves sending to the user. Up to 12 notes fit one selection. Notes persist in plugin SQLite storage and sync across clients. Status can be **open**, **fixed**, **still wrong**, or **regressed**. When a new version is registered, every unresolved note in the demo carries forward, including notes left on older versions, from the most recent copy of each note; copied notes preserve their original frame and version provenance.
+
+![Version 2 of the sample tasks clip with the note carried forward and its captured frame from the earlier version](docs/revision-review.png)
+
+![The carried note added to the prompt box as a sample-tasks-v2.mp4 mention, not yet sent](docs/prompt-handoff.png)
 
 Agents post a player using the returned directive, on its own line:
 
