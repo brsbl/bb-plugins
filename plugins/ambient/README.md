@@ -37,11 +37,11 @@ Built-in scenes: **Tide**, **Fireflies**, **Contour**, **Atomic Comics**, **Popp
 
 ## Troubleshooting
 
-- **No background** → Run `bb ambient on`, then raise **Visibility** under **Ambient → Display** if the scene is too faint.
-- **The scene stopped moving** → Bring bb into focus and check that **Motion** is above zero. Ambient also respects your system's reduced-motion setting, which keeps the scene still except for ripples.
-- **An agent can't capture or verify a scene** → Keep bb open in the foreground with Ambient enabled, then retry. Shader edits that aren't verified in time restore the previous scene.
-- **The scene looks soft or feels slow** → Ambient lowers detail automatically when frames run late. Lower **Detail** under **Display** to use less GPU; this setting applies only to this device and isn't set through the CLI.
-- **Ambient reports a GPU reset or stall** → Pick a different built-in scene in the panel's scene dropdown. Ambient blocks the troublesome shader for the session until you pick another scene; reloading alone won't clear it.
+- **No background** → Run `bb ambient on`, then raise **Visibility** under **Ambient → Display** if needed.
+- **The scene stopped moving** → Focus bb and check that **Motion** under **Display** is above zero. System reduced-motion settings pause animation except for ripples.
+- **An agent can't capture or verify a scene** → Keep bb in the foreground with Ambient enabled, then retry. New shaders roll back if no window confirms compilation within six seconds.
+- **The scene looks soft or feels slow** → Ambient automatically lowers render resolution when frames run late. Lower **Detail** under **Display** for less GPU use and a softer image; it is saved per device and has no CLI setting.
+- **Ambient reports a GPU reset or stall** → Pick a different built-in scene in the panel's scene dropdown to clear the block. Reloading alone won't clear it.
 
 ## Develop
 
