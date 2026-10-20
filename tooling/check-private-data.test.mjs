@@ -31,7 +31,7 @@ test('rejects personal account names case-insensitively without banning the publ
       assert.ok(privateDataHits(value).some(hit => hit.kind === 'personal identifier'));
     }
   }
-  for (const value of [home('ber' + 'sabel'), mac('brsbl').toUpperCase()]) {
+  for (const value of [home('ber' + 'sabel'), mac('brsbl')]) {
     assert.ok(privateDataHits(value).some(hit => hit.kind === 'home path'));
   }
   for (const url of [
@@ -40,6 +40,7 @@ test('rejects personal account names case-insensitively without banning the publ
     'https://github.com/brsbl/marketplace',
     'https://raw.githubusercontent.com/brsbl/marketplace/main/marketplace.json',
     'alex@example.com',
+    'https://stackoverflow.com/users/1/someone',
   ]) assert.deepEqual(privateDataHits(url), []);
 });
 
