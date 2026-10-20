@@ -16,7 +16,7 @@ bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/delegation 
 
 ### Channels
 
-Open **Agent Channels** from a thread's header or its right-panel launcher. Each agent the thread talks with gets a channel tab: its reports, its lead, and any peer lead that messaged it. Each channel reads like a thread timeline between the two agents: this thread's messages sit where yours do in a normal thread, and the other agent's messages and results are its replies. A grey dot marks new activity, and an orange dot marks an agent waiting on you.
+Open **Agent Channels** from a thread's header or its right-panel launcher. Each agent the thread talks with gets a channel tab: the threads under it, its lead, and any peer lead that messaged it. Each channel reads like a thread timeline between the two agents: this thread's messages sit where yours do in a normal thread, and the other agent's messages and results are its replies. A grey dot marks new activity, and an orange dot marks an agent waiting on you.
 
 Agent Channels only reads what bb already stores. Sent messages come from the receiving thread's timeline, with their persisted delivery state (queued, not delivered, or steered). A channel re-reads a thread only when bb shows new activity on it, and scrolling to the top reads older history. Agent messages still appear in the main timeline as bb shows them today.
 
@@ -24,7 +24,7 @@ The plugin ID, the `bb delegation` CLI, the skill names, and the settings keys k
 
 ### Skills
 
-Ask a thread to "launch an agent for this and parent it". The lead starts a worker, the worker does the job and replies once, and the lead passes on only what you need. Each job has one skill:
+Ask a thread to "launch an agent for this under you". The lead starts a worker, the worker does the job and replies once, and the lead passes on only what you need. Each job has one skill:
 
 | Skill | Owns |
 | --- | --- |
@@ -45,19 +45,19 @@ Agent Channels keeps no rules of its own. Each setting resolves in this order:
 2. **Your override**, from Settings → Agent Channels or `bb delegation set`. It applies only where your instructions are silent.
 3. **A fallback** that defers to bb or the spawn skill.
 
-Settings → Agent Channels is one table: a row each for Lead, Parent, Worker, and QA, with when a lead creates that role and its provider, model, and reasoning. Values your instructions set are locked, with the source on hover; an override they outrank is flagged so you can remove it. Every other setting below is read and set with `bb delegation`. Agents read the effective values with `bb delegation settings --json`. Ask any thread to "refresh the delegation defaults" after you change your instructions.
+Settings → Agent Channels is one table: a row each for Org lead, Lead, Worker, and QA, with when a lead creates that role and its provider, model, and reasoning. Values your instructions set are locked, with the source on hover; an override they outrank is flagged so you can remove it. Every other setting below is read and set with `bb delegation`. Agents read the effective values with `bb delegation settings --json`. Ask any thread to "refresh the delegation defaults" after you change your instructions.
 
 | Setting | Fallback | What it controls |
 | --- | --- | --- |
-| `provider`, `model`, `reasoningLevel` | blank | Provider, model, and reasoning level for leaf workers (no reports of their own); blank lets spawn's normal tier decide. Changing the provider clears the model. |
+| `provider`, `model`, `reasoningLevel` | blank | Provider, model, and reasoning level for leaf workers (no threads under them); blank lets spawn's normal tier decide. Changing the provider clears the model. |
 | `leadProvider`, `leadModel`, `leadReasoningLevel` | blank | The tier for org leads; blank uses the leaf values. |
-| `parentProvider`, `parentModel`, `parentReasoningLevel` | blank | The tier for threads that have reports; blank uses the leaf values. The delegate skill always passes the resolved provider, model, and reasoning explicitly. |
+| `parentProvider`, `parentModel`, `parentReasoningLevel` | blank | The tier for leads with threads under them; blank uses the leaf values. The delegate skill always passes the resolved provider, model, and reasoning explicitly. |
 | `avoidModels` | blank | Model IDs no worker should run, comma-separated. |
 | `qaProvider`, `qaModel`, `qaReasoningLevel` | blank | The same for QA and smoke-test threads; blank uses the worker values, and `cheapest` picks the cheapest model the provider lists. |
 | `machine` | blank | Machine for new workers; blank uses the lead's machine unless spawn's capacity check moves the job. |
 | `environment` | blank | `worktree`, `personal`, `lead` to share the lead's environment, or blank for spawn's choice. |
 | `section` | blank | Sidebar section for new workers; blank uses the lead's section. |
-| `parentWorkers` | on | Parents workers to the lead so bb tells it when they finish, fail, or need input. |
+| `parentWorkers` | on | Places workers under their lead so bb tells it when they finish, fail, or need input. |
 | `workerReportLines` | `3` | Most lines in a worker's final reply (1–20). |
 | `reportMaxBullets` | `5` | Most bullets in a report to you (1–20). |
 | `reportStyle` | `bullets` | `bullets` for an outcome line and bullets, or `prose` for one short paragraph. |
@@ -65,7 +65,7 @@ Settings → Agent Channels is one table: a row each for Lead, Parent, Worker, a
 | `evidenceInline` | on | Shows screenshots and videos in the report instead of describing them. |
 | `relayBatching` | `batch` | `batch` sends each thread one combined message; `each` sends requests as they come. |
 | `retryLimit` | `2` | Retries of a worker's failed turn, such as a provider 429, before it's reported as blocked (0–10). |
-| `mayArchiveOrStop` | off | On: a lead stops and archives bounded workers it started once their work is handed back; standing reports are never archived. Off: only when you ask. |
+| `mayArchiveOrStop` | off | On: a lead stops and archives bounded workers it started once their work is handed back; threads with standing roles are never archived. Off: only when you ask. |
 | `spawnPolicy` | `ask` | When a lead may spawn without asking: `ask` (never), `followthrough` (QA, review, CI repair, and checks on approved work), `approved` (anything inside approved scope), or `free`. Anything else becomes a proposal card. |
 | `reportTo` | `lead` | Whether workers report, and raise decisions, to their lead or to you directly. |
 

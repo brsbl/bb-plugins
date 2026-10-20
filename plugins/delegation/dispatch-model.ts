@@ -14,7 +14,7 @@ export interface TimelineConversationRow {
     kind: string;
     threadId?: string;
     threadName?: string;
-    /** For "thread-batch": one outcome per report that finished in the same notice. */
+    /** For "thread-batch": one outcome per thread that finished in the same notice. */
     outcomes?: readonly { threadId: string; status: string }[];
   } | null;
   turnRequest?: { kind?: string; status?: string } | null;
@@ -91,7 +91,7 @@ export function incoming(rows: readonly unknown[]): Map<string, ChannelMessage[]
     if (row.initiator === "agent" && row.senderThreadId) {
       add(row.senderThreadId, { id: row.id, dir: "in", at: row.createdAt, text: messageBody(row.text) });
     } else if (row.initiator === "system" && row.systemMessageKind === "child-outcome-batch") {
-      // bb batches reports that finish together; the notice carries outcomes but no report text.
+      // bb batches threads that finish together; the notice carries outcomes but no report text.
       for (const outcome of row.systemMessageSubject?.outcomes ?? []) {
         const dir: ChannelDirection = outcome.status === "failed" ? "failed" : outcome.status === "interrupted" ? "interrupted" : "finished";
         add(outcome.threadId, { id: `${row.id}:${outcome.threadId}`, dir, at: row.createdAt, text: "" });
@@ -109,7 +109,7 @@ export function incoming(rows: readonly unknown[]): Map<string, ChannelMessage[]
 
 /**
  * What this thread sent to a counterpart: rows in the counterpart's timeline sent by this thread.
- * For a report this thread started, its first prompt opens the channel as a "brief"; bb records a
+ * For a worker this thread started, its first prompt opens the channel as a "brief"; bb records a
  * spawn prompt without a sender, so it's labelled as the prompt the thread started with, not a message.
  */
 export function outgoing(counterpartRows: readonly unknown[], selfId: string, opts: { isReport?: boolean; historyComplete?: boolean } = {}): ChannelMessage[] {
@@ -138,7 +138,7 @@ export function outgoing(counterpartRows: readonly unknown[], selfId: string, op
 export interface ChannelInputs {
   selfId: string;
   parentId: string | null;
-  /** This thread's reports, in sidebar order. */
+  /** Threads under this lead, in sidebar order. */
   childIds: readonly string[];
   titles: ReadonlyMap<string, string>;
   /** Threads currently waiting on a pending interaction. */
@@ -153,7 +153,7 @@ export interface ChannelInputs {
   completeHistory?: ReadonlySet<string>;
 }
 
-/** Peers worth a channel: anyone who wrote to this thread, plus its parent and reports. */
+/** Peers worth a channel: anyone who wrote to this thread, plus its lead and the threads under it. */
 export function counterpartIds(inputs: Pick<ChannelInputs, "selfId" | "parentId" | "childIds" | "selfRows">): string[] {
   const ids = new Set<string>();
   if (inputs.parentId) ids.add(inputs.parentId);
@@ -163,7 +163,7 @@ export function counterpartIds(inputs: Pick<ChannelInputs, "selfId" | "parentId"
   return [...ids];
 }
 
-/** A result notice without text takes the report's own last reply before it. */
+/** A result notice without text takes the worker's own last reply before it. */
 function fillResultText(message: ChannelMessage, counterpartRows: readonly unknown[]): ChannelMessage {
   if (message.text || message.dir === "in" || message.dir === "out" || message.dir === "brief") return message;
   const reply = counterpartRows
@@ -188,7 +188,7 @@ export function buildChannels(inputs: ChannelInputs): Channel[] {
     const latestAt = messages.at(-1)?.at ?? 0;
     const latestInbound = [...messages].reverse().find((message) => message.dir !== "out" && message.dir !== "brief");
     const lastNeedsYou = [...messages].reverse().find((message) => message.dir === "needs-you");
-    // bb's pending interaction is the live answer; a reply in the report's own thread clears it there.
+    // bb's pending interaction is the live answer; a reply in the worker's own thread clears it there.
     const noticeIsLatest = lastNeedsYou !== undefined && messages.at(-1) === lastNeedsYou;
     const needsYou = inputs.pending.has(counterpartId) || (!inputs.pendingKnown && noticeIsLatest);
     return {

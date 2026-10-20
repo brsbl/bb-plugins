@@ -10,7 +10,7 @@ import { z } from "zod";
 const count = (min: number, max: number) => z.number().int().min(min).max(max);
 
 export const settingsSchema = z.object({
-  /** Leaf workers: no reports of their own. */
+  /** Leaf workers: no threads under them. */
   provider: z.string(),
   model: z.string(),
   reasoningLevel: z.string(),
@@ -18,7 +18,7 @@ export const settingsSchema = z.object({
   leadProvider: z.string(),
   leadModel: z.string(),
   leadReasoningLevel: z.string(),
-  /** Threads with reports that aren't org leads. */
+  /** Leads with threads under them that aren't org leads. */
   parentProvider: z.string(),
   parentModel: z.string(),
   parentReasoningLevel: z.string(),
