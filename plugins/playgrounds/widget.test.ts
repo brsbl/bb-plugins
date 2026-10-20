@@ -426,7 +426,7 @@ it("does not apply a standalone frame's queued save messages as remote state", a
 it("still applies shared state sent by an embedded card's parent", () => {
   const { dom } = frame('<button data-pg="toggle" data-param="enabled"></button><output></output><script>' +
     'const P=playground.params;P.get("enabled");P.on(()=>document.querySelector("output").textContent=String(P.get("enabled")));</script>');
-  const host = new JSDOM();
+  const host = new JSDOM("");
   Object.defineProperty(dom.window, "parent", { value: host.window });
   dom.window.dispatchEvent(new dom.window.MessageEvent("message", {
     source: host.window, data: { source: WIDGET_MESSAGE_SOURCE, type: "state", state: { params: { enabled: true } }, version: 1 },

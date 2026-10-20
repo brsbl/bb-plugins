@@ -7,6 +7,21 @@ import {join} from 'node:path';
 import {chromePath} from '../../skills/how-it-works/scripts/clip-browser.mjs';
 import {hasInk} from './pixels.mjs';
 
+// Runs in the parent page, including before a lazy iframe has loaded.
+export function discoverCard(loaded, identities) {
+  const frame=document.querySelector('.pg-host .pg-widget iframe');
+  const card=frame||document.querySelector('.pg-host .pg-answer:not([role="status"]):not(.pg-error)');
+  if(!card)return null;
+  if(frame&&!loaded.has(frame)){card.scrollIntoView({block:'center'});return null;}
+  const r=card.getBoundingClientRect();
+  if(r.width<=80||r.height<=40||getComputedStyle(card).visibility==='hidden')return null;
+  if(!identities.elements.has(card))identities.elements.set(card,{key:String(++identities.next),at:loaded.get(card)||Date.now()});
+  const identity=identities.elements.get(card);
+  if(card.dataset.launchCard!=='candidate')card.dataset.launchCard='candidate';
+  if(card.dataset.launchKey!==identity.key)card.dataset.launchKey=identity.key;
+  return {...identity,kind:frame?'html':'document',target:frame?.src||location.href};
+}
+
 // Executed in the parent page. Only measurement state and scrolling are changed.
 function candidateBounds(prepare) {
   const state=window.__launch;

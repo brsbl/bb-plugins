@@ -5,7 +5,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { checkControls } from './controls.mjs';
 import { hasInk } from './pixels.mjs';
-import { captureVisible } from './visibility-capture.mjs';
+import { captureVisible, discoverCard } from './visibility-capture.mjs';
 import { visibilityFixtures } from './visibility-fixtures.mjs';
 import { failureScore, providerSummary, resumeMismatch } from './metrics.mjs';
 import { renderWindow } from './observations.mjs';
@@ -85,9 +85,9 @@ function questionEvidence(timeline, interactions) {
   return { structured, textQuestions, count: structured.length + textQuestions.filter(q => q.likely).length,
     needsReview: textQuestions.some(q => !q.likely) };
 }
-function monitor(threadId, capAt, renderWindow) {
+function monitor(threadId, capAt, renderWindow, discoverCard) {
   if (window.top !== window) return;
-  const loaded = new WeakMap(), identities = new WeakMap(); let nextIdentity = 0;
+  const loaded = new WeakMap(), identities = {elements:new WeakMap(),next:0};
   window.__launch = { proof: null, candidate: null, progress: [], errors: [], done: false, agentCompletedAt: null, terminalObservedAt: null, completionSource: null };
   document.addEventListener('load', event => { if (event.target?.tagName === 'IFRAME' && event.target.src) loaded.set(event.target, Date.now()); }, true);
   setInterval(() => {
@@ -95,16 +95,7 @@ function monitor(threadId, capAt, renderWindow) {
     const windowState = renderWindow({now:Date.now(),capAt,agentCompletedAt:state.agentCompletedAt,visibleAt:state.proof?.at ?? null});
     state.done = windowState.done;
     if (state.done) return;
-    const frame = document.querySelector('.pg-host .pg-widget iframe');
-    const card = frame || document.querySelector('.pg-host .pg-answer:not([role="status"]):not(.pg-error)');
-    if (!card || (frame && !loaded.has(frame))) { state.candidate = null; return; }
-    const r = card.getBoundingClientRect();
-    if (r.width <= 80 || r.height <= 40 || getComputedStyle(card).visibility === 'hidden') { state.candidate = null; return; }
-    if (!identities.has(card)) identities.set(card, { key: String(++nextIdentity), at: loaded.get(card) || Date.now() });
-    const identity = identities.get(card);
-    if (card.dataset.launchCard !== 'candidate') card.dataset.launchCard = 'candidate';
-    if (card.dataset.launchKey !== identity.key) card.dataset.launchKey = identity.key;
-    state.candidate = { ...identity, kind: frame ? 'html' : 'document', target: frame?.src || location.href };
+    state.candidate = discoverCard(loaded, identities);
   }, 150);
   const flatten = rows => rows.flatMap(row => [row, ...flatten(row.children || row.childRows || [])]);
   const normalize = text => text.replace(/[*_`#\[\]]/g, '').replace(/\s+/g, ' ').trim();
@@ -269,7 +260,7 @@ for (const provider of providers) for (const prompt of selected) {
     }
     if (interrupted) throw new Error('Runner interrupted');
     const preload = join(dir,'monitor.js');
-    writeFileSync(preload, `(${monitor.toString()})(${JSON.stringify(thread.id)},${result.sentAt+capMs},${renderWindow.toString()});`);
+    writeFileSync(preload, `(${monitor.toString()})(${JSON.stringify(thread.id)},${result.sentAt+capMs},${renderWindow.toString()},${discoverCard.toString()});`);
     const visible = await captureVisible({target:new URL(`/threads/${thread.id}`,base).href,
       preload,dir,tempRoot:chromeTempDir,capAt:result.sentAt+capMs,width:prompt.width || 1280});
     const measurement = visible.measurement;
