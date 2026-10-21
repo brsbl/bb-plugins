@@ -216,7 +216,7 @@ function createHarness(
   );
   const spawnThread = vi.fn(async () =>
     makeThreadResponse({
-      id: "thr_unexpected_worker",
+      id: "thr_example003_worker",
       projectId: getTestThread().projectId,
       environmentId: getTestThread().environmentId,
       visibility: "hidden",

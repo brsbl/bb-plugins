@@ -5,7 +5,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import { createFakePluginHost } from "@get-bb/plugin-sdk/testing";
 import plugin from "./server.js";
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
-import type { Item } from "./model.js";
+import { title, type Item } from "./model.js";
 const submittedMessages: string[] = [];
 const submittedMentions: { provider: string; id: string; label: string }[] = [];
 function recordSend(request: Parameters<BbPluginApi["sdk"]["threads"]["send"]>[0]) {
@@ -104,12 +104,127 @@ it("shows the brief in Waiting on you without naming the thread, and keeps the D
   expect(slot.inspection.navigateCalls).toContainEqual(expect.objectContaining({ method: "toPluginPanel" }));
 });
 
-it("shows a waiting card's brief in the Decision log before Review is opened", async () => {
+it("shows the original context on one line, never altered, with more only when some of it is hidden", async () => {
+  const literal = "Keep `dry_run` enabled when revenue > cost.";
+  const item = { ...fixture(), id: "merge-1", content: { type: "decide", question: "Merge the Inbox fix?", consequence: "Release it.", context: literal }, threadTitle: "Ops", threadProjectId: null } as const;
+  const app = await loadPluginApp(() => import("./app.js"));
+  renderSlot(app.composerCustomizations[0]!.banners![0]!, {}, { ...inThread, rpc: { waiting: () => [item], get: () => item } });
+  await openItem(/^Answer: /);
+  const line = document.querySelector<HTMLElement>(".ac-context-summary")!;
+  // Identifiers and comparisons survive; it all fits, so there is nothing to reveal.
+  expect(line.textContent).toContain("dry_run");
+  expect(line.textContent).toContain("revenue > cost");
+  expect(screen.queryByRole("button", { name: "Show all context" })).toBeNull();
+  expect(screen.getAllByRole("radio")).toHaveLength(2);
+});
+
+it.each(["drawer", "log"] as const)("folds a hard line break into the one line in the %s and offers more", async (surface) => {
+  const item = { ...fixture(), id: "break-1", content: { type: "decide", question: "Ship the release?", consequence: "Publish it.", context: "CI passed.  \nRelease window closes Friday." }, threadTitle: "Ops", threadProjectId: null } as const;
+  const app = await loadPluginApp(() => import("./app.js"));
+  if (surface === "drawer") {
+    renderSlot(app.composerCustomizations[0]!.banners![0]!, {}, { ...inThread, rpc: { waiting: () => [item], get: () => item } });
+    await openItem(/^Answer: /);
+  } else renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc: { log: () => ({ waiting: [item], done: [] }) } });
+  fireEvent.click(await screen.findByRole("button", { name: "Show all context" }));
+  expect(document.querySelector(".ac-context-full")?.textContent).toContain("Release window closes Friday.");
+});
+
+it("offers more for a short context whose image the one-line view hides", async () => {
+  const item = { ...fixture(), id: "chart-1", content: { type: "decide", question: "Ship the chart?", consequence: "Publish it.", context: "Before: ![chart](https://example.com/chart.png)" }, threadTitle: "Ops", threadProjectId: null } as const;
+  const app = await loadPluginApp(() => import("./app.js"));
+  renderSlot(app.composerCustomizations[0]!.banners![0]!, {}, { ...inThread, rpc: { waiting: () => [item], get: () => item } });
+  await openItem(/^Answer: /);
+  fireEvent.click(await screen.findByRole("button", { name: "Show all context" }));
+  // The full view renders the original context, image included.
+  expect(document.querySelector(".ac-context-full")?.textContent).toContain("Before:");
+});
+
+// The card reads as one column: on desktop in DOM order, on a phone reordered with CSS order. jsdom has no layout, so apply the stylesheet's phone rules.
+async function phoneOrderRules(): Promise<[string, number][]> {
+  const { readFile } = await import("node:fs/promises");
+  const { existsSync } = await import("node:fs");
+  const local = `${process.cwd()}/app.css`;
+  const css = await readFile(existsSync(local) ? local : `${process.cwd()}/plugins/inline-action-cards/app.css`, "utf8");
+  const start = css.indexOf("@media (max-width: 639px)");
+  const block = css.slice(start, css.indexOf("\n}", start));
+  return [...block.matchAll(/([^{}]+)\{[^}]*order: (\d+)/g)].map((match) => [match[1]!.replace(/\/\*[\s\S]*?\*\//g, "").trim(), Number(match[2])] as [string, number]);
+}
+function visualOrder(card: Element, rules: [string, number][] | null): Element[] {
+  const flatten = (element: Element): Element[] => Array.from(element.children).flatMap((child) => child.matches(".ac-body, .ac-about, .ac-answer") ? flatten(child) : [child]);
+  const items = flatten(card).map((element, index) => ({ element, index, order: rules ? rules.reduce((order, [selector, value]) => element.matches(selector) ? value : order, 0) : 0 }));
+  return items.sort((a, b) => a.order - b.order || a.index - b.index).map((item) => item.element);
+}
+const gridCards = {
+  decide: { ...fixture(), id: "grid-decide", content: { type: "decide", question: "Merge the fix?", consequence: "Squash-merge it.", context: "CI passed.", yesLabel: "Merge", noLabel: "Keep open" } },
+  choice: { ...fixture(), id: "grid-choice", content: { type: "choice", question: "Which plan?", context: "Review takes two days.", options: [{ id: "a", label: "Staged" }, { id: "b", label: "Everyone" }] } },
+  reply: { ...fixture(), id: "grid-reply", content: { ...fixture().content, context: "Billing asked yesterday." } },
+  ask: { ...fixture(), id: "grid-ask", content: { type: "ask", question: "Which channel?", context: "For the weekly report." } },
+  "sheet row": { ...fixture(), id: "grid-row", content: { type: "decide", question: "Archive the newsletter?", consequence: "Archive it.", context: "Part of a two-row sheet.", yesLabel: "Archive", noLabel: "Keep" } },
+} as const;
+it.each(Object.keys(gridCards).flatMap((type) => ["drawer", "log"].flatMap((surface) => ["desktop", "390px"].map((width) => [type, surface, width] as const))))(
+  "orders a %s in the %s at %s: question, context, content, then Submit", async (type, surface, width) => {
+    const item = { ...gridCards[type as keyof typeof gridCards], threadTitle: "Ops", threadProjectId: null } as Item & { threadTitle: string; threadProjectId: null };
+    const app = await loadPluginApp(() => import("./app.js"));
+    if (surface === "drawer") {
+      renderSlot(app.composerCustomizations[0]!.banners![0]!, {}, { ...inThread, rpc: { waiting: () => [item], get: () => item } });
+      await openItem(/^Answer: /);
+    } else {
+      renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc: { log: () => ({ waiting: [item], done: [] }) } });
+      await screen.findByRole("form");
+    }
+    const card = screen.getByRole("form");
+    const order = visualOrder(card, width === "390px" ? await phoneOrderRules() : null);
+    const at = (selector: string) => order.findIndex((element) => element.matches(selector) || !!element.querySelector(selector));
+    const asked = item.content.type === "reply" ? `Reply to ${item.content.to[0]}: ${item.content.subject}` : title(item);
+    const question = screen.getAllByText(asked).find((element) => !element.closest("legend"))!;
+    expect(question.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const content = at(type === "reply" ? "textarea[aria-label=Draft]" : type === "ask" ? "textarea[aria-label='Your answer']" : ".ac-options");
+    const submit = at("button[type=submit]");
+    expect(at(".ac-context-line")).toBeGreaterThanOrEqual(0);
+    expect(at(".ac-context-line")).toBeLessThan(content);
+    // Context sits right under the question; what the answer does comes after it, before the answer.
+    if (item.content.type === "decide") {
+      expect(at(".ac-consequence")).toBeGreaterThan(at(".ac-context-line"));
+      expect(at(".ac-consequence")).toBeLessThan(content);
+    }
+    expect(content).toBeLessThan(submit);
+    if (type === "reply") {
+      expect(at(".iac-recipient-line")).toBeLessThan(submit);
+      expect(at(".ac-options")).toBeLessThan(submit);
+    }
+  });
+
+it("keeps rendered context in the line's muted color and small size", async () => {
+  // jsdom gives import.meta.url an http scheme, so read the stylesheet from the plugin directory the tests run in.
+  const { readFile } = await import("node:fs/promises");
+  const { existsSync } = await import("node:fs");
+  const local = `${process.cwd()}/ui/components.css`;
+  const css = await readFile(existsSync(local) ? local : `${process.cwd()}/plugins/inline-action-cards/ui/components.css`, "utf8");
+  expect(css).toMatch(/\.ac-context-line \* \{ color: inherit; font-size: inherit; line-height: inherit; \}/);
+  expect(css).toMatch(/\.ac-context-line \{[^}]*color: var\(--muted-foreground\)[^}]*font-size: var\(--ac-meta\)/);
+});
+
+it("offers more for clipped context and shows the full original", async () => {
+  const width = vi.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockImplementation(function (this: HTMLElement) { return this.classList.contains("ac-context-summary") ? 900 : 0; });
+  const client = vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockImplementation(function (this: HTMLElement) { return this.classList.contains("ac-context-summary") ? 300 : 0; });
+  try {
+    const item = { ...fixture(), id: "merge-1", content: { type: "decide", question: "Merge the Inbox fix?", consequence: "Release it.", context: "- **What:** the fix.\n- **Checks:** [CI passed](https://example.com/ci)." }, threadTitle: "Ops", threadProjectId: null } as const;
+    const app = await loadPluginApp(() => import("./app.js"));
+    renderSlot(app.composerCustomizations[0]!.banners![0]!, {}, { ...inThread, rpc: { waiting: () => [item], get: () => item } });
+    await openItem(/^Answer: /);
+    fireEvent.click(await screen.findByRole("button", { name: "Show all context" }));
+    expect(document.querySelector(".ac-context-full")?.textContent).toContain("CI passed");
+    fireEvent.click(screen.getByRole("button", { name: "Show less context" }));
+    expect(document.querySelector(".ac-context-full")).toBeNull();
+  } finally { width.mockRestore(); client.mockRestore(); }
+});
+
+it("shows a waiting card's context and its answer form in the Decision log", async () => {
   const item = { ...fixture(), threadTitle: "Workflow Inbox", threadProjectId: null, content: { ...fixture().content, context: "Why now: the planning lead needs your direction." } };
   const app = await loadPluginApp(() => import("./app.js"));
   renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc: { log: () => ({ waiting: [item], done: [] }) } });
   await screen.findByText(/Why now: the planning lead/);
-  expect(screen.getByRole("button", { name: "Review" }).getAttribute("aria-expanded")).toBe("false");
+  expect(screen.getByRole("button", { name: "Submit" })).toBeTruthy();
   expect(screen.getByText("Workflow Inbox")).toBeTruthy();
 });
 
@@ -214,9 +329,8 @@ it("Decision log refresh updates the reviewed draft while preserving unsaved loc
     log: () => ({ waiting: [item], done: [] }),
     save: () => { throw new Error("Offline: keep local changes"); },
   } });
-  await screen.findByRole("button", { name: "Review" });
-  fireEvent.click(screen.getByRole("button", { name: "Review" }));
-  expect((screen.getByRole("textbox", { name: "Draft" }) as HTMLTextAreaElement).value).toBe("Original draft");
+  // A waiting reply is answered in place, so its draft is already in view.
+  expect(((await screen.findByRole("textbox", { name: "Draft" })) as HTMLTextAreaElement).value).toBe("Original draft");
   item = { ...item, revision: 2, content: { ...item.content, draft: "Updated elsewhere" } } as typeof item;
   await slot.behavior.emitRealtime("items", {});
   await waitFor(() => expect((screen.getByRole("textbox", { name: "Draft" }) as HTMLTextAreaElement).value).toBe("Updated elsewhere"));
@@ -226,7 +340,7 @@ it("Decision log refresh updates the reviewed draft while preserving unsaved loc
   expect((screen.getByRole("textbox", { name: "Draft" }) as HTMLTextAreaElement).value).toBe("Unsaved local edit");
 });
 
-it("Decision log keeps failures and Later cards waiting, orders row controls with the primary last, and collapses Done", async () => {
+it("Decision log answers waiting cards in place, keeps failures and Later cards waiting with their controls, and collapses Done", async () => {
   const entry = { threadTitle: "Refund follow-up", threadProjectId: "proj_cards" };
   const attempt = { id: "ea45f71a-c216-4da4-a226-65736f4eccfd", action: "send", claimed: true } as const;
   const failed = { ...fixture(), id: "esc-2", revision: 3, state: "failed", attempt, result: { message: "Reconnect Gmail", retryable: true }, ...entry } as const;
@@ -240,11 +354,13 @@ it("Decision log keeps failures and Later cards waiting, orders row controls wit
   renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc: { log: () => ({ waiting: [{ ...fixture(), ...entry }, failed, later, decision, oddLabel], done }) } });
   const waiting = await screen.findByRole("region", { name: "Waiting on you" });
   const [ready, failure, deferred, decide] = await within(waiting).findAllByRole("article");
-  expect(within(decide!).getAllByRole("button").map((button) => button.getAttribute("aria-label"))).toEqual(["Review", "More actions", "Keep open", "Merge"]);
-  // Labels that collide with Object.prototype keys fall back to the role icon instead of crashing the log.
-  expect(within(waiting).getByRole("button", { name: "Constructor run" })).toBeTruthy();
-  // Icon peers first, then secondary, with the primary always rightmost.
-  expect(within(ready!).getAllByRole("button").map((button) => button.getAttribute("aria-label"))).toEqual(["Review", "More actions", "Comment", "Review and send"]);
+  // Waiting cards are forms: their options, then Dismiss and Submit.
+  expect(within(decide!).getAllByRole("radio").map((radio) => radio.closest("label")?.textContent)).toEqual(["Merge", "Keep open"]);
+  expect(within(decide!).getAllByRole("button").map((button) => button.textContent)).toEqual(["Dismiss", "Submit"]);
+  // Labels that collide with Object.prototype keys render as plain options instead of crashing the log.
+  expect(within(waiting).getByRole("radio", { name: "Constructor run" })).toBeTruthy();
+  expect(within(ready!).getByRole("radio", { name: "Send" })).toBeTruthy();
+  expect(within(ready!).getByRole("textbox", { name: "Draft" })).toBeTruthy();
   expect(within(failure!).getByRole("img", { name: "Failed" })).toBeTruthy();
   expect(within(failure!).getByText(/Reconnect Gmail/)).toBeTruthy();
   expect(within(failure!).getByRole("button", { name: "Review and retry" })).toBeTruthy();
@@ -339,44 +455,151 @@ it("sends an answer without a note as plain approval", async () => {
   expect(submittedMessages[0]).not.toContain(" — ");
 });
 
-it("Decision log offers a choice card Choose, Skip and Review, never Yes or No", async () => {
-  const content = { type: "choice", question: "Which account setup?", recommended: "multi", options: [{ id: "single", label: "One account" }, { id: "multi", label: "Several accounts" }] } as const;
-  const item = { ...fixture(), id: "setup", content, threadTitle: "Accounts", threadProjectId: "proj_cards" } as const;
-  const app = await loadPluginApp(() => import("./app.js"));
-  const slot = renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc: { log: () => ({ waiting: [item], done: [] }) } });
-  const row = await screen.findByRole("article", { name: "Choice: Which account setup?" });
-  expect(within(row).getAllByRole("button").map((button) => button.getAttribute("aria-label"))).toEqual(["Review", "More actions", "Choose"]);
-  fireEvent.click(within(row).getByRole("button", { name: "Review" }));
-  expect(within(row).getByText("Several accounts")).toBeTruthy();
-  fireEvent.click(within(row).getByRole("button", { name: "Choose" }));
-  expect(slot.inspection.navigateCalls).toContainEqual(expect.objectContaining({ method: "toThread" }));
+it("answers a choice in the Decision log: question, context, options, then Submit", async () => {
+  const host = recordingHost(); plugin(host.bb);
+  try {
+    await host.harness.behavior.runCli(["create", "setup", "--thread", "thr_test", "--item", JSON.stringify({ type: "choice", question: "Which account setup?", recommended: "multi", context: "Existing threads keep theirs.", options: [{ id: "single", label: "One account" }, { id: "multi", label: "Several accounts" }] })]);
+    const app = await loadPluginApp(() => import("./app.js"));
+    const rpc = Object.fromEntries(["log", "get", "choose", "dispatch"].map((name) => [name, (input: unknown) => host.harness.behavior.callRpc(name, input)]));
+    const slot = renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc });
+    const row = await screen.findByRole("article", { name: "Choice: Which account setup?" });
+    // Reading order: question, context, options, then Submit.
+    const parts = [within(row).getByText("Which account setup?", { selector: ".iac-log-title" }), within(row).getByText("Existing threads keep theirs."), within(row).getByRole("radio", { name: /One account/ }), within(row).getByRole("button", { name: "Submit" })];
+    for (let index = 1; index < parts.length; index++) expect(parts[index - 1]!.compareDocumentPosition(parts[index]!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(row).getAllByRole("radio").some((radio) => (radio as HTMLInputElement).checked)).toBe(false);
+    fireEvent.click(within(row).getByRole("radio", { name: /Several accounts/ }));
+    fireEvent.click(within(row).getByRole("button", { name: "Submit" }));
+    await waitFor(() => expect(submittedMentions).toHaveLength(1));
+    expect(JSON.parse((await host.harness.behavior.runCli(["get", "setup", "--thread", "thr_test"])).stdout!)).toMatchObject({ state: "pending", attempt: { action: "choose", choice: { id: "multi" } } });
+    expect(slot.inspection.navigateCalls).toEqual([]);
+  } finally { await host.harness.lifecycle.dispose(); }
 });
 
-it("Decision log Send on a collapsed reply opens the email first and sends only once it is visible", async () => {
-  const item = { ...fixture(), content: { ...fixture().content, cc: ["ops@example.com"] }, threadTitle: "Refund follow-up", threadProjectId: "proj_cards" } as const;
+it("dismisses a waiting item from the Decision log with a reason, telling its thread once", async () => {
+  const host = recordingHost(); plugin(host.bb);
+  try {
+    await host.harness.behavior.runCli(["create", "budget", "--thread", "thr_test", "--item", JSON.stringify({ type: "decide", question: "Raise the ads budget?", consequence: "Spend $50 a day.", context: "Brief." })]);
+    const app = await loadPluginApp(() => import("./app.js"));
+    const rpc = Object.fromEntries(["log", "get", "dismiss"].map((name) => [name, (input: unknown) => host.harness.behavior.callRpc(name, input)]));
+    renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc });
+    const row = await screen.findByRole("article", { name: "Decision: Raise the ads budget?" });
+    fireEvent.click(within(row).getByRole("button", { name: "Dismiss" }));
+    const reason = screen.getByRole("textbox", { name: "Reason (optional)" });
+    fireEvent.change(reason, { target: { value: "Paused the campaign" } });
+    fireEvent.keyDown(reason, { key: "Enter" });
+    await waitFor(() => expect(submittedMessages).toEqual(["brsbl dismissed: Raise the ads budget · Paused the campaign"]));
+    const saved = JSON.parse((await host.harness.behavior.runCli(["get", "budget", "--thread", "thr_test"])).stdout!);
+    expect(saved).toMatchObject({ state: "succeeded", attempt: null, result: { message: "Dismissed · Paused the campaign" }, dismissed: { reason: "Paused the campaign" } });
+    const context = JSON.parse((await host.harness.registrations.mentionProviders[0]!.resolve(submittedMentions[0]!.id)).context);
+    expect(context).toMatchObject({ intent: "dismissed", reason: "Paused the campaign" });
+    expect(await screen.findByRole("region", { name: "Done" })).toBeTruthy();
+  } finally { await host.harness.lifecycle.dispose(); }
+});
+
+it("Undo takes a dismissal back before anything is stored or sent", async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  try {
+    const item = { ...fixture(), id: "merge-1", content: { type: "decide", question: "Merge the PR?", consequence: "Squash-merges it." }, threadTitle: "Ops", threadProjectId: null } as const;
+    const calls: unknown[] = [];
+    const app = await loadPluginApp(() => import("./app.js"));
+    renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc: { log: () => ({ waiting: [item], done: [] }), dismiss: (input) => { calls.push(input); return { ...item, state: "succeeded" }; } } });
+    const row = await screen.findByRole("article");
+    fireEvent.click(within(row).getByRole("button", { name: "Dismiss" }));
+    fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(calls).toEqual([]);
+    expect(within(row).getByRole("button", { name: "Dismiss" })).toBeTruthy();
+    // Without Undo it goes through on its own, with no reason.
+    fireEvent.click(within(row).getByRole("button", { name: "Dismiss" }));
+    await vi.advanceTimersByTimeAsync(6_000);
+    expect(calls).toEqual([expect.not.objectContaining({ reason: expect.anything() })]);
+  } finally { vi.useRealTimers(); }
+});
+
+it("removes Undo as soon as a dismissal starts committing", async () => {
+  const item = { ...fixture(), id: "merge-1", content: { type: "decide", question: "Merge the PR?", consequence: "Squash-merges it." }, threadTitle: "Ops", threadProjectId: null } as const;
+  let finish!: () => void;
+  const gate = new Promise<void>((resolve) => { finish = resolve; });
+  const app = await loadPluginApp(() => import("./app.js"));
+  renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc: { log: () => ({ waiting: [item], done: [] }), dismiss: async () => { await gate; return { ...item, revision: 2, state: "succeeded", result: { message: "Dismissed", retryable: false }, dismissed: { at: "2026-10-18T10:00:00.000Z", notice: "sent" } }; } } });
+  const row = await screen.findByRole("article");
+  fireEvent.click(within(row).getByRole("button", { name: "Dismiss" }));
+  expect(within(row).getByRole("button", { name: "Undo" })).toBeTruthy();
+  fireEvent.keyDown(within(row).getByRole("textbox", { name: "Reason (optional)" }), { key: "Enter" });
+  // Committing: Undo can no longer prevent the dismissal or its notice, so it is gone.
+  expect(within(row).queryByRole("button", { name: "Undo" })).toBeNull();
+  expect(within(row).getByText("Dismissing…")).toBeTruthy();
+  finish();
+  await waitFor(() => expect(within(row).queryByText("Dismissing…")).toBeNull());
+});
+
+it("shows a known undelivered dismissal notice and sends it once on retry", async () => {
+  const item = { ...fixture(), id: "merge-1", revision: 2, state: "succeeded", result: { message: "Dismissed", retryable: false }, content: { type: "decide", question: "Merge the PR?", consequence: "Squash-merges it." }, dismissed: { at: "2026-10-18T10:00:00.000Z", notice: "failed", noticeError: "HTTP 409: Thread is archived" }, threadTitle: "Ops", threadProjectId: null } as const;
   const calls: unknown[] = [];
   const app = await loadPluginApp(() => import("./app.js"));
-  renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc: {
-    log: () => ({ waiting: [item], done: [] }),
-    decideFromLog: (input) => { calls.push(input); return { ...item, revision: 2, state: "pending", attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfd", action: "send", claimed: false, sentAt: "2026-10-01T19:09:00Z" } }; },
+  renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc: { log: () => ({ waiting: [], done: [item] }), notifyDismissed: (input) => { calls.push(input); return { ...item, revision: 3, dismissed: { at: item.dismissed.at, notice: "sent" } }; } } });
+  expect(await screen.findByText(/its thread wasn't told/)).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Tell the thread" }));
+  await waitFor(() => expect(screen.queryByText(/its thread wasn't told/)).toBeNull());
+  expect(calls).toEqual([{ id: "merge-1", threadId: "thr_test" }]);
+});
+
+it.each([
+  ["a safe failure", { state: "failed", attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfd", action: "yes", claimed: true }, result: { message: "Head moved; nothing merged", retryable: true } }],
+  ["an answer that never reached the agent", { state: "pending", attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfd", action: "yes", claimed: false } }],
+] as const)("offers Dismiss beside recovery in Waiting on you for %s", async (_, recovery) => {
+  const item = { ...fixture(), id: "merge-1", revision: 3, content: { type: "decide", question: "Merge the PR?", consequence: "Squash-merge it." }, ...recovery, ...source } as Item & typeof source;
+  const calls: unknown[] = [];
+  const app = await loadPluginApp(() => import("./app.js"));
+  renderSlot(app.composerCustomizations[0]!.banners![0]!, {}, { ...inThread, rpc: {
+    waiting: () => calls.length ? [] : [item], get: () => item,
+    dismiss: (input) => { calls.push(input); return { ...item, revision: 4, state: "succeeded", result: { message: "Dismissed", retryable: false }, dismissed: { at: "2026-10-18T10:00:00.000Z", notice: "sent" } }; },
   } });
-  const row = await screen.findByRole("article");
-  expect(within(row).queryByRole("textbox", { name: "Draft" })).toBeNull();
-  const now = vi.spyOn(Date, "now").mockReturnValue(1_000);
-  fireEvent.click(within(row).getByRole("button", { name: "Review and send" }));
-  // The second click of a double-click only finishes opening the email.
-  fireEvent.click(within(row).getByRole("button", { name: "Send" }));
-  expect(calls).toHaveLength(0);
-  expect((within(row).getByRole("textbox", { name: "Draft" }) as HTMLTextAreaElement).value).toBe("Original draft");
-  expect(within(row).getByText(/To billing@example.com · Missing refund/)).toBeTruthy();
-  expect(within(row).getByText("Cc ops@example.com")).toBeTruthy();
-  expect(within(row).getByText(/Your refund is on its way/, { selector: "summary span" })).toBeTruthy();
-  const send = within(row).getByRole("button", { name: "Send" });
-  await waitFor(() => expect(document.activeElement).toBe(send));
-  now.mockReturnValue(2_000);
-  fireEvent.click(send);
-  await waitFor(() => expect(calls).toEqual([expect.objectContaining({ id: "esc-1", action: "send" })]));
-  now.mockRestore();
+  const header = await screen.findByRole("button", { name: /^Waiting on you/ });
+  if (header.getAttribute("aria-expanded") === "false") fireEvent.click(header);
+  fireEvent.click(await screen.findByRole("button", { name: "Dismiss" }));
+  fireEvent.keyDown(screen.getByRole("textbox", { name: "Reason (optional)" }), { key: "Enter" });
+  await waitFor(() => expect(calls).toEqual([expect.objectContaining({ id: "merge-1", revision: 3 })]));
+});
+
+it("locks recovery during a pending dismissal and drops the dismissal if the item changes", async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  try {
+    let item = { ...fixture(), id: "merge-1", revision: 3, state: "failed", attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfd", action: "yes", claimed: true }, result: { message: "Head moved", retryable: true }, content: { type: "decide", question: "Merge the PR?", consequence: "Squash-merge it." }, ...source } as Item & typeof source;
+    const calls: unknown[] = [];
+    const app = await loadPluginApp(() => import("./app.js"));
+    const slot = renderSlot(app.composerCustomizations[0]!.banners![0]!, {}, { ...inThread, rpc: {
+      waiting: () => [item], get: () => item,
+      dismiss: (input) => { calls.push(input); return { ...item, state: "succeeded" }; },
+    } });
+    const header = await screen.findByRole("button", { name: /^Waiting on you/ });
+    if (header.getAttribute("aria-expanded") === "false") fireEvent.click(header);
+    fireEvent.click(await screen.findByRole("button", { name: "Dismiss" }));
+    expect((screen.getByRole("button", { name: "Choose again" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "Retry" }) as HTMLButtonElement).disabled).toBe(true);
+    // Another client reopens it before the Undo window ends: the pending dismissal must not carry over.
+    item = { ...item, revision: 4, state: "ready", attempt: null, result: null };
+    await slot.behavior.emitRealtime("items", {});
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Undo" })).toBeNull());
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(calls).toEqual([]);
+  } finally { vi.useRealTimers(); }
+});
+
+it("dismisses the open item in Waiting on you", async () => {
+  const item = fixture();
+  let dismissed = false;
+  const app = await loadPluginApp(() => import("./app.js"));
+  renderSlot(app.composerCustomizations[0]!.banners![0]!, {}, { composer: { scope: { kind: "thread", threadId: "thr_test" } }, rpc: {
+    waiting: () => dismissed ? [] : [{ ...item, ...source }], get: () => item,
+    dismiss: () => { dismissed = true; return { ...item, revision: 2, state: "succeeded", result: { message: "Dismissed", retryable: false }, dismissed: { at: "2026-10-18T10:00:00.000Z" } }; },
+  } });
+  await openItem(/^Answer: /);
+  fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+  fireEvent.keyDown(screen.getByRole("textbox", { name: "Reason (optional)" }), { key: "Enter" });
+  await waitFor(() => expect(screen.queryByRole("form")).toBeNull());
+  expect(screen.getByText("Dismissed")).toBeTruthy();
+  expect(dismissed).toBe(true);
 });
 
 it("lists a failed reply in Waiting on you, where Retry sends it again", async () => {

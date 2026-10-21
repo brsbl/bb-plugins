@@ -63,7 +63,7 @@ cc_7k2m9q  2026-10-28  ☐ Orchestration blog post  (bb blog post · Ready)
   "id": "cc_7k2m9q", "title": "Orchestration blog post", "format": "blog", "status": "ready",
   "date": "2026-10-28", "time": null, "days": 1, "tray": null, "target": "Downloads baseline",
   "notes": "…", "waitsOn": [{ "id": "g1", "kind": "pr", "repo": "get-bb/bb", "number": 4772, "cleared": false }],
-  "attachments": [{ "id": "a1", "kind": "file", "machineId": "…", "path": "/Users/brsbl/Moss/Notes/…", "name": "….md" }],
+  "attachments": [{ "id": "a1", "kind": "file", "machineId": "…", "path": "/Users/alex/Moss/Notes/…", "name": "….md" }],
   "sync": "synced", "conflict": null, "updatedAt": "2026-10-03T22:10:00Z"
 }
 ```

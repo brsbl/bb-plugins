@@ -27,9 +27,11 @@ const productionDependencyFields = [
   "peerDependencies",
 ];
 // Opt in per plugin so existing release histories are never rewritten.
-const versionTaggedPlugins = new Set(["thread-organizer", "context-katamari", "ambient", "server-switcher", "emoji-picker"]);
+const versionTaggedPlugins = new Set(["thread-organizer", "context-katamari", "ambient", "server-switcher", "emoji-picker", "improve-prompt", "desktop"]);
 // These marketplace entries install the package at the tag root, without a subdir.
 const rootVersionTaggedPlugins = new Set(["emoji-picker"]);
+// Preserve the published prefix when a workspace directory differs from its stable ID.
+const versionTagPrefixes = { "improve-prompt": "prompt-shaper" };
 const explicitlyRetiredInstallRefs = Object.freeze([
   "plugin/omegacode",
   "plugin/saved-places",
@@ -267,7 +269,7 @@ export async function prepareVersionedRelease(slug) {
   if (!/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(version)) {
     throw new Error(`${slug}: stable release version required`);
   }
-  const tag = `${slug}/v${version}`;
+  const tag = `${versionTagPrefixes[slug] ?? slug}/v${version}`;
   const packagePath = rootVersionTaggedPlugins.has(slug) ? "" : plugin.source;
   const temporary = await mkdtemp(resolve(tmpdir(), "bb-plugin-tag-"));
   const indexPath = resolve(temporary, "index");

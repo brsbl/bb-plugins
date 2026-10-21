@@ -44,7 +44,7 @@ bb plugin install "path:$PWD/plugins/desktop" --yes
 
 ## For plugin authors
 
-Other plugins can opt in to Desktop: their UI opens as an XP window, with a Start menu entry under Programs, a taskbar button, and a Quick Launch pin. Copy the helper from [skills/desktop-apps](skills/desktop-apps/SKILL.md) and render `DesktopApp` from a homepage section; the skill walks through it. Sidebar footer panels already open as XP windows when the sidebar is collapsed, with no changes.
+Other plugins can opt in to Desktop: their UI opens as an XP window, with a Start menu entry under Programs, a taskbar button, and a Quick Launch pin. The opt-in contract, `window.bbDesktopApps` version 1, is stable from Desktop 1.0: copied helpers keep working, and a breaking change would ship under a new name. Copy the helper from [skills/desktop-apps](skills/desktop-apps/SKILL.md) and render `DesktopApp` from an `experimental_appOverlay` slot; the skill walks through it. Sidebar footer panels already open as XP windows when the sidebar is collapsed, with no changes.
 
 ## Develop
 

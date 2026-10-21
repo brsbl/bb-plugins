@@ -4,7 +4,7 @@ import { isLocalUrl, looksLikeUrl, parseWebUrl, urlLabel, urlPinName } from "./u
 
 it("tells URLs from file paths, including paths with colons", () => {
   expect(["https://example.com", " HTTP://a.b/c", "ftp://files.example.com/x", "javascript://x"].map(looksLikeUrl)).toEqual([true, true, true, true]);
-  expect(["/Users/me/a:b.md", "~/notes.md", "C:\\notes.md", "docs/plan.md", "mailto:me@example.com"].map(looksLikeUrl)).toEqual([false, false, false, false, false]);
+  expect(["/Users/alex/a:b.md", "~/notes.md", "C:\\notes.md", "docs/plan.md", "mailto:me@example.com"].map(looksLikeUrl)).toEqual([false, false, false, false, false]);
 });
 
 it("accepts only http(s) URLs without credentials and normalizes them", () => {
