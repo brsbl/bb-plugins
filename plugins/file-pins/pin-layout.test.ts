@@ -70,3 +70,27 @@ it("pins a file last on the strip only when every pinned file still fits", () =>
   // A short label still fits where a long one would not.
   expect(pinFile(pins, full, "e", metrics(260, { a: 100, b: 100, e: 20 }))).toEqual({ order: ["a", "b", "e", "c", "d"], more: ["c", "d"] });
 });
+
+
+it("uses the whole compact row when the overflow list is empty", () => {
+  const pair = pins.slice(0, 2);
+  const widths = { a: 150, b: 150 };
+  // No button is needed at the exact whole-label boundary, or above it.
+  for (const width of [304, 305, 335, 304]) {
+    expect(layoutPins(pair, [], metrics(width, widths), { whole: true })).toEqual({ strip: pair, more: [], caps: {} });
+  }
+  // Below that boundary, reserve the button and move the second pin into it.
+  expect(layoutPins(pair, [], metrics(303, widths), { whole: true })).toEqual({ strip: [pair[0]], more: [pair[1]], caps: {} });
+  // A single long touch label uses the entire row without an empty menu.
+  expect(layoutPins(pair.slice(0, 1), [], metrics(200, { a: 300 }), { whole: true }).caps).toEqual({ a: 200 });
+});
+
+it("reserves the button only when at least one pin belongs in its list", () => {
+  expect(layoutPins(pins, [], even(496)).more).toEqual([]);
+  expect(ids(layoutPins(pins, [], even(495)).more)).toEqual(["e"]);
+  const pair = pins.slice(0, 2);
+  expect(layoutPins(pair, ["b"], metrics(160, { a: 150, b: 150 }), { whole: true })).toEqual({ strip: [pair[0]], more: [pair[1]], caps: { a: 128 } });
+  // Desktop's scrolling strip has no measured capacity and no overflow menu entries.
+  expect(layoutPins(pins, [], null)).toEqual({ strip: pins, more: [], caps: {} });
+  expect(layoutPins([], [], even(100))).toEqual({ strip: [], more: [], caps: {} });
+});
