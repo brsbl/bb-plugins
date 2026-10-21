@@ -1,13 +1,15 @@
 {
   "name": "bb-plugin-emoji-picker",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Type : in a composer to pick and insert an emoji.",
   "type": "module",
   "license": "UNLICENSED",
   "files": [
     "assets",
     "dist",
-    "README.md"
+    "docs",
+    "README.md",
+    "PLUGIN_OVERVIEW.md"
   ],
   "engines": {
     "bb": ">=0.0.34",
