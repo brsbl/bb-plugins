@@ -1005,6 +1005,15 @@ export default function plugin(bb: BbPluginApi): void {
                 ),
               ),
             );
+        const interactionsPromise = measureStage(
+          recorder,
+          "interactions",
+          () => within(
+            safely(bb.sdk.threads.interactions.list({ threadId, signal })),
+            remainingMs(),
+          ),
+          { unavailableWhenNull: true },
+        );
         const executionOptionsPromise = measureStage(
           recorder,
           "executionOptions",
@@ -1070,11 +1079,13 @@ export default function plugin(bb: BbPluginApi): void {
           projectResult,
           executionOptions,
           latestAssistantMessage,
+          interactions,
         ] = await Promise.all([
           hostPromise,
           projectPromise,
           executionOptionsPromise,
           latestAssistantMessagePromise,
+          interactionsPromise,
         ]);
         const project = projectResult.value;
         const isGitRepository =
@@ -1090,7 +1101,7 @@ export default function plugin(bb: BbPluginApi): void {
           threadId: thread.id,
           updatedAt: thread.updatedAt,
           unread: (thread.lastReadAt ?? 0) < thread.latestAttentionAt,
-          hasPendingInteraction: thread.hasPendingInteraction,
+          hasPendingInteraction: interactions === null ? undefined : interactions.length > 0,
           currentTurnCompletedAt: null,
           currentTurnStartedAt: null,
           diagnostics,

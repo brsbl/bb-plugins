@@ -384,6 +384,7 @@ globalThis.fetch = async (url, init) => {
     JSON.stringify({
       ok: true,
       result: {
+        title: "Improve navigation", threadId: request.threadId, updatedAt: now - 120_000, unread: true, hasPendingInteraction: false,
         currentTurnCompletedAt: null,
         currentTurnStartedAt: null,
         diagnostics: {
@@ -669,7 +670,13 @@ assert.equal(card.hasAttribute("data-bb-portaled-overlay"), true);
 assert.equal(trigger.getAttribute("aria-describedby"), "bb-thread-hover-card");
 assert.deepEqual(requestBodies, [{ threadId: "thr_1" }]);
 assert.deepEqual(pullRequestBodies, [{ threadId: "thr_1" }]);
-assert.doesNotMatch(card.textContent, /Agent working/);
+assert.match(card.textContent, /Agent working/);
+assert.equal(card.querySelector("[data-hover-kind]")?.dataset.hoverKind, "thread");
+assert.equal(card.querySelector("header h3")?.textContent, "Improve navigation");
+assert.match(card.querySelector("[data-card-row=facts]").textContent, /Unread update/);
+assert.match(card.querySelector("[data-card-row=meta]").textContent, /Updated 2m ago/);
+assert.ok(card.querySelector("[data-card-row=facts]"));
+assert.ok(card.querySelector("[data-card-row=meta]"));
 assert.equal(
   card.querySelector(".bb-thread-hover-card__runtime [data-time-value]")
     ?.textContent,

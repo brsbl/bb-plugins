@@ -266,7 +266,7 @@ export class LinkPreviews {
     entry.status = outcome.status;
     entry.retryAt = outcome.retryAt && outcome.retryAt > now ? Math.min(outcome.retryAt, now + PREVIEW_LIMITS.backoffMs) : undefined;
     entry.freshUntil = Math.max(now + (preview?.github ? 30_000 : ttl(outcome.status)), entry.retryAt ?? 0);
-    entry.bytes = entry.good ? entry.good.title.length + entry.good.description.length + entry.good.site.length + (entry.good.image?.length ?? 0) : 0;
+    entry.bytes = entry.good ? entry.good.title.length + entry.good.description.length + entry.good.site.length + (entry.good.image?.length ?? 0) + (entry.good.github ? JSON.stringify(entry.good.github).length : 0) : 0;
     if (this.cache.get(key) === entry) this.trim();
     return this.snapshot(entry);
   }

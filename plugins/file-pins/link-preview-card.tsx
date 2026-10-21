@@ -46,7 +46,11 @@ export function LinkPreviewCard({ threadId, pin }: { threadId: string; pin: UrlP
   const image = preview?.image && SAFE_IMAGE.test(preview.image) && failedImage !== preview.image ? preview.image : null;
   const settled = answer !== undefined || failed;
   const facts: string[] = [];
-  if (github?.kind === "pull-request") facts.push(github.checks ?? "Checks unavailable", github.review ?? "Review status unavailable", github.mergeability ?? "Mergeability unknown", github.branch ?? "Branch unavailable");
+  if (github?.kind === "pull-request") {
+    facts.push(github.checks ?? "Checks unavailable", github.review ?? "Review status unavailable");
+    if (github.state === "open" || github.state === "draft") facts.push(github.mergeability ?? "Mergeability unknown");
+    facts.push(github.branch ?? "Branch unavailable");
+  }
   if (github?.kind === "issue") facts.push(github.labels.length ? `Labels: ${github.labels.join(", ")}` : "No labels", github.assignees.length ? `Assigned to ${github.assignees.map(a => `@${a}`).join(", ")}` : "Unassigned", `${github.comments} comment${github.comments === 1 ? "" : "s"}`);
   const content: Node[] = [];
   if (preview?.description && preview.description !== title) {
@@ -59,7 +63,7 @@ export function LinkPreviewCard({ threadId, pin }: { threadId: string; pin: UrlP
   return <>
     <Card data={{
       kind: github?.kind ?? reference?.kind ?? "link", title,
-      identifier: github ? `${github.repository} #${github.number}` : site,
+      identifier: github ? `${github.repository} #${github.number}` : undefined,
       state: { label: state, tone: github?.state === "merged" ? "merged" : github?.state === "open" ? "success" : "muted" },
       facts,
       meta: github ? [github.author ? `By @${github.author}` : "Author unavailable", relativeTime(github.updatedAt)] : [site],

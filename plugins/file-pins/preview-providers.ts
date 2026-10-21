@@ -91,7 +91,7 @@ export class PreviewProviders {
     if (npm) {
       const pkg = npmSchema.parse(json(await read(npm)));
       const description = text(pkg.description ?? "", 380);
-      return { title: text(pkg.name, 240), description: text(`v${pkg.version}${description ? ` · ${description}` : ""}`, 400), site: "npm", image: null; github?: GitHubPreview };
+      return { title: text(pkg.name, 240), description: text(`v${pkg.version}${description ? ` · ${description}` : ""}`, 400), site: "npm", image: null };
     }
     const question = stackOverflowQuestion(url);
     if (question) return this.stackOverflow(question, read);

@@ -93,5 +93,5 @@ export async function githubPreview(ref: NonNullable<ReturnType<typeof githubRef
     ]);
     github.review = reviews; github.checks = checks;
   }
-  return { title: clean(item.title), description: clean(item.body ?? "", 400), site: "GitHub", image: null, github };
+  return { title: clean(item.title), description: clean((item.body ?? "").replace(/<!--[\s\S]*?(?:-->|$)/g, ""), 400), site: "GitHub", image: null, github };
 }
