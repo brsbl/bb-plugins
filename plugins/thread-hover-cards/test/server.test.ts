@@ -427,6 +427,10 @@ assert.ok(
 );
 
 const summary = await summaryHandler({ threadId: "thr_1" });
+assert.ok("title" in summary, "includes the thread title without another request");
+assert.ok("unread" in summary, "includes the canonical unread state");
+assert.ok("hasPendingInteraction" in summary, "distinguishes waiting for an answer");
+assert.ok("updatedAt" in summary, "includes last activity");
 assert.deepEqual(withoutDiagnostics(summary), {
   currentTurnCompletedAt: null,
   currentTurnStartedAt: null,
