@@ -1,8 +1,14 @@
 # Inline Decisions
 
-Answer everything agents need from you in one place: **Waiting on you**, a drawer above the prompt box that collects decisions, email replies and plain questions from every thread.
+Answer everything agents need from you in one place: **Waiting on you**, a drawer above the prompt box that collects decisions, email replies and plain questions from the active thread.
 
-![Minimal cards](https://github.com/user-attachments/assets/692e0678-252d-47cf-8e1f-01e2b5c3fa7e)
+![A sample Workshop plan thread with the decision "Use the garden room for the workshop?" open in Waiting on you, showing its context, both options, Recommended and Submit](docs/decision-in-thread.png)
+
+![The answered decision settled in the thread: Decision: Use garden room, with the agent's reply](docs/decision-result.png)
+
+![Waiting on you expanded with two sample asks, the urgent packing checklist question first](docs/waiting-drawer.png)
+
+![The Decision log with the checklist ask still waiting and the room result plus two dismissed asks in Done](docs/decision-log.png)
 
 ## Install
 

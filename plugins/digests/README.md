@@ -4,13 +4,34 @@ Private briefings delivered as threads: one clear headline, a few numbered
 items with buttons that open where each task gets done, each email in one brief only, and a flat “No action needed” email table collapsed. Briefs arrive in a
 Briefs inbox. Archive them when done and find old briefs with thread search.
 
-![A brief with numbered priorities and review buttons](https://github.com/user-attachments/assets/6d6f4f82-9f51-475a-b5e7-356a1e43459f)
+![A sample Morning brief thread: one reply needs you, with a Review reply button, the counts, and the No action needed table expanded](docs/brief.png)
+
+![Settings → Briefs with a Gmail site on an example account and a disabled weekday Morning brief](docs/settings.png)
+
+![Editing the Morning brief: its prompt, weekday schedule and the After reading: Keep unread selector](docs/settings-edit.png)
+
+## Requirements
+
+- **Automations** schedules and dispatches brief runs.
+- **Browser Automation** lets the collecting agent read fresh, brief-owned tabs
+  using your BB Browser sign-ins.
+- **Thread Organizer** must support additional inboxes (`role: "inbox"` and
+  `catchesPluginId`) to create and route the Briefs inbox.
+- **bb 0.45.0 or later** on both the browser desktop and connected server is
+  required for collection. Keep the browser computer connected and configure
+  an agent provider/model; runs use that provider's account and usage allowance.
+- Sign in to each source you choose (Gmail, X, or LinkedIn) in BB Browser.
+  Briefs does not supply service accounts or copy cookies.
+
+Install the required plugins before setting up Briefs. The current plugin
+manifest contract has no field for declaring dependencies on other plugins;
+these requirements are checked through the setup and connection flows.
+Inline Decisions is optional for proposals that need your approval.
 
 ## Install
 
-```bash
-bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/digests --yes
-```
+Install **Briefs** from the Community marketplace once listed, or use its
+published Git install ref with `bb plugin install`.
 
 ## Use
 
@@ -26,13 +47,16 @@ are never adopted or changed.
 
 | Starter brief | Default time |
 | --- | --- |
-| Unread email | Weekdays, 10am PT |
-| Money | Monday, 10am PT |
-| Reading | Sunday, 11am PT |
+| Unread email | Weekdays, 10am |
+| Money | Monday, 10am |
+| Reading | Sunday, 11am |
 | X scorecard | Published by another thread |
 
-Requires Automations, Browser Automation, and Thread Organizer with support for
-additional inboxes. Setup creates a Briefs inbox that catches this plugin’s
+Starter setup uses the bb server’s system timezone. New briefs created in
+Settings use your browser’s timezone, shown beside the time. Saved prompts and
+schedules keep their existing values. Edit starter prompts to add your interests.
+
+Setup creates a Briefs inbox that catches this plugin’s
 briefs. Read and unread briefs stay there until you move or archive them.
 
 Browser collection requires **bb 0.45.0 or later** on the browser desktop and
@@ -68,6 +92,16 @@ bb plugin install "path:$PWD/plugins/digests" --yes
 ```
 
 CI runs `npm run check --workspace=bb-plugin-digests` remotely. Use an isolated
-bb development app with fixture accounts for browser and screenshot verification.
+bb development app with synthetic fixtures for browser and screenshot verification.
 
 Digest cards keep the name prominent, with a muted schedule at the bottom-left opposite Run now. Edit your own prompt in place; collection rules and Gmail searches live in the runtime, never in the prompt preview. A small emoji field beside the name controls the prefix on new brief thread titles. Saved definitions fall back to their starter emoji when none is set.
+
+## Verification boundary
+
+`service.test.ts` uses mocked Browser Automation, desktop tabs, and Automations
+with a synthetic mailbox to cover both after-reading modes, mixed-state reply
+chains, failed restoration, and interrupted runs. The journal stores what the
+agent reports; it does not operate Gmail or independently verify a click.
+The collecting agent must restore and verify message state through its browser
+session. These tests do not prove compatibility with Gmail's current live UI.
+Never use a personal mailbox, browser profile, or account for release QA.

@@ -249,7 +249,7 @@ function emailKind(item: EmailRow): string | undefined {
   if (item.kind) return item.kind;
   const text = `${item.title} ${item.sender ?? ""} ${item.subject ?? ""} ${item.text}`;
   if (/\bstatements?\b/iu.test(text)) return "statement";
-  if (/\b(dividend|trade confirmation|brokerage|investment|retirement|robinhood)\b/iu.test(text)) return "account";
+  if (/\b(dividend|trade confirmation|brokerage|investment|retirement)\b/iu.test(text)) return "account";
   if (/\b(receipt|payment (?:complete|completed|received)|order confirmation)\b/iu.test(text)) return "receipt";
   if (/\b(bill|invoice|autopay|payment due|amount due)\b/iu.test(text)) return "bill";
   if (/\b(shipp?ing|shipped|package|tracking|delivery)\b/iu.test(text)) return "shipping";
@@ -482,6 +482,7 @@ function DigestForm({ connection, definition, pending, onCancel, onSave }: {
   const simpleSchedule = day === "*" && month === "*" && DAYS.some(([value]) => value === weekday) && /^\d+$/u.test(hour) && /^\d+$/u.test(minute);
   const [frequency, setFrequency] = useState(simpleSchedule ? weekday : "custom");
   const [time, setTime] = useState(`${hour.padStart(2, "0")}:${minute.padStart(2, "0")}`);
+  const timezone = definition?.schedule?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
   const publishOnly = !!definition && !definition.schedule;
   const times = Array.from({ length: 48 }, (_, index) => `${String(Math.floor(index / 2)).padStart(2, "0")}:${index % 2 ? "30" : "00"}`);
   if (!times.includes(time)) times.push(time);
@@ -490,19 +491,19 @@ function DigestForm({ connection, definition, pending, onCancel, onSave }: {
     const [hours, minutes] = time.split(":");
     void onSave({ ...(definition ? { id: definition.id } : {}), connectionId: connection.id, name, ...(emoji.trim() ? { emoji: emoji.trim() } : {}), instructions, ...(execution || definition?.execution ? { execution } : {}),
       ...(connection.id === "gmail" ? { afterReading } : {}),
-      schedule: publishOnly ? null : frequency === "custom" ? definition!.schedule : { cron: `${Number(minutes)} ${Number(hours)} * * ${frequency}`, timezone: definition?.schedule?.timezone ?? "America/Los_Angeles" } });
+      schedule: publishOnly ? null : frequency === "custom" ? definition!.schedule : { cron: `${Number(minutes)} ${Number(hours)} * * ${frequency}`, timezone } });
   }}>
     <div className="digest-name-fields">
       <label htmlFor={`${formId}-name`}>Name<input id={`${formId}-name`} autoFocus required maxLength={100} value={name} onChange={(event) => setName(event.target.value)} placeholder="Unread email" /></label>
       <label htmlFor={`${formId}-emoji`}>Emoji<input id={`${formId}-emoji`} maxLength={32} value={emoji} onChange={(event) => setEmoji(event.target.value)} placeholder="📰" /></label>
     </div>
     <label htmlFor={`${formId}-prompt`}>What should it tell you?</label>
-    <textarea id={`${formId}-prompt`} required maxLength={30000} rows={4} value={instructions} onChange={(event) => setInstructions(event.target.value)} placeholder={`e.g. ${connection.id === "gmail" ? "Unread emails that need a reply, newest first. Skip newsletters and recruiting." : `The updates from ${connection.name} that need my attention.`}`} />
+    <textarea id={`${formId}-prompt`} required maxLength={30000} rows={4} value={instructions} onChange={(event) => setInstructions(event.target.value)} placeholder={`e.g. ${connection.id === "gmail" ? "Unread emails that need a reply, with deadlines first." : `The updates from ${connection.name} that need my attention.`}`} />
     {!publishOnly && <div className="digest-schedule-fields"><label htmlFor={`${formId}-days`}>When</label>
       <select id={`${formId}-days`} value={frequency} onChange={(event) => setFrequency(event.target.value)}>
         {!simpleSchedule && <option value="custom">Keep current schedule</option>}{DAYS.map(([value, label]) => <option value={value} key={value}>{label}</option>)}
       </select>
-      {frequency !== "custom" && <><span>at</span><select aria-label="Time" value={time} onChange={(event) => setTime(event.target.value)}>{times.sort().map((value) => { const [h, m] = value.split(":"); const n = Number(h); return <option key={value} value={value}>{n % 12 || 12}:{m} {n < 12 ? "AM" : "PM"}</option>; })}</select><span>{definition?.schedule?.timezone && definition.schedule.timezone !== "America/Los_Angeles" ? definition.schedule.timezone : "PT"}</span></>}
+      {frequency !== "custom" && <><span>at</span><select aria-label="Time" value={time} onChange={(event) => setTime(event.target.value)}>{times.sort().map((value) => { const [h, m] = value.split(":"); const n = Number(h); return <option key={value} value={value}>{n % 12 || 12}:{m} {n < 12 ? "AM" : "PM"}</option>; })}</select><span>{timezone === "America/Los_Angeles" ? "PT" : timezone}</span></>}
     </div>}
     {connection.id === "gmail" && <><label htmlFor={`${formId}-after-reading`}>After reading</label>
       <select id={`${formId}-after-reading`} value={afterReading} onChange={(event) => setAfterReading(event.target.value as typeof afterReading)}>

@@ -22,7 +22,7 @@ const migrate: ServiceDeps["migrate"] = (db, statements) => {
   });
 };
 
-function setup(options: { google?: FakeGoogle; credentials?: Credentials } = {}) {
+function setup(options: { google?: FakeGoogle; credentials?: Credentials; timeZone?: string } = {}) {
   const google = options.google ?? new FakeGoogle(() => clock);
   let credentials: Credentials = options.credentials ?? { clientId: "client", clientSecret: "secret" };
   const publish = vi.fn();
@@ -45,13 +45,14 @@ function setup(options: { google?: FakeGoogle; credentials?: Credentials } = {})
     now: () => clock,
     log: { info: () => {}, warn: () => {}, error: () => {} },
     google: google.endpoints,
+    newCalendarTimeZone: async () => options.timeZone ?? "America/Los_Angeles",
   };
   const service = createCalendarService(deps);
   const connect = async (calendarId?: string) => {
     const { authUrl } = await service.connectStart(calendarId ? { calendarId } : {});
     return service.connectFinish({ redirectUrl: google.authorize(authUrl) });
   };
-  return { service, google, publish, connect, credentials: () => credentials };
+  return { service, google, publish, connect, deps, credentials: () => credentials };
 }
 
 async function connected(options: Parameters<typeof setup>[0] = {}) {
@@ -94,7 +95,7 @@ describe("connect", () => {
 
   it("reuses the same calendar after disconnecting and reconnecting", async () => {
     const { service, google, connect, credentials } = await connected();
-    const item = await service.add({ title: "Ambient tweet", format: "tweet", when: { date: "2026-10-09" } });
+    const item = await service.add({ title: "Workshop announcement", format: "tweet", when: { date: "2026-10-09" } });
     const { calendarId } = await service.status({});
     const disconnected = await service.disconnect({});
     expect(disconnected.state).toBe("not_connected");
@@ -104,18 +105,18 @@ describe("connect", () => {
     const status = await connect();
     expect(status).toMatchObject({ state: "synced", calendarId });
     expect(google.calendarList()).toHaveLength(1);
-    expect((await service.show({ id: item.id })).title).toBe("Ambient tweet");
+    expect((await service.show({ id: item.id })).title).toBe("Workshop announcement");
   });
 
   it("reuses the calendar and rebuilds the cache when bb's data is lost", async () => {
     const first = await connected();
-    const item = await first.service.add({ title: "Ambient tweet", format: "tweet", when: { tray: "evergreen" } });
+    const item = await first.service.add({ title: "Workshop announcement", format: "tweet", when: { tray: "evergreen" } });
     const calendarId = first.credentials().calendarId!;
 
     const fresh = setup({ google: first.google, credentials: { clientId: "client", clientSecret: "secret" } });
     await fresh.connect(calendarId);
     expect(first.google.calendarList()).toHaveLength(1);
-    expect(await fresh.service.show({ id: item.id })).toMatchObject({ title: "Ambient tweet", tray: "evergreen", format: "tweet" });
+    expect(await fresh.service.show({ id: item.id })).toMatchObject({ title: "Workshop announcement", tray: "evergreen", format: "tweet" });
   });
 
   it("needs a client before connecting and a connection before writing", async () => {
@@ -137,26 +138,26 @@ describe("connect", () => {
 describe("writes", () => {
   it("add, update, move, check, and delete each change the Google event", async () => {
     const { service, google } = await connected();
-    const item = await service.add({ title: "Orchestration blog post", format: "blog", when: { date: "2026-10-28" }, notes: "Publish first." });
+    const item = await service.add({ title: "Workshop guide", format: "blog", when: { date: "2026-10-28" }, notes: "Publish first." });
     expect(item).toMatchObject({ sync: "synced", status: "idea", date: "2026-10-28", days: 1 });
     let event = only(google, item.id);
-    expect(event).toMatchObject({ summary: "☐ Orchestration blog post", colorId: "10", start: { date: "2026-10-28" }, end: { date: "2026-10-29" } });
+    expect(event).toMatchObject({ summary: "☐ Workshop guide", colorId: "10", start: { date: "2026-10-28" }, end: { date: "2026-10-29" } });
     expect(event.extendedProperties?.private).toMatchObject({ ccId: item.id, status: "idea", format: "blog" });
-    expect(event.description).toBe(`Publish first.\n\n${BLOCK_HEADER}\nbb blog post · Idea`);
+    expect(event.description).toBe(`Publish first.\n\n${BLOCK_HEADER}\nBlog post · Idea`);
 
-    await service.update({ id: item.id, title: "Orchestration tweet", format: "tweet", target: "Downloads baseline" });
+    await service.update({ id: item.id, title: "Workshop reminder", format: "tweet", target: "Registration goal" });
     event = only(google, item.id);
-    expect(event).toMatchObject({ summary: "☐ Orchestration tweet", colorId: "7" });
-    expect(event.extendedProperties?.private?.target).toBe("Downloads baseline");
+    expect(event).toMatchObject({ summary: "☐ Workshop reminder", colorId: "7" });
+    expect(event.extendedProperties?.private?.target).toBe("Registration goal");
 
     await service.move({ id: item.id, when: { date: "2026-10-30" } });
     expect(only(google, item.id).start).toEqual({ date: "2026-10-30" });
 
     const checked = await service.update({ id: item.id, status: "posted" });
     expect(checked.status).toBe("posted");
-    expect(only(google, item.id).summary).toBe("☑ Orchestration tweet");
+    expect(only(google, item.id).summary).toBe("☑ Workshop reminder");
     await service.update({ id: item.id, status: "ready" });
-    expect(only(google, item.id).summary).toBe("☐ Orchestration tweet");
+    expect(only(google, item.id).summary).toBe("☐ Workshop reminder");
 
     expect(await service.delete({ id: item.id })).toEqual({ deleted: true });
     expect(google.byCcId(item.id)).toHaveLength(0);
@@ -167,7 +168,7 @@ describe("writes", () => {
   it("clears gate and attachment slots in Google when they're removed", async () => {
     const { service, google } = await connected();
     const item = await service.add({ title: "Saved Places", format: "site", when: { date: "2026-10-09" } });
-    const gated = await service.gateAdd({ id: item.id, gate: { kind: "pr", repo: "get-bb/bb", number: 4772 } });
+    const gated = await service.gateAdd({ id: item.id, gate: { kind: "pr", repo: "example-org/sample-project", number: 4772 } });
     const attached = await service.attach({ id: item.id, attachment: { kind: "url", url: "https://getbb.app/places" } });
     expect(only(google, item.id).extendedProperties?.private).toMatchObject({ gate1: expect.any(String), att1: expect.any(String) });
     await service.gateRemove({ id: item.id, gateId: gated.waitsOn[0]!.id });
@@ -180,7 +181,7 @@ describe("writes", () => {
   it("refuses a sixth gate", async () => {
     const { service } = await connected();
     const item = await service.add({ title: "Gated", format: null, when: { date: "2026-10-09" } });
-    for (let number = 1; number <= 5; number += 1) await service.gateAdd({ id: item.id, gate: { kind: "pr", repo: "get-bb/bb", number } });
+    for (let number = 1; number <= 5; number += 1) await service.gateAdd({ id: item.id, gate: { kind: "pr", repo: "example-org/sample-project", number } });
     await expect(service.gateAdd({ id: item.id, gate: { kind: "text", text: "One more" } })).rejects.toMatchObject({ code: "limit" });
   });
 
@@ -200,15 +201,15 @@ describe("writes", () => {
 describe("Google Calendar edits", () => {
   it("a drag, rename, ☑, ☐, color, and delete come back on the next tick", async () => {
     const { service, google } = await connected();
-    const item = await service.add({ title: "Ambient tweet", format: "tweet", when: { date: "2026-10-09" } });
+    const item = await service.add({ title: "Workshop announcement", format: "tweet", when: { date: "2026-10-09" } });
     const eventId = only(google, item.id).id;
 
     google.drag(eventId, "2026-10-12");
-    google.rename(eventId, "☑ Ambient launch tweet");
+    google.rename(eventId, "☑ Workshop launch reminder");
     await service.tick();
-    expect(await service.show({ id: item.id })).toMatchObject({ date: "2026-10-12", title: "Ambient launch tweet", status: "posted", sync: "synced" });
+    expect(await service.show({ id: item.id })).toMatchObject({ date: "2026-10-12", title: "Workshop launch reminder", status: "posted", sync: "synced" });
 
-    google.rename(eventId, "☐ Ambient launch tweet");
+    google.rename(eventId, "☐ Workshop launch reminder");
     await service.tick();
     expect((await service.show({ id: item.id })).status).toBe("ready");
 
@@ -236,7 +237,7 @@ describe("Google Calendar edits", () => {
 
   it("a duplicated event becomes a second item with its own ID", async () => {
     const { service, google } = await connected();
-    const item = await service.add({ title: "Ambient tweet", format: "tweet", when: { date: "2026-10-09" } });
+    const item = await service.add({ title: "Workshop announcement", format: "tweet", when: { date: "2026-10-09" } });
     const original = only(google, item.id).id;
     const copy = google.duplicate(original);
     await service.tick();
@@ -276,7 +277,7 @@ describe("Google Calendar edits", () => {
 
   it("runs a full resync when the sync token expires", async () => {
     const { service, google } = await connected();
-    const item = await service.add({ title: "Ambient tweet", format: "tweet", when: { date: "2026-10-09" } });
+    const item = await service.add({ title: "Workshop announcement", format: "tweet", when: { date: "2026-10-09" } });
     google.expireSyncTokens();
     google.rename(only(google, item.id).id, "☐ Renamed in Google");
     await service.tick();
@@ -330,7 +331,7 @@ describe("offline and failures", () => {
 
   it("keeps accepting writes after access is revoked and replays them after reconnecting", async () => {
     const { service, google, connect } = await connected();
-    const item = await service.add({ title: "Ambient tweet", format: "tweet", when: { date: "2026-10-09" } });
+    const item = await service.add({ title: "Workshop announcement", format: "tweet", when: { date: "2026-10-09" } });
     google.revoke();
     await service.tick();
     expect((await service.status({})).state).toBe("reconnect");
@@ -361,7 +362,7 @@ describe("offline and failures", () => {
 describe("conflicts", () => {
   it("reapplies only bb's fields when Google changed others", async () => {
     const { service, google } = await connected();
-    const item = await service.add({ title: "Ambient tweet", format: "tweet", when: { date: "2026-10-09" } });
+    const item = await service.add({ title: "Workshop announcement", format: "tweet", when: { date: "2026-10-09" } });
     google.rename(only(google, item.id).id, "☐ Her title");
     const moved = await service.move({ id: item.id, when: { date: "2026-10-16" } });
     expect(moved).toMatchObject({ title: "Her title", date: "2026-10-16", sync: "synced", conflict: null });
@@ -370,7 +371,7 @@ describe("conflicts", () => {
 
   it("keeps Google's value on a same-field conflict; strict rejects; reapply writes bb's value", async () => {
     const { service, google } = await connected();
-    const item = await service.add({ title: "Ambient tweet", format: "tweet", when: { date: "2026-10-12" } });
+    const item = await service.add({ title: "Workshop announcement", format: "tweet", when: { date: "2026-10-12" } });
     const eventId = only(google, item.id).id;
 
     google.drag(eventId, "2026-10-14");
@@ -393,7 +394,7 @@ describe("conflicts", () => {
 describe("trays", () => {
   it("a tray item is one Monday series, shown once in its tray", async () => {
     const { service, google } = await connected();
-    const item = await service.add({ title: "Ambient clip", format: "tweet", when: { tray: "evergreen" } });
+    const item = await service.add({ title: "Workshop clip", format: "tweet", when: { tray: "evergreen" } });
     expect(item).toMatchObject({ tray: "evergreen", date: null });
     const event = only(google, item.id);
     expect(event).toMatchObject({ recurrence: [TRAY_RULE], start: { date: "2026-10-05" } });
@@ -406,7 +407,7 @@ describe("trays", () => {
 
   it("moving between a day and a tray keeps the ID and leaves exactly one event", async () => {
     const { service, google } = await connected();
-    const item = await service.add({ title: "Ambient clip", format: "tweet", when: { tray: "later" } });
+    const item = await service.add({ title: "Workshop clip", format: "tweet", when: { tray: "later" } });
     const eventId = only(google, item.id).id;
 
     const dated = await service.move({ id: item.id, when: { date: "2026-10-20" } });
@@ -422,7 +423,7 @@ describe("trays", () => {
 
   it("rolls each series forward to the new week's Monday", async () => {
     const { service, google } = await connected();
-    const item = await service.add({ title: "Ambient clip", format: "tweet", when: { tray: "evergreen" } });
+    const item = await service.add({ title: "Workshop clip", format: "tweet", when: { tray: "evergreen" } });
     clock = new Date("2026-10-12T17:00:00Z");
     await service.tick();
     expect(only(google, item.id)).toMatchObject({ start: { date: "2026-10-12" }, recurrence: [TRAY_RULE] });
@@ -433,28 +434,28 @@ describe("trays", () => {
 
   it("checking a tray item dates it today and stops it repeating", async () => {
     const { service, google } = await connected();
-    const item = await service.add({ title: "Ambient clip", format: "tweet", when: { tray: "evergreen" } });
+    const item = await service.add({ title: "Workshop clip", format: "tweet", when: { tray: "evergreen" } });
     const checked = await service.update({ id: item.id, status: "posted" });
     expect(checked).toMatchObject({ status: "posted", date: "2026-10-07", tray: null });
     const event = only(google, item.id);
-    expect(event).toMatchObject({ summary: "☑ Ambient clip", start: { date: "2026-10-07" } });
+    expect(event).toMatchObject({ summary: "☑ Workshop clip", start: { date: "2026-10-07" } });
     expect(event.recurrence).toBeUndefined();
   });
 
   it("☑ on one occurrence posts the item on that date; other occurrence edits change nothing", async () => {
     const { service, google } = await connected();
-    const item = await service.add({ title: "Ambient clip", format: "tweet", when: { tray: "evergreen" } });
+    const item = await service.add({ title: "Workshop clip", format: "tweet", when: { tray: "evergreen" } });
     const eventId = only(google, item.id).id;
 
     google.deleteOccurrence(eventId, "2026-10-12");
-    google.editOccurrence(eventId, "2026-10-19", "☐ Ambient clip, retitled once");
+    google.editOccurrence(eventId, "2026-10-19", "☐ Workshop clip, retitled once");
     await service.tick();
-    expect(await service.show({ id: item.id })).toMatchObject({ tray: "evergreen", status: "idea", title: "Ambient clip" });
+    expect(await service.show({ id: item.id })).toMatchObject({ tray: "evergreen", status: "idea", title: "Workshop clip" });
 
-    google.editOccurrence(eventId, "2026-10-26", "☑ Ambient clip");
+    google.editOccurrence(eventId, "2026-10-26", "☑ Workshop clip");
     await service.tick();
     expect(await service.show({ id: item.id })).toMatchObject({ status: "posted", date: "2026-10-26", tray: null });
-    expect(google.event(eventId)).toMatchObject({ summary: "☑ Ambient clip", start: { date: "2026-10-26" } });
+    expect(google.event(eventId)).toMatchObject({ summary: "☑ Workshop clip", start: { date: "2026-10-26" } });
     expect(google.event(eventId).recurrence).toBeUndefined();
   });
 });
@@ -462,10 +463,10 @@ describe("trays", () => {
 describe("gates", () => {
   it("an item gate clears while its item is checked, without writing the waiting item", async () => {
     const { service, google } = await connected();
-    const blog = await service.add({ title: "Orchestration blog post", format: "blog", when: { date: "2026-10-28" } });
-    const tweet = await service.add({ title: "Orchestration tweet", format: "tweet", when: { date: "2026-10-29" } });
+    const blog = await service.add({ title: "Workshop guide", format: "blog", when: { date: "2026-10-28" } });
+    const tweet = await service.add({ title: "Workshop reminder", format: "tweet", when: { date: "2026-10-29" } });
     const gated = await service.gateAdd({ id: tweet.id, gate: { kind: "item", itemId: blog.id } });
-    expect(gated.waitsOn).toEqual([expect.objectContaining({ kind: "item", cleared: false, title: "Orchestration blog post", date: "2026-10-28" })]);
+    expect(gated.waitsOn).toEqual([expect.objectContaining({ kind: "item", cleared: false, title: "Workshop guide", date: "2026-10-28" })]);
     const etag = only(google, tweet.id).etag;
 
     await service.update({ id: blog.id, status: "posted" });
@@ -533,21 +534,21 @@ describe("inserts and repeat rules", () => {
   it("a retried insert after a lost response doesn't duplicate the event", async () => {
     const { service, google } = await connected();
     google.loseResponses = 1;
-    const item = await service.add({ title: "Ambient tweet", format: "tweet", when: { date: "2026-10-09" } });
+    const item = await service.add({ title: "Workshop announcement", format: "tweet", when: { date: "2026-10-09" } });
     expect(item.sync).toBe("queued");
     expect(google.list()).toHaveLength(1);
 
     await service.tick();
     expect(google.requests.some((request) => request.status === 409)).toBe(true);
     expect(google.list()).toHaveLength(1);
-    expect(only(google, item.id).summary).toBe("☐ Ambient tweet");
+    expect(only(google, item.id).summary).toBe("☐ Workshop announcement");
     expect(await service.show({ id: item.id })).toMatchObject({ sync: "synced" });
   });
 
   it("deleting an item whose insert response was lost deletes the event it created", async () => {
     const { service, google } = await connected();
     google.loseResponses = 1;
-    const item = await service.add({ title: "Ambient tweet", format: "tweet", when: { date: "2026-10-09" } });
+    const item = await service.add({ title: "Workshop announcement", format: "tweet", when: { date: "2026-10-09" } });
     expect(google.list()).toHaveLength(1);
     await service.delete({ id: item.id });
     expect(google.list()).toHaveLength(0);
@@ -557,7 +558,7 @@ describe("inserts and repeat rules", () => {
 
   it("replaces a series with a single event when Google keeps the repeat rule", async () => {
     const { service, google } = await connected();
-    const item = await service.add({ title: "Ambient clip", format: "tweet", when: { tray: "evergreen" } });
+    const item = await service.add({ title: "Workshop clip", format: "tweet", when: { tray: "evergreen" } });
     const seriesId = only(google, item.id).id;
     google.ignoreEmptyRecurrence = true;
 
@@ -603,7 +604,7 @@ describe("failed writes", () => {
 
   it("reports a write Google rejects, retries it with backoff, and fails strict writes", async () => {
     const { service, google } = await connected();
-    const item = await service.add({ title: "Ambient tweet", format: "tweet", when: { date: "2026-10-09" } });
+    const item = await service.add({ title: "Workshop announcement", format: "tweet", when: { date: "2026-10-09" } });
     const patches = () => google.requests.filter((request) => request.method === "PATCH").length;
 
     google.rejectWrites = 1;
@@ -630,7 +631,7 @@ describe("failed writes", () => {
 describe("records written by other apps", () => {
   it("keeps unknown record fields and unreadable slots through bb writes", async () => {
     const { service, google } = await connected();
-    const item = await service.add({ title: "Ambient tweet", format: "tweet", when: { date: "2026-10-09" } });
+    const item = await service.add({ title: "Workshop announcement", format: "tweet", when: { date: "2026-10-09" } });
     const eventId = only(google, item.id).id;
     google.setPrivate(eventId, "att1", JSON.stringify({ id: "a1", kind: "url", url: "https://example.com/a", future: "keep me" }));
     google.setPrivate(eventId, "att2", "{not json");
@@ -643,7 +644,7 @@ describe("records written by other apps", () => {
     expect(props.att2).toBe("{not json");
     expect(props.ccv).toBe("1");
 
-    await service.attach({ id: item.id, attachment: { kind: "pr", repo: "get-bb/bb", number: 1 } });
+    await service.attach({ id: item.id, attachment: { kind: "pr", repo: "example-org/sample-project", number: 1 } });
     props = only(google, item.id).extendedProperties!.private!;
     expect(props.att2).toBe("{not json");
     expect(JSON.parse(props.att3!)).toMatchObject({ id: "a2", kind: "pr" });
@@ -661,9 +662,51 @@ describe("records written by other apps", () => {
 describe("trusted files", () => {
   it("remembers files attached through bb", async () => {
     const { service } = setup();
-    service.trustFile("mac-1", "/Users/alex/Moss/Notes/Draft/Draft.md");
-    service.trustFile("mac-1", "/Users/alex/Moss/Notes/Draft/Draft.md");
-    expect(service.isTrustedFile("mac-1", "/Users/alex/Moss/Notes/Draft/Draft.md")).toBe(true);
-    expect(service.isTrustedFile("mac-2", "/Users/alex/Moss/Notes/Draft/Draft.md")).toBe(false);
+    service.trustFile("mac-1", "/fixtures/Draft.md");
+    service.trustFile("mac-1", "/fixtures/Draft.md");
+    expect(service.isTrustedFile("mac-1", "/fixtures/Draft.md")).toBe(true);
+    expect(service.isTrustedFile("mac-2", "/fixtures/Draft.md")).toBe(false);
+  });
+});
+
+
+describe("calendar time zone", () => {
+  it("defaults a fresh service to UTC and validates a configured zone before OAuth", async () => {
+    const { deps } = setup();
+    delete deps.newCalendarTimeZone;
+    const fresh = createCalendarService(deps);
+    expect(await fresh.status({})).toMatchObject({ timeZone: "UTC", state: "not_connected" });
+    const invalid = setup({ timeZone: "not-a-zone" });
+    expect(await invalid.service.status({})).toMatchObject({ timeZone: "UTC" });
+    await expect(invalid.service.connectStart({})).rejects.toMatchObject({ code: "invalid" });
+  });
+
+  it("uses the selected zone for creation, timed moves, and posting across midnight", async () => {
+    clock = new Date("2026-10-07T18:30:00Z"); // October 8 in Tokyo, October 7 in UTC.
+    const { service, google } = await connected({ timeZone: "Asia/Tokyo" });
+    expect(await service.status({})).toMatchObject({ timeZone: "Asia/Tokyo" });
+    expect(google.calendarList()[0]?.timeZone).toBe("Asia/Tokyo");
+    const draft = await service.add({ title: "Workshop guide", format: null, when: { tray: "later" } });
+    expect(await service.update({ id: draft.id, status: "posted" })).toMatchObject({ date: "2026-10-08", tray: null });
+    await service.update({ id: draft.id, time: "09:00" });
+    await service.move({ id: draft.id, when: { date: "2026-10-09" } });
+    expect(only(google, draft.id).start).toMatchObject({ dateTime: "2026-10-09T09:00:00", timeZone: "Asia/Tokyo" });
+  });
+
+  it("adopts an existing calendar zone on upgrade and preserves it after reconnect", async () => {
+    const first = await connected({ timeZone: "Europe/London" });
+    const item = await first.service.add({ title: "Workshop guide", format: null, when: { date: "2026-10-09" } });
+    await first.service.update({ id: item.id, time: "09:00" });
+    // Emulate an existing database without the newly introduced metadata.
+    first.deps.db.prepare("DELETE FROM cc_meta WHERE key = ?").run("timeZone");
+    first.service.dispose();
+    const upgraded = createCalendarService({ ...first.deps, newCalendarTimeZone: async () => "Asia/Tokyo" });
+    await upgraded.sync({});
+    expect(await upgraded.status({})).toMatchObject({ timeZone: "Europe/London" });
+    await upgraded.move({ id: item.id, when: { date: "2026-10-10" } });
+    expect(only(first.google, item.id).start?.timeZone).toBe("Europe/London");
+    await upgraded.disconnect({});
+    const { authUrl } = await upgraded.connectStart({});
+    expect(await upgraded.connectFinish({ redirectUrl: first.google.authorize(authUrl) })).toMatchObject({ timeZone: "Europe/London" });
   });
 });

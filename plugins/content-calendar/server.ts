@@ -4,7 +4,7 @@ import { z } from "zod";
 import { CHANGED, attachmentInput, hostContract, linkAttachmentInput, rpcContract, type ConnectionState, type LinkAttachmentInput, type ConnectionStatus, type GateInput } from "./contract.js";
 import { createCalendarService } from "./engine.js";
 import {
-  FORMATS, LIMITS, STATUSES, TRAYS, TRAY_LABELS, attachmentSchema, gateLabel, isoDate, isoMonth, mondayOf, viewDirective,
+  DEFAULT_TIME_ZONE, FORMATS, LIMITS, STATUSES, TRAYS, TRAY_LABELS, attachmentSchema, gateLabel, isoDate, isoMonth, mondayOf, viewDirective,
   weekRange, itemSubtitle, type Attachment, type Format, type Item,
 } from "./model.js";
 import { CalendarError, type Credentials } from "./service-api.js";
@@ -109,6 +109,7 @@ function devGoogleEndpoints(base: string | undefined) {
 
 export default function plugin(bb: BbPluginApi): void {
   const settings = bb.settings.define({
+    timeZone: { type: "string", label: "New calendar time zone", description: "IANA time zone, for example Europe/London or Asia/Tokyo. Used when creating a calendar; existing calendars keep their zone.", default: DEFAULT_TIME_ZONE },
     clientId: { type: "string", label: "Google OAuth client ID", description: "From your Google Cloud project's Desktop app OAuth client", secret: true },
     clientSecret: { type: "string", label: "Google OAuth client secret", secret: true },
     refreshToken: { type: "string", label: "Google refresh token", description: "Set by Connect", secret: true },
@@ -137,6 +138,7 @@ export default function plugin(bb: BbPluginApi): void {
     fetch: ((input: Parameters<typeof fetch>[0], init?: RequestInit) => globalThis.fetch(input, init)) as typeof fetch,
     now: () => new Date(),
     log: bb.log,
+    newCalendarTimeZone: async () => text((await settings.get()).timeZone) ?? DEFAULT_TIME_ZONE,
     google: devGoogleEndpoints(process.env.BB_CONTENT_CALENDAR_FAKE_GOOGLE),
   });
   bb.onDispose(() => service.dispose());
@@ -369,7 +371,7 @@ export default function plugin(bb: BbPluginApi): void {
         positionals: [{ name: "title", required: true, description: `Title, up to ${LIMITS.title} characters` }],
         options: {
           format: { type: "enum", values: formatValues, required: true, description: "tweet, blog, essay, site, or none" },
-          date: { type: "string", placeholder: "DATE", description: "YYYY-MM-DD in America/Los_Angeles" },
+          date: { type: "string", placeholder: "DATE", description: "YYYY-MM-DD in the connected calendar’s time zone" },
           tray: { type: "enum", values: TRAYS, description: "Undated tray" },
           status: { type: "enum", values: STATUSES, description: "Defaults to idea; posted = checked" },
           target: { type: "string", description: `What success looks like, up to ${LIMITS.target} characters` },

@@ -6,7 +6,7 @@ export const FORMATS = ["tweet", "blog", "essay", "site"] as const;
 export type Format = (typeof FORMATS)[number];
 export const FORMAT_LABELS: Record<Format, string> = {
   tweet: "Tweet",
-  blog: "bb blog post",
+  blog: "Blog post",
   essay: "Essay",
   site: "Site page",
 };
@@ -25,8 +25,12 @@ export const TRAY_LABELS: Record<Tray, string> = { evergreen: "Evergreen", later
 export const SYNC_STATES = ["synced", "queued", "conflict"] as const;
 export type SyncState = (typeof SYNC_STATES)[number];
 
-/** The Content calendar's time zone. Dates are never converted through the server clock. */
+/** Compatibility fallback for calendars created before time zone selection. */
 export const CALENDAR_TIME_ZONE = "America/Los_Angeles";
+export const DEFAULT_TIME_ZONE = "UTC";
+export const validTimeZone = (value: string): boolean => {
+  try { new Intl.DateTimeFormat("en", { timeZone: value }); return true; } catch { return false; }
+};
 export const CALENDAR_NAME = "Content";
 
 export const LIMITS = {
@@ -164,8 +168,8 @@ export function mondayOf(date: string): string {
 }
 
 /** Today in the calendar's time zone. */
-export function todayInCalendar(now: Date = new Date()): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: CALENDAR_TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+export function todayInCalendar(now: Date = new Date(), timeZone = CALENDAR_TIME_ZONE): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
 }
 
 /** The Monday-to-Sunday weeks that cover a month, as [first Monday, last Sunday]. */

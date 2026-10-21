@@ -1,0 +1,81 @@
+{
+  "headline": "One reply needs you today",
+  "lede": "3 emails reviewed \u00b7 2 need no action",
+  "details": "Confirm the proposed review time. Two routine messages need no action. All content is synthetic.",
+  "brief": {
+    "heading": "Needs you",
+    "tone": "warning",
+    "items": [
+      {
+        "title": "Confirm the review time",
+        "text": "Example Studio proposed Thursday at 3pm.",
+        "action": {
+          "label": "Review reply",
+          "url": "https://example.test/mail/review"
+        }
+      }
+    ],
+    "summaryLinks": [
+      {
+        "label": "3 emails reviewed",
+        "section": "all"
+      },
+      {
+        "label": "2 need no action",
+        "section": "tail"
+      }
+    ],
+    "tail": {
+      "label": "No action needed",
+      "details": "A receipt and a newsletter.",
+      "items": [
+        {
+          "title": "Example Bank \u00b7 Receipt",
+          "sender": "Example Bank",
+          "subject": "Receipt",
+          "text": "A synthetic payment receipt; no action needed.",
+          "url": "https://example.test/mail/receipt",
+          "kind": "receipt"
+        },
+        {
+          "title": "Example Journal \u00b7 Weekly reading",
+          "sender": "Example Journal",
+          "subject": "Weekly reading",
+          "text": "A synthetic newsletter for later.",
+          "url": "https://example.test/mail/reading",
+          "kind": "newsletter"
+        }
+      ]
+    },
+    "all": {
+      "label": "All emails",
+      "items": [
+        {
+          "title": "Example Studio \u00b7 Review time",
+          "sender": "Example Studio",
+          "subject": "Review time",
+          "text": "Confirm the proposed review time.",
+          "url": "https://example.test/mail/review",
+          "kind": "event"
+        },
+        {
+          "title": "Example Bank \u00b7 Receipt",
+          "sender": "Example Bank",
+          "subject": "Receipt",
+          "text": "A synthetic payment receipt; no action needed.",
+          "url": "https://example.test/mail/receipt",
+          "kind": "receipt"
+        },
+        {
+          "title": "Example Journal \u00b7 Weekly reading",
+          "sender": "Example Journal",
+          "subject": "Weekly reading",
+          "text": "A synthetic newsletter for later.",
+          "url": "https://example.test/mail/reading",
+          "kind": "newsletter"
+        }
+      ]
+    }
+  },
+  "sources": []
+}

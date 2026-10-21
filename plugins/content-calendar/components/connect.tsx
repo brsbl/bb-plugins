@@ -5,7 +5,7 @@ import { readableError, useCalendarRpc } from "./data.js";
 
 /**
  * Sign-in with paste-back: Connect opens Google's consent screen in a new tab,
- * Google then redirects to a loopback address that doesn't load, and she pastes
+ * Google then redirects to a loopback address that doesn't load, and the user pastes
  * that address here to finish.
  */
 export function ConnectFlow({ disabled = false, label = "Connect Google Calendar", askCalendarId = true, onConnected }: {
@@ -54,7 +54,8 @@ export function ConnectSteps({ status, onConnected }: { status: ConnectionStatus
     <h2>Connect Google Calendar</h2>
     <p className="cc-muted">Content Calendar keeps every item on a Google calendar named Content, so the schedule also shows in Google Calendar and on your phone. bb can only see calendars it creates.</p>
     <ol>
-      <li><b>Create a Google OAuth client.</b> In your Google Cloud project, enable the Calendar API and create a “Desktop app” client. Set the consent screen to In production; Testing apps lose access after 7 days.</li>
+      <li><b>Create a Google OAuth client.</b> In your Google Cloud project, enable the Calendar API and create a “Desktop app” client. Configure the consent screen for your account; External apps in Testing lose Calendar access after 7 days.</li>
+      <li>Choose a <b>New calendar time zone</b> in Settings → Content Calendar before connecting (default UTC). Existing calendars keep their zone.</li>
       <li><b>Save the client ID and secret</b> in Settings → Content Calendar, or run <code>bb content-calendar connect</code> in a thread. {needsClient ? "Not saved yet." : "Saved."}</li>
       <li><b>Connect.</b> Allow access on Google's consent screen, then paste the address it sends you to.
         <ConnectFlow disabled={needsClient} onConnected={onConnected} />

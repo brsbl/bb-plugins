@@ -4,7 +4,7 @@ import { readdir, realpath, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
-// Runs on the Mac. Attachment records come back from Google Calendar, where
+// Runs on the selected machine. Attachment records come back from Google Calendar, where
 // other apps can edit them, so every input is checked again here.
 
 type FileStat = { isFile(): boolean; mtimeMs: number };
@@ -88,9 +88,9 @@ export async function resolveFile({ path, cwd }: { path: string; cwd?: string },
   if (!isAbsolute(expanded) && (!cwd || !isAbsolute(cwd))) throw new Error("Enter an absolute path or a path beginning with ~/.");
   const absolute = resolve(cwd ?? deps.homedir(), expanded);
   let canonical: string;
-  try { canonical = await deps.realpath(absolute); } catch { throw new Error(`Cannot access ${absolute} on this Mac. Check the path and file permissions.`); }
+  try { canonical = await deps.realpath(absolute); } catch { throw new Error(`Cannot access ${absolute} on this machine. Check the path and file permissions.`); }
   let file: FileStat;
-  try { file = await deps.stat(canonical); } catch { throw new Error(`Cannot access ${absolute} on this Mac. Check the path and file permissions.`); }
+  try { file = await deps.stat(canonical); } catch { throw new Error(`Cannot access ${absolute} on this machine. Check the path and file permissions.`); }
   if (!file.isFile()) throw new Error("Choose a file, not a folder.");
   return { path: canonical, name: basename(canonical) };
 }

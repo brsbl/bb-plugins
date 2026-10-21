@@ -9,15 +9,17 @@ afterEach(async () => { for (const dispose of disposers.splice(0)) await dispose
 function snapshot(number = 1): Snapshot {
   return { nodeId: `PR_${number}`, url: `https://github.com/acme/repo/pull/${number}`, repository: "acme/repo", number, title: `PR ${number}`, body: "Private description", author: "alice", state: "open", headSha: "abc", headBranch: "fix", baseBranch: "main", updatedAt: "2026-10-04T00:00:00Z", fetchedAt: "2026-10-04T00:00:00Z", checks: { state: "passing", passing: 1, failing: 0, pending: 0, total: 1, complete: true, items: [{ name: "CI", state: "passing", url: null }] }, review: "approved", mergeability: "mergeable", queued: false, autoMerge: false, additions: 1, deletions: 1, changedFiles: 1, originThreadIds: [], stack: { state: "none", items: [] } };
 }
-function setup() {
+function setup(appUrl: string | null = null, accessUrl: string | null = null) {
+  let environmentPullRequest = async (_input: { environmentId: string }) => ({ outcome: "available" as const, pullRequest: { url: snapshot().url } });
   let beforeThreadRead = async () => {};
   let response: (input: { url: string; expectedAccountId?: string }, hostId: string) => Promise<ReadResult> = async (input) => ({ ok: true, accountId: "U_A", login: "alice", snapshot: snapshot(Number(input.url.split("/").at(-1))) });
   let searchResponse: (input: { scope: string }, hostId: string) => Promise<SearchResult> = async () => ({ ok: true, accountId: "U_A", login: "alice", snapshots: [snapshot()], nextCursor: null });
   const projects: { id: string; gitRemoteUrl: string | null }[] = [];
   const threads = [makeThreadResponse({ id: "thr_a", environmentId: "env_a", title: "Implementation" }), makeThreadResponse({ id: "thr_b", environmentId: "env_b", title: "Review" })];
-  const { bb, harness } = createFakePluginHost({ pluginId: "pull-requests", experimental_hostEntry: true, sdk: {
+  const { bb, harness } = createFakePluginHost({ pluginId: "pull-requests", appUrl, experimental_hostEntry: true, sdk: {
+    system: { config: async () => ({ serverAccess: { effectiveUrl: null, providers: accessUrl ? [{ availability: { status: "available", serverUrl: accessUrl } }] : [] } }) as never },
     threads: { get: async ({ threadId }) => { await beforeThreadRead(); const thread = threads.find((entry) => entry.id === threadId); if (!thread) throw new Error("No thread"); return thread; }, list: async ({ offset = 0, environmentId } = {}) => offset ? [] : threads.filter((thread) => !environmentId || thread.environmentId === environmentId) },
-    environments: { get: async ({ environmentId }) => ({ hostId: environmentId === "env_b" ? "host_b" : "host_a", path: "/repo" }), pullRequest: async () => ({ outcome: "available", pullRequest: { url: snapshot().url } }) },
+    environments: { get: async ({ environmentId }) => ({ hostId: environmentId === "env_b" ? "host_b" : "host_a", path: "/repo" }), pullRequest: (input) => environmentPullRequest(input) },
     projects: { list: async () => projects as never },
     hosts: { list: async () => [makeHostResponse({ id: "host_a", status: "connected" }), makeHostResponse({ id: "host_b", status: "connected" })] },
   }, experimental_callHostRpc: async ({ method, input, hostId }) => method === "search" ? searchResponse(input as { scope: string }, hostId) : response(input as { url: string; expectedAccountId?: string }, hostId) });
@@ -28,7 +30,7 @@ function setup() {
     return rpc<PullRequestItem>("link", { token: preview.token });
   };
   const settle = async () => { await vi.waitFor(async () => expect(await rpc("list", {})).toMatchObject({ coverage: { running: false } })); };
-  return { bb, harness, rpc, link, settle, threads, projects, setSearchResponse: (next: typeof searchResponse) => { searchResponse = next; }, setBeforeThreadRead: (next: typeof beforeThreadRead) => { beforeThreadRead = next; }, setResponse: (next: typeof response) => { response = next; } };
+  return { bb, harness, rpc, link, settle, threads, projects, setEnvironmentPullRequest: (next: typeof environmentPullRequest) => { environmentPullRequest = next; }, setSearchResponse: (next: typeof searchResponse) => { searchResponse = next; }, setBeforeThreadRead: (next: typeof beforeThreadRead) => { beforeThreadRead = next; }, setResponse: (next: typeof response) => { response = next; } };
 }
 describe("PR registry and host identity", () => {
   it("returns the complete known inbox before hierarchy filtering while preserving legacy list pages", async () => {
@@ -155,7 +157,7 @@ describe("PR registry and host identity", () => {
     const h = setup();
     h.threads.push(makeThreadResponse({ id: "thr_hidden", visibility: "hidden" }), makeThreadResponse({ id: "thr_deleted", deletedAt: Date.now() }));
     h.threads[1]!.archivedAt = Date.now();
-    const value = { ...snapshot(), body: "BB-Thread-ID: thr_a\n[Review](https://brsbl.getbb.app/threads/thr_b)\n@thread:thr_a thr_hidden thr_deleted thr_unknown", originThreadIds: ["thr_a"] };
+    const value = { ...snapshot(), body: "BB-Thread-ID: thr_a\n[Review](https://studio.example/threads/thr_b)\n@thread:thr_a thr_hidden thr_deleted thr_unknown", originThreadIds: ["thr_a"] };
     h.setSearchResponse(async () => ({ ok: true, accountId: "U_A", login: "alice", snapshots: [value], nextCursor: null }));
     await h.rpc("refresh", { discover: true }); await h.settle();
     const item = await h.rpc<PullRequestItem>("show", { id: "github:PR_1" });
@@ -173,6 +175,40 @@ describe("PR registry and host identity", () => {
     expect((await h.rpc<PullRequestItem>("show", { id: item.id })).links.map((link) => link.threadId)).toEqual(["thr_a", "thr_later"]);
     await h.rpc("refresh", { discover: true }); await h.settle();
     expect((await h.rpc<PullRequestItem>("show", { id: item.id })).links.map((link) => link.threadId)).toEqual(["thr_a", "thr_later"]);
+  });
+  it.each([
+    ["https://studio.example", "https://studio.example", true],
+    ["https://other.example", "https://other.example", true],
+    ["https://studio.example", "https://other.example", false],
+    [null, "http://127.0.0.1:38886", true],
+  ] as const)("verifies linked origins for server %s and marker %s", async (appUrl, markerUrl, expected) => {
+    const h = setup(appUrl);
+    const value = { ...snapshot(), body: `BB-Thread: [Implementation](${markerUrl}/projects/proj_demo/threads/thr_a)`, originThreadIds: ["thr_b"] };
+    h.setSearchResponse(async () => ({ ok: true, accountId: "U_A", login: "alice", snapshots: [value], nextCursor: null }));
+    h.setResponse(async () => ({ ok: true, accountId: "U_A", login: "alice", snapshot: value }));
+    await h.rpc("refresh", { discover: true, includeArchived: true }); await h.settle();
+    const item = await h.rpc<PullRequestItem>("show", { id: "github:PR_1" });
+    expect(item.links.find((link) => link.threadId === "thr_a")?.origin).toBe(expected);
+    expect(item.links.find((link) => link.threadId === "thr_b")?.origin).toBe(false);
+  });
+  it("recognizes the current remote-access server origin", async () => {
+    const h = setup(null, "https://remote.example");
+    const value = { ...snapshot(), body: "BB-Thread: [Implementation](https://remote.example/projects/proj_demo/threads/thr_a)" };
+    h.setSearchResponse(async () => ({ ok: true, accountId: "U_A", login: "alice", snapshots: [value], nextCursor: null }));
+    h.setResponse(async () => ({ ok: true, accountId: "U_A", login: "alice", snapshot: value }));
+    await h.rpc("refresh", { discover: true, includeArchived: true }); await h.settle();
+    const item = await h.rpc<PullRequestItem>("show", { id: "github:PR_1" });
+    expect(item.links.find((link) => link.threadId === "thr_a")?.origin).toBe(true);
+  });
+  it("uses the server-access origin and still requires repository verification", async () => {
+    const h = setup(null, "https://remote.example");
+    const value = { ...snapshot(), body: "BB-Thread: [Review](https://remote.example/projects/proj_demo/threads/thr_b)" };
+    h.setSearchResponse(async () => ({ ok: true, accountId: "U_A", login: "alice", snapshots: [value], nextCursor: null }));
+    h.setResponse(async () => ({ ok: true, accountId: "U_A", login: "alice", snapshot: value }));
+    h.setEnvironmentPullRequest(async ({ environmentId }) => ({ outcome: "available", pullRequest: { url: environmentId === "env_b" ? "https://github.com/acme/other/pull/1" : snapshot().url } }));
+    await h.rpc("refresh", { discover: true, includeArchived: true }); await h.settle();
+    const item = await h.rpc<PullRequestItem>("show", { id: "github:PR_1" });
+    expect(item.links.find((link) => link.threadId === "thr_b")?.origin).toBe(false);
   });
   it("does not associate a delayed body reference after GitHub access is revoked", async () => {
     const h = setup(); let release!: () => void;

@@ -440,7 +440,7 @@ export default function plugin(bb: BbPluginApi): void {
     const item = store.claimNotice(threadId, id);
     if (!item) return store.get(threadId, id);
     const label = title(item).replace(/[?\s]+$/, "");
-    const prefix = "brsbl dismissed: ";
+    const prefix = "Dismissed: ";
     const reason = item.dismissed?.reason;
     try {
       await bb.sdk.threads.send({ threadId, mode: "queue-if-active", input: [{

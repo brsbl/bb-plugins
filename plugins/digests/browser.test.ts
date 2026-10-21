@@ -88,7 +88,7 @@ describe("digest browser ownership", () => {
   });
 
   it.each([
-    ["linkedin", { page: "signed-in", accountName: "Ada Example" }, { accountName: "Ada Example" }],
+    ["linkedin", { page: "signed-in", accountName: "Example Sender" }, { accountName: "Example Sender" }],
     ["x", { page: "signed-in", accountName: "@example_handle" }, { accountName: "@example_handle" }],
     ["linkedin", { page: "authwall", accountName: null }, { status: "signed-out", recovery: "reconnect", message: "LinkedIn is signed out (it showed its sign-in wall). Reconnect it in the bb browser, then Retry." }],
     ["x", { page: "login", accountName: null }, { status: "signed-out", recovery: "reconnect", message: "X is signed out (it showed its sign-in page). Reconnect it in the bb browser, then Retry." }],

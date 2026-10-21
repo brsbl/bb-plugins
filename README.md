@@ -22,7 +22,7 @@ Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/d
 
 Delivers private briefings as threads with numbered priorities, review buttons, and collapsed routine details. Add or edit a prompt-based brief under the site it reads in Settings. Connections reuse existing bb Browser sign-ins; Reading remembers summarized newsletters without marking them read. Other threads can publish their own briefs.
 
-![A brief with numbered priorities and review buttons](https://github.com/user-attachments/assets/6d6f4f82-9f51-475a-b5e7-356a1e43459f)
+![A sample Morning brief: one reply needs you, with a Review reply button, the counts, and the No action needed table expanded](plugins/digests/docs/brief.png)
 
 [Source](plugins/digests) · [README](plugins/digests/README.md)
 
@@ -76,11 +76,11 @@ Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/p
 
 See your GitHub pull requests and review requests, inspect checks and changes, and continue related work in bb. Thread links are optional and survive branch changes.
 
-![Compact Pull Requests sidebar with status icons and timestamps](https://github.com/user-attachments/assets/00c9963c-89ac-4ee6-86e4-06c7840c725c)
+![Needs attention on: the failing Handle empty search PR in the queue, beside a sample stack's ordered Summary](plugins/pull-requests/docs/stack-attention.png)
 
-![Pull request Summary with status rail and linked thread](https://github.com/user-attachments/assets/1ed45e6e-163d-44e9-852a-7e818eef0c2c)
+![Summary of a sample pull request with passing checks, an approved review, its stack and a linked thread](plugins/pull-requests/docs/summary.png)
 
-![Read-only changed file selection](https://github.com/user-attachments/assets/e664001b-4dbc-4ecc-8f48-38e79cd82dc1)
+![Read-only Changes for a sample pull request](plugins/pull-requests/docs/changes.png)
 
 [Source](plugins/pull-requests) · [README](plugins/pull-requests/README.md)
 
@@ -114,7 +114,7 @@ Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/t
 
 Plans deliverables on a month or week calendar stored on a dedicated Google calendar, with drag-and-drop rescheduling, Evergreen and Later trays, gates, and attached Moss notes. Agents manage it through `bb content-calendar` and show it live inline in chat.
 
-![Content Calendar month view with Evergreen and Later trays](plugins/content-calendar/docs/calendar-month.png)
+![Content Calendar month view for October 2026 with sample workshop items and the Evergreen and Later trays](plugins/content-calendar/docs/calendar-month.png)
 
 [Source](plugins/content-calendar) · [README](plugins/content-calendar/README.md)
 
@@ -156,11 +156,7 @@ Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/i
 
 Answer everything agents need from you in Waiting on you, a drawer above the prompt box that collects decisions, email replies and plain questions from every thread, urgent first. Track past choices and results in the Decision log.
 
-![Minimal cards](https://github.com/user-attachments/assets/692e0678-252d-47cf-8e1f-01e2b5c3fa7e)
-
-![Action table and results](https://github.com/user-attachments/assets/ec63ecfe-86ad-4a46-8f6e-06a72e8923f0)
-
-![Mixed table with one reply expanded](https://github.com/user-attachments/assets/4eef8810-5a99-40af-8fa4-974d25f6937f)
+![A sample decision open in Waiting on you, with its context, both options, Recommended and Submit](plugins/inline-action-cards/docs/decision-in-thread.png)
 
 [Source](plugins/inline-action-cards) · [README](plugins/inline-action-cards/README.md)
 
@@ -328,7 +324,7 @@ Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/a
 
 Review product films in bb with inline playback, frame annotations, and version history. Send selected feedback and captured frames to the agent, guided by the bundled Product Demo Direction skill.
 
-![The Video Markup panel with a marked frame, an open frame note, and selected notes in the prompt box](plugins/video-markup/docs/screenshot.png)
+![The Video Markup panel paused on a sample tasks clip, with a box around the edited title and the note "Keep the title visible while editing" selected](plugins/video-markup/docs/screenshot.png)
 
 [Source](plugins/video-markup) · [README](plugins/video-markup/README.md)
 

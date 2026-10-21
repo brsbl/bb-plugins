@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { PublishInputSchema } from "./model";
 import { createService } from "./service";
+import plugin from "./server";
 import type { Owner } from "./store";
 import type { SignInPage } from "./signin";
 
@@ -27,7 +28,7 @@ function setup(options: { runs?: Array<{
   const { bb, harness } = createFakePluginHost({
     pluginId: "digests",
     sdk: {
-      hosts: { get: async () => ({ ...makeHostResponse({ id: "host_browser", status: options.offline ? "disconnected" : "connected", name: "My Mac" }), connectMachineId: null }) },
+      hosts: { get: async () => ({ ...makeHostResponse({ id: "host_browser", status: options.offline ? "disconnected" : "connected", name: "Fixture computer" }), connectMachineId: null }) },
       projects: { list: async () => options.personal ? [{ id: "proj_personal", kind: "personal", name: "Personal", sources: [], gitRemoteUrl: null, createdAt: 1, updatedAt: 1 }] : [{ id: "proj_digest", kind: "standard", name: "Digest project", gitRemoteUrl: null, createdAt: 1, updatedAt: 1,
         sources: [{ id: "source_browser", projectId: "proj_digest", type: "local_path", hostId: "host_browser", path: "/digest-workspace", isDefault: true, createdAt: 1, updatedAt: 1 }] }] },
       environments: { listProviders: async () => options.personal ? [{ id: "personal-workspace", displayName: "Personal workspace", description: "", icon: "Folder", logoUrl: null, pluginId: "environment-personal-workspace", machineProviderId: null, requires: { projectCheckout: false, gitCheckout: false, gitRemote: false, projectless: true }, inputs: null, acceptsEmptyInputs: true, availability: null, machineAvailability: {} }] : [] },
@@ -101,17 +102,37 @@ const payload = () => PublishInputSchema.parse({
 });
 
 function withTwoInboxes(service: ReturnType<typeof setup>["service"], money?: { enabled: boolean }) {
-  service.store.connections.put({ id: "gmail-alex", name: "Gmail (alex)", url: "https://mail.google.com/mail/u/1/", browserHostId: "host_browser" });
-  service.store.definitions.put({ ...service.requiredDefinition("reading"), connectionIds: ["gmail", "gmail-alex"] });
+  service.store.connections.put({ id: "gmail-sample", name: "Gmail (sample)", url: "https://mail.google.com/mail/u/1/", browserHostId: "host_browser" });
+  service.store.definitions.put({ ...service.requiredDefinition("reading"), connectionIds: ["gmail", "gmail-sample"] });
   if (money) service.store.definitions.put({
-    id: "money", name: "Money", projectId: "proj_digest", instructions: "Bills and receipts.", connectionIds: ["gmail", "gmail-alex"],
+    id: "money", name: "Money", projectId: "proj_digest", instructions: "Bills and receipts.", connectionIds: ["gmail", "gmail-sample"],
     schedule: { cron: "0 9 * * *", timezone: "America/Los_Angeles" }, automationId: "auto_money", enabled: money.enabled,
     providerId: "codex", model: "model-test", createdAt: NOW,
   });
 }
-const moneyMail = (messageId: string, connectionId = "gmail-alex") => ({ connectionId, messageId, class: "money" as const, from: "Bills <bills@example.com>", subject: "Your bill" });
+const moneyMail = (messageId: string, connectionId = "gmail-sample") => ({ connectionId, messageId, class: "money" as const, from: "Bills <bills@example.com>", subject: "Your bill" });
 
 describe("digest issue lifecycle", () => {
+  it("sets up neutral system-timezone starters without replacing saved prompts or schedules", async () => {
+    const { bb, service, harness } = setup();
+    const saved = { ...service.requiredDefinition("reading"), instructions: "Only my chosen topics; keep this saved filter.", automationId: "auto_saved" };
+    service.store.definitions.put(saved);
+    plugin(bb);
+    const args = ["setup", "--project", "proj_digest", "--browser-host", "host_browser", "--provider", "codex", "--model", "model-test"];
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const result = await harness.behavior.runCli(args, { threadId: "thr_setup", projectId: "proj_digest" });
+      expect(result.exitCode, result.stderr).toBe(0);
+      expect(service.requiredDefinition("reading")).toMatchObject({
+        instructions: saved.instructions, schedule: saved.schedule, automationId: "auto_saved", enabled: false,
+      });
+      for (const id of ["unread-email", "money"]) {
+        expect(service.requiredDefinition(id)).toMatchObject({ enabled: false, schedule: { timezone: Intl.DateTimeFormat().resolvedOptions().timeZone } });
+      }
+      expect(service.store.definitions.list()).toHaveLength(4);
+    }
+    expect(harness.inspection.sdk.callsTo("plugins.callRpc").some(([call]) => (call as { pluginId: string }).pluginId === "automations")).toBe(false);
+  });
+
   it("waits for another Gmail collection before exposing a browser or observing unread state", async () => {
     const { service, harness } = setup();
     await service.begin("reading", "thr_first");
@@ -151,6 +172,74 @@ describe("digest issue lifecycle", () => {
     expect(() => service.emailRead("thr_mark_read", { messageId: "mail2", status: "restored-unread" })).toThrow("originally read");
     expect(service.emailRead("thr_mark_read", { messageId: "mail2", status: "unchanged-read" }).status).toBe("unchanged-read");
     expect(() => service.emailRead("thr_mark_read", { messageId: "unrecorded", status: "left-read" })).toThrow("Record");
+  });
+
+  it.each(["keep-unread", "mark-read"] as const)("preserves a mixed reply chain in %s mode with a synthetic mailbox", async (afterReading) => {
+    const { service } = setup();
+    service.store.definitions.put({ ...service.requiredDefinition("reading"), afterReading });
+    const begun = await service.begin("reading", "thr_fixture");
+    expect(begun.instructions).toContain("preserve mixed read/unread states per message");
+    expect(begun.instructions).toContain("without reopening it");
+    // The mailbox models opening and restoration separately from the journal.
+    // The production agent performs those browser actions; emailRead does not.
+    const mailbox = new Map([["fixture_unread", true], ["fixture_read", false]]);
+    for (const [messageId, wasUnread] of mailbox) {
+      service.emailRead("thr_fixture", { messageId, threadId: "fixture_chain", wasUnread, status: "opening" });
+      expect(mailbox.get(messageId)).toBe(wasUnread);
+      mailbox.set(messageId, false); // Opening the synthetic message marks it read.
+      if (wasUnread && afterReading === "keep-unread") mailbox.set(messageId, true);
+      const observedUnread = mailbox.get(messageId);
+      service.emailRead("thr_fixture", { messageId, status: observedUnread ? "restored-unread" : wasUnread ? "left-read" : "unchanged-read" });
+    }
+    const published = await service.publishCurrent("thr_fixture", payload());
+    expect(mailbox.get("fixture_read")).toBe(false);
+    expect(mailbox.get("fixture_unread")).toBe(afterReading === "keep-unread");
+    expect(published.issue.emailReads).toMatchObject([
+      { messageId: "fixture_unread", wasUnread: true, afterReading, status: afterReading === "keep-unread" ? "restored-unread" : "left-read" },
+      { messageId: "fixture_read", wasUnread: false, status: "unchanged-read" },
+    ]);
+  });
+
+  it.each(["opening", "restore-failed"] as const)("retains %s after an interrupted scheduled run and repairs the same journal on retry", async (status) => {
+    const runs = [{ id: "run_fixture", threadId: "thr_fixture", status: "running", scheduledFor: Date.now(), startedAt: Date.now(), error: null, skipReason: null }];
+    const { service, bb, harness } = setup({ runs });
+    service.store.definitions.put({ ...service.requiredDefinition("reading"), automationId: "auto_fixture" });
+    const { issue } = await service.begin("reading", "thr_fixture");
+    service.emailRead("thr_fixture", { messageId: "fixture_unread", wasUnread: true, status: "opening" });
+    if (status === "restore-failed") service.emailRead("thr_fixture", { messageId: "fixture_unread", status });
+    runs[0]!.status = "failed";
+    const restarted = createService(bb);
+    await restarted.reconcile();
+    expect(await restarted.recoveryIssue("thr_fixture")).toMatchObject({ id: issue.id, state: "failed", recovery: "retry", emailReads: [{ status, wasUnread: true }] });
+    expect(await bb.storage.kv.get("gmail-collector")).toBeUndefined();
+    expect(await bb.storage.kv.get(`browsers:${issue.id}`)).toBeUndefined();
+    expect(restarted.store.processed("reading", "gmail", ["message_1"])).toEqual([]);
+    // A preference change must not rewrite the original message's obligation.
+    restarted.store.definitions.put({ ...restarted.requiredDefinition("reading"), afterReading: "mark-read" });
+    await restarted.retry("thr_fixture", issue.id);
+    const resumed = await restarted.begin("reading", "thr_fixture");
+    expect(resumed.issue.id).toBe(issue.id);
+    expect(resumed.instructions).toContain("repair any opening/restore-failed records");
+    expect(resumed.sessions[0]?.tabId).toBe("tab_2");
+    restarted.emailRead("thr_fixture", { messageId: "fixture_unread", wasUnread: false, status: "opening" });
+    expect(() => restarted.emailRead("thr_fixture", { messageId: "fixture_unread", status: "left-read" })).toThrow("Restore");
+    restarted.emailRead("thr_fixture", { messageId: "fixture_unread", status: "restored-unread" });
+    const published = await restarted.publishCurrent("thr_fixture", payload());
+    expect(published.issue.emailReads).toMatchObject([{ wasUnread: true, afterReading: "keep-unread", status: "restored-unread" }]);
+    expect(restarted.store.issues.list()).toHaveLength(1);
+    expect(restarted.store.processed("reading", "gmail", ["message_1"])).toEqual(["message_1"]);
+    expect(harness.inspection.sdk.callsTo("experimental_desktopBrowsers.closeTab")).toHaveLength(2);
+  });
+
+  it("preserves an unverified restoration in a partial published brief", async () => {
+    const { service, bb } = setup();
+    await service.begin("reading", "thr_fixture");
+    service.emailRead("thr_fixture", { messageId: "fixture_unread", wasUnread: true, status: "opening" });
+    service.emailRead("thr_fixture", { messageId: "fixture_unread", status: "restore-failed" });
+    const result = await service.publishCurrent("thr_fixture", { ...payload(), details: "Partial coverage: unread restoration could not be verified." });
+    const restarted = createService(bb);
+    expect(restarted.requiredIssue("thr_fixture")).toMatchObject({ id: result.issue.id, state: "ready", emailReads: [{ status: "restore-failed", wasUnread: true }] });
+    expect(result.issue.details).toContain("could not be verified");
   });
 
   it("dispatches on the browser host in Personal rather than the server project default", async () => {
@@ -209,8 +298,8 @@ describe("digest issue lifecycle", () => {
 
   it("reports an offline execution host before dispatching an agent", async () => {
     const { service, harness } = setup({ offline: true });
-    await expect(service.run("reading")).rejects.toThrow("My Mac is offline");
-    expect((await service.overview()).runErrors.reading).toContain("My Mac is offline");
+    await expect(service.run("reading")).rejects.toThrow("Fixture computer is offline");
+    expect((await service.overview()).runErrors.reading).toContain("Fixture computer is offline");
     expect(harness.inspection.sdk.callsTo("threads.spawn")).toEqual([]);
     expect(harness.inspection.sdk.callsTo("plugins.callRpc").filter(([call]) => (call as { pluginId: string }).pluginId === "automations")).toEqual([]);
   });
@@ -599,7 +688,7 @@ describe("digest issue lifecycle", () => {
     expect(automationCalls[0]?.input).toMatchObject({ enabled: false, execution: { mode: "agent" }, trigger: { cron: "0 11 * * 0" } });
     expect(automationCalls[0]?.input.execution).not.toHaveProperty("targetThreadId");
     expect(automationCalls.slice(1).map(({ input }) => input.automationId)).toEqual(["auto_digest_new", "auto_digest_new", "auto_digest_new"]);
-    expect(JSON.stringify(automationCalls.map(({ input }) => input))).not.toMatch(/auto_zto0dtbcxme|auto_fffup3wj2me|auto_l_llrtabhlw/u);
+    expect(automationCalls.slice(1).every(({ input }) => input.automationId === "auto_digest_new")).toBe(true);
   });
 });
 
@@ -608,19 +697,19 @@ describe("email ownership across briefs", () => {
     const nextRunAt = Date.now() + DAY;
     const { bb, service } = setup({ automations: { auto_money: { enabled: true, nextRunAt } } });
     withTwoInboxes(service, { enabled: true });
-    service.store.definitions.put({ id: "replies", name: "Replies", projectId: "proj_digest", instructions: "Replies only.", connectionIds: ["gmail-alex"], providerId: "codex", model: "model-test", createdAt: NOW });
+    service.store.definitions.put({ id: "replies", name: "Replies", projectId: "proj_digest", instructions: "Replies only.", connectionIds: ["gmail-sample"], providerId: "codex", model: "model-test", createdAt: NOW });
     const reading = await service.begin("reading", "thr_reading");
     expect(reading).toMatchObject({ complete: false, handoffs: [],
-      owners: [{ class: "money", digestId: "money", name: "Money", connectionIds: ["gmail", "gmail-alex"], nextRunAt }] });
+      owners: [{ class: "money", digestId: "money", name: "Money", connectionIds: ["gmail", "gmail-sample"], nextRunAt }] });
     expect(await bb.storage.kv.get("gmail-collector")).toBe(reading.issue.id);
     expect((await service.begin("replies", "thr_replies")).instructions).toContain("Another brief is reading Gmail");
 
     await expect(service.publishCurrent("thr_reading", { ...payload(), sources: [{ ...moneyMail("bill_1"), placement: "shown" }] })).rejects.toThrow("Money owns money mail");
     await service.publishCurrent("thr_reading", { ...payload(), sources: [{ ...moneyMail("bill_1"), placement: "handoff" }] });
     const money = await service.begin("money", "thr_money");
-    expect(money.handoffs).toEqual([expect.objectContaining({ connectionId: "gmail-alex", messageId: "bill_1", ownerDigestId: "money", handedOffBy: "reading" })]);
+    expect(money.handoffs).toEqual([expect.objectContaining({ connectionId: "gmail-sample", messageId: "bill_1", ownerDigestId: "money", handedOffBy: "reading" })]);
     expect(await bb.storage.kv.get(`handoffs:${money.issue.id}`)).toEqual([money.handoffs![0]!.emailId]);
-    expect(await service.emailStatus("thr_money", [{ connectionId: "gmail-alex", messageId: "bill_1" }])).toMatchObject([{ status: "handed-to-you" }]);
+    expect(await service.emailStatus("thr_money", [{ connectionId: "gmail-sample", messageId: "bill_1" }])).toMatchObject([{ status: "handed-to-you" }]);
     await expect(service.publishCurrent("thr_money", { ...payload(), sources: [] })).rejects.toThrow("Show or release");
     await service.publishCurrent("thr_money", { ...payload(), sources: [{ ...moneyMail("bill_1"), placement: "shown" }] });
     expect(await bb.storage.kv.get(`begun:${money.issue.id}`)).toBeUndefined();
@@ -642,13 +731,13 @@ describe("email ownership across briefs", () => {
   it("fails a brief closed when an owner's schedule can't be read, without taking its handoffs", async () => {
     const { service } = setup({ automations: {} });
     withTwoInboxes(service, { enabled: true });
-    const money: Owner = { class: "money", digestId: "money", name: "Money", connectionIds: ["gmail", "gmail-alex"], nextRunAt: NOW };
+    const money: Owner = { class: "money", digestId: "money", name: "Money", connectionIds: ["gmail", "gmail-sample"], nextRunAt: NOW };
     service.store.issues.create({ id: "iss_handoff", digestId: "reading", headline: "Preparing", createdAt: NOW });
     service.store.issues.publish("iss_handoff", { ...payload(), sources: [{ ...moneyMail("bill_9"), placement: "handoff" }] }, NOW, { strict: true, owners: [money] });
     const result = await service.begin("reading", "thr_owner_check");
     expect(result).toMatchObject({ complete: true, issue: { state: "failed", recovery: "retry", details: "Couldn't check Money's schedule. Retry this brief." } });
     expect(result).not.toHaveProperty("handoffs");
-    expect(service.store.emailStatus("reading", [{ connectionId: "gmail-alex", messageId: "bill_9" }], [money], []))
+    expect(service.store.emailStatus("reading", [{ connectionId: "gmail-sample", messageId: "bill_9" }], [money], []))
       .toMatchObject([{ status: "handed-off", ownerDigestId: "money" }]);
   });
 
@@ -685,10 +774,10 @@ describe("email ownership across briefs", () => {
 
   it("adds connections and sets owned classes while keeping the brief's automation and switch", async () => {
     const { service, harness } = setup();
-    service.store.connections.put({ id: "gmail-alex", name: "Gmail (alex)", url: "https://mail.google.com/mail/u/1/", browserHostId: "host_browser" });
+    service.store.connections.put({ id: "gmail-sample", name: "Gmail (sample)", url: "https://mail.google.com/mail/u/1/", browserHostId: "host_browser" });
     const before = service.store.definitions.put({ ...service.requiredDefinition("reading"), enabled: true, automationId: "auto_reading" });
-    const updated = await service.updateDigest("reading", { addConnectionIds: ["gmail-alex", "gmail"] });
-    expect(updated).toMatchObject({ id: "reading", automationId: "auto_reading", enabled: true, schedule: before.schedule, connectionIds: ["gmail", "gmail-alex"] });
+    const updated = await service.updateDigest("reading", { addConnectionIds: ["gmail-sample", "gmail"] });
+    expect(updated).toMatchObject({ id: "reading", automationId: "auto_reading", enabled: true, schedule: before.schedule, connectionIds: ["gmail", "gmail-sample"] });
     const calls = harness.inspection.sdk.callsTo("plugins.callRpc").map(([value]) => value as { method: string; input: { automationId?: string } });
     expect(calls.filter((call) => call.method === "automations_create")).toEqual([]);
     expect(calls.find((call) => call.method === "automations_update")?.input.automationId).toBe("auto_reading");
@@ -697,7 +786,7 @@ describe("email ownership across briefs", () => {
     expect(await service.updateDigest("reading", { owns: null })).not.toHaveProperty("owns");
 
     service.store.definitions.put({ ...service.requiredDefinition("reading"), enabled: false, automationId: null, connectionIds: ["gmail"] });
-    const saved = await service.saveDigest({ id: "reading", connectionId: "gmail-alex", name: "Reading", instructions: before.instructions, schedule: before.schedule });
-    expect(saved).toMatchObject({ id: "reading", connectionIds: ["gmail", "gmail-alex"], enabled: false });
+    const saved = await service.saveDigest({ id: "reading", connectionId: "gmail-sample", name: "Reading", instructions: before.instructions, schedule: before.schedule });
+    expect(saved).toMatchObject({ id: "reading", connectionIds: ["gmail", "gmail-sample"], enabled: false });
   });
 });

@@ -3,7 +3,7 @@ import { digestEmoji } from "./emoji.js";
 import { accountUrl, expectedAccount } from "./sites.js";
 
 export function issueTitle(definition: DigestDefinition, now: number): string {
-  const parts = new Intl.DateTimeFormat("en-US", { timeZone: definition.schedule?.timezone ?? "America/Los_Angeles", weekday: "short", month: "short", day: "numeric" }).formatToParts(now);
+  const parts = new Intl.DateTimeFormat("en-US", { timeZone: definition.schedule?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone, weekday: "short", month: "short", day: "numeric" }).formatToParts(now);
   const part = (type: string) => parts.find((value) => value.type === type)?.value ?? "";
   const emoji = digestEmoji(definition);
   return `${emoji ? `${emoji} ` : ""}${definition.name} · ${part("weekday")} ${part("month")} ${part("day")}`;
