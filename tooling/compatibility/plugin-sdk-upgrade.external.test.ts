@@ -392,7 +392,7 @@ it("installs the latest File Pins tag at the marketplace root", async () => {
 
     server = await startTestServer({ appVersion: "0.43.4" });
     server.pluginService.bindSdk({ baseUrl: server.baseUrl });
-    await server.pluginService.install(`git:${remote}@semver:file-pins/:^0.1.2`);
+    await server.pluginService.install(`git:${remote}@semver:file-pins/:^0.1.2`, { kind: "root" });
     const installed = server.pluginService.list().find((entry) => entry.id === "file-pins")!;
     expect(installed).toMatchObject({ version: release.plugin.manifest.version, status: "running" });
     expect(getInstalledPluginRegistration(server.db, "file-pins"))
