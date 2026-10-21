@@ -767,9 +767,9 @@ assert.equal(
   card.querySelector(".bb-thread-hover-card__reasoning"),
 );
 assert.deepEqual(
-  Array.from(card.children).map((child) => child.className),
+  Array.from(card.querySelector("[data-hover-kind]").children).map((child) => child.dataset.cardRow || child.className || child.tagName.toLowerCase()),
   [
-    "bb-thread-hover-card__header",
+    "header", "facts", "meta",
     "bb-thread-hover-card__summary",
     "bb-thread-hover-card__context",
   ],
@@ -1135,9 +1135,9 @@ assert.equal(
   "/Users/alex/.bb/personal-workspaces/env_pmgnprh2j6",
 );
 assert.deepEqual(
-  Array.from(card.children).map((child) => child.className),
+  Array.from(card.querySelector("[data-hover-kind]").children).map((child) => child.dataset.cardRow || child.className || child.tagName.toLowerCase()),
   [
-    "bb-thread-hover-card__header",
+    "header", "facts", "meta",
     "bb-thread-hover-card__summary",
     "bb-thread-hover-card__context",
     "bb-thread-hover-card__local",
@@ -1199,9 +1199,9 @@ assert.doesNotMatch(card.textContent, /No PR/);
 assert.equal(card.querySelector(".bb-thread-hover-card__summary"), null);
 assert.equal(card.querySelector(".bb-thread-hover-card__pr"), null);
 assert.deepEqual(
-  Array.from(card.children).map((child) => child.className),
+  Array.from(card.querySelector("[data-hover-kind]").children).map((child) => child.dataset.cardRow || child.className || child.tagName.toLowerCase()),
   [
-    "bb-thread-hover-card__header",
+    "header", "facts", "meta",
     "bb-thread-hover-card__context",
   ],
 );
