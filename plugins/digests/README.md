@@ -4,7 +4,7 @@ Private briefings delivered as threads: one clear headline, a few numbered
 items with buttons that open where each task gets done, each email in one brief only, and a flat “No action needed” email table collapsed. Briefs arrive in a
 Briefs inbox. Archive them when done and find old briefs with thread search.
 
-![A sample Morning brief thread: one reply needs you, with a Review reply button, the counts, and the No action needed table expanded](docs/brief.png)
+![A brief with numbered priorities and review buttons](https://github.com/user-attachments/assets/6d6f4f82-9f51-475a-b5e7-356a1e43459f)
 
 ## Install
 
