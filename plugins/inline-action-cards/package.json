@@ -6,6 +6,7 @@
   "license": "UNLICENSED",
   "files": [
     "assets",
+    "docs",
     "dist",
     "README.md",
     "skills"
