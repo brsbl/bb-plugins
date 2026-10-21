@@ -18,7 +18,7 @@ This folder holds the small amount of machinery the plugins genuinely share. Run
 | [`plugin-workspaces.mjs`](plugin-workspaces.mjs) | Finds plugins and reads their names and stable IDs from their manifests. |
 | [`build-plugin.mjs`](build-plugin.mjs) | Gives every workspace the same `bb plugin build` entrypoint. |
 | [`check-repository.mjs`](check-repository.mjs) | Catches drift in manifests, lockfiles, READMEs, screenshots, skills, workflows, and layout. |
-| [`check-private-data.mjs`](check-private-data.mjs) | Rejects private home paths, personal account names and thread IDs in every tracked file, including generated files and gzip vendors. Runs with its unit tests in `hygiene`, through `npm run check` and CI. |
+| [`check-private-data.mjs`](check-private-data.mjs) | Rejects private home paths, personal account names, thread IDs and links to private bb servers and preview shares in every tracked file, including generated files and gzip vendors. Runs with its unit tests in `hygiene`, through `npm run check` and CI. |
 | [`check-icons.mjs`](check-icons.mjs) | Fails on icon names missing from [`bb-icon-names.json`](bb-icon-names.json), which bb would render as its Zap fallback, and on any Zap or lightning-bolt icon. |
 | [`validate-plugin-artifacts.mjs`](validate-plugin-artifacts.mjs) | Makes sure production bundles contain everything bb needs to install them. |
 | [`create-plugin.mjs`](create-plugin.mjs) | Starts a plugin with package scripts, local SDK declarations, and a focused test. |
@@ -62,6 +62,7 @@ remain unchanged.
 Use only `/home/user` or `/Users/alex` for synthetic home directories and
 `thr_example000` through `thr_example999` for full-length example thread IDs.
 Personal account identifiers are checked case-insensitively; public GitHub owner
-and marketplace URLs remain valid. The privacy checker has no file-level exemptions. Raw eval reports belong in
+and public getbb.app, marketplace and docs URLs remain valid. Use `studio.example`
+for server and preview links. The privacy checker has no file-level exemptions. Raw eval reports belong in
 the harness’s gitignored output directory; review aggregate documentation before
 committing it. The check scans current tracked files, not Git history.

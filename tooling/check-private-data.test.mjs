@@ -11,6 +11,7 @@ import { checkPrivateData, privateDataHits } from './check-private-data.mjs';
 const home = name => '/' + 'home/' + name;
 const mac = name => '/' + 'Users/' + name;
 const thread = suffix => 'thr_' + suffix;
+const server = name => `${name}.getbb.app`;
 
 test('rejects personal home paths and real-shaped thread IDs, including links', () => {
   for (const value of [mac('brsbl'), home('someone'), mac('other-user'), home('user2'), mac('alexander'), home('name.with-dots')]) {
@@ -42,6 +43,36 @@ test('rejects personal account names case-insensitively without banning the publ
     'alex@example.com',
     'https://stackoverflow.com/users/1/someone',
   ]) assert.deepEqual(privateDataHits(url), []);
+});
+
+test('rejects private server and preview share links case-insensitively', () => {
+  for (const name of ['brsbl', 'brsbl-bbox', 'studio--3000', 'studio--1', 'studio--123456', 'my-studio--8080', 'studio--3000-extra', 'studio--3000.nested']) {
+    const host = server(name);
+    for (const value of [host, `https://${host}/threads/example`, `http://${host}:8080/`, `//${host}/`, `https://${host.toUpperCase()}/`]) {
+      assert.deepEqual(privateDataHits(`first\n[Preview](${value})`), [{ kind: 'server link', line: 2 }]);
+    }
+  }
+});
+
+test('allows public site, marketplace, docs and unrelated example URLs', () => {
+  for (const value of [
+    'getbb.app',
+    'www.getbb.app',
+    'https://getbb.app',
+    'https://www.getbb.app/',
+    'https://getbb.app/marketplace/v2/marketplace.json',
+    'https://getbb.app/docs',
+    'https://getbb.app/docs/plugins',
+    'https://docs.getbb.app/',
+    'https://getbb.app/places',
+    'https://studio.example/',
+    `https://${server('alpha')}/`,
+    `https://${server('studio--preview')}/`,
+    `https://${server('studio-3000')}/`,
+    `https://${server('other-brsbl')}/`,
+    `https://${server('brsbl-bbox-example')}/`,
+    `https://${server('studio--3000')}lication/`,
+  ]) assert.deepEqual(privateDataHits(value), []);
 });
 
 test('allows only explicit synthetic homes and thread examples', () => {
