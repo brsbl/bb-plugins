@@ -236,10 +236,14 @@ function PinStrip({ threadId }: { threadId: string }) {
     for (const child of Array.from(row.children)) observer.observe(child);
     return () => { row.removeEventListener("scroll", check); row.removeEventListener("wheel", wheel); observer.disconnect(); };
   }, [compact, metrics, pins, more]);
-  // ⋯ is always there. It lists only pins the strip doesn't show: ones that didn't fit, then ones hidden by hand.
+  // ⋯ lists only pins the strip doesn't show: ones that didn't fit, then ones hidden by hand.
   // Pins reachable by scrolling the strip stay off it.
   const listed = layout.more;
-  const moreLabel = listed.length ? `${listed.length} more ${listed.length === 1 ? "pin" : "pins"}` : "More pins, all pins are showing";
+  const hasMore = listed.length > 0;
+  const moreLabel = `${listed.length} more ${listed.length === 1 ? "pin" : "pins"}`;
+  useEffect(() => {
+    if (!hasMore) { setMoreOpen(false); setRowMenu(null); }
+  }, [hasMore]);
   const current: Arrangement = { order: pins.map((pin) => pin.id), more };
   function arrange(next: Arrangement) {
     // Apply locally first; saves run in order and
@@ -369,13 +373,12 @@ function PinStrip({ threadId }: { threadId: string }) {
         {layout.strip.map((pin) => stripPin(pin))}
       </div>
       {/* ⋯ sits outside the scrolling row, flush with the composer's right edge, so pins scroll under its fade and it never moves. */}
-      <Popover open={moreOpen} onOpenChange={setMoreOpen}>
+      {hasMore && <Popover open={moreOpen} onOpenChange={setMoreOpen}>
         <PopoverTrigger asChild><button type="button" aria-label={moreLabel} title="More pins" className={cn(moreClass, "-mr-1 cursor-pointer")}><Icon name="MoreHorizontal" className="size-4" /></button></PopoverTrigger>
         <PopoverContent aria-label="More pins" className={cn("p-1", compact ? "w-[calc(100vw-2rem)]" : "w-56")}>
-          {listed.length ? <div className="max-h-64 overflow-y-auto">{listed.map((pin) => listRow(pin))}</div>
-            : <p className="px-2 py-[0.3125rem] text-xs text-muted-foreground">All pins are showing</p>}
+          <div className="max-h-64 overflow-y-auto">{listed.map((pin) => listRow(pin))}</div>
         </PopoverContent>
-      </Popover>
+      </Popover>}
     </section>}
     {/* Mirrors the strip row with every pin at its natural width, plus ⋯ and the minimum pin, to measure what fits. */}
     <div ref={measureRow} aria-hidden="true" className="pointer-events-none invisible absolute inset-x-0 top-0 flex h-0 items-center gap-1 overflow-hidden px-1">

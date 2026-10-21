@@ -1,7 +1,7 @@
 import { useLayoutEffect, useState, type RefObject } from "react";
 
 // One stored order plus the files that are not pinned. The strip shows pinned
-// files in order at their natural width, as many as fit beside ⋯, which is always there; its list holds the rest.
+// files in order at their natural width, as many as fit; the ⋯ list holds the rest.
 // When they don't all fit, the longest labels truncate first, down to the minimum.
 export const PIN_MIN_WIDTH_CLASS = "w-24";
 // A pin this close to the longest pins' share keeps its full label; the longer pins absorb the difference.
@@ -23,8 +23,10 @@ export function layoutPins<T extends { id: string }>(pins: readonly T[], unpinne
   const rest = pins.filter((pin) => unpinned.includes(pin.id));
   if (!metrics) return { strip: pinned, more: rest, caps: {} };
   const natural = (pin: T) => metrics.pins[pin.id] ?? metrics.min;
-  // ⋯ always shows, so its width is always reserved.
-  const room = (count: number) => metrics.width - Math.max(0, count - 1) * metrics.gap - metrics.more - metrics.gap;
+  // Reserve ⋯ only when there are pins in its list. The independent measurement row
+  // keeps this decision stable when the visible button mounts or unmounts.
+  const room = (count: number) => metrics.width - Math.max(0, count - 1) * metrics.gap
+    - (count < pinned.length || rest.length > 0 ? metrics.more + metrics.gap : 0);
   const least = (pin: T) => whole ? natural(pin) : Math.min(natural(pin), metrics.min);
   let count = pinned.length;
   while (count > (whole ? 1 : 0) && pinned.slice(0, count).reduce((sum, pin) => sum + least(pin), 0) > room(count)) count--;
