@@ -167,7 +167,8 @@ ${CONTROLS_RUNTIME.replace("/*SETS*/", CHART_RUNTIME + SETS_RUNTIME)}
     const message = event.data;
     if (event.source !== parent || !message || message.source !== SOURCE) return;
     if (message.type === "theme") { theme = message.theme; apply(theme); notify(listeners, theme); }
-    if (message.type === "state") { state = message.state; if (typeof message.version === "number") version = message.version; notify(stateListeners, state); }
+    // Standalone previews post to themselves; their local save is already applied.
+    if (message.type === "state" && parent !== window) { state = message.state; if (typeof message.version === "number") version = message.version; notify(stateListeners, state); }
     if (message.type === "font" && typeof message.family === "string" && message.data instanceof ArrayBuffer) {
       try { const face = new FontFace(message.family, message.data, { weight: "100 900" }); document.fonts.add(face); face.load().catch(() => {}); } catch {}
     }

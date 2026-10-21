@@ -65,6 +65,11 @@ export const DigestDefinitionSchema = z.object({
   automationProjectId: IdSchema.optional(),
   automationEnvironment: ExplicitEnvironmentSchema.optional(),
   enabled: z.boolean().default(false),
+  /** Mail classes this brief owns. Omitted means the starter default: money owns money, reading owns newsletters. */
+  owns: z.array(z.enum(["money", "newsletters"])).max(2).refine(
+    (classes) => new Set(classes).size === classes.length,
+    "List each class only once.",
+  ).optional(),
   providerId: IdSchema.nullable().default(null),
   model: z.string().min(1).max(160).nullable().default(null),
   reasoningLevel: z.enum(["none", "low", "medium", "high", "xhigh", "max", "ultra", "ultracode"]).nullable().default(null),
@@ -100,12 +105,33 @@ export const MetricSchema = z.object({
   value: z.string().trim().min(1).max(100),
 }).strict();
 
+export const MailClassSchema = z.enum(["money", "newsletters", "other"]);
+export const PlacementSchema = z.enum(["shown", "handoff", "released", "counted"]);
+const SourceKeySchema = z.object({ connectionId: DigestIdSchema, messageId: IdSchema }).strict();
+
 export const SourceSchema = z.object({
   connectionId: DigestIdSchema,
   messageId: IdSchema,
   threadId: IdSchema.optional(),
-  /** Ordinary inbox updates can revisit mail; newsletter dedup stays on. */
+  /** Still accepted; for Gmail sources it no longer bypasses the one-brief rule. */
   deduplicate: z.boolean().optional(),
+  // Gmail ownership and collapse metadata. Optional so external publishers and stored briefs stay valid.
+  /** Sender email address as Gmail shows it. */
+  from: z.string().trim().min(3).max(320).optional(),
+  subject: z.string().trim().max(500).optional(),
+  receivedAt: timestamp.optional(),
+  /** RFC 5322 Message-ID, only when the agent already sees it. */
+  rfcMessageId: z.string().trim().min(3).max(998).optional(),
+  /** The domain Gmail shows under "Signed by". */
+  signedBy: z.string().trim().min(1).max(253).optional(),
+  class: MailClassSchema.optional(),
+  placement: PlacementSchema.optional(),
+  /** A real deadline or alert before the owner's next run: the first brief shows it. */
+  urgent: z.boolean().optional(),
+  /** This message is another account's copy of the referenced source. */
+  copyOf: SourceKeySchema.optional(),
+  /** Why a returned handoff was released without showing it. */
+  reason: z.string().trim().min(1).max(200).optional(),
 }).strict();
 
 const sources = z.array(SourceSchema).max(1_000).refine((items) => {
@@ -144,6 +170,12 @@ const emailRow = z.object({
   subject: z.string().trim().min(1).max(180).optional(),
   receivedAt: timestamp.max(8_640_000_000_000_000).optional(),
   kind: z.enum(["receipt", "bill", "event", "newsletter", "shipping"]).optional(),
+  // Optional so older rows keep one summary line; reading briefs list each newsletter's key points.
+  takeaways: z.array(z.string().trim().min(1).max(200)).max(5).optional(),
+  /** Gmail message IDs of the shown sources this row covers. Required in digest_begin runs. */
+  messageIds: z.array(IdSchema).min(1).max(20).optional(),
+  /** Other inboxes' copies of this email, collapsed into this row. */
+  copies: z.array(z.object({ label: z.string().trim().min(1).max(80), url: sourceLink.shape.url }).strict()).max(10).optional(),
 }).strict();
 
 /** Optional so existing Markdown publishers and stored issues remain valid. */
@@ -164,13 +196,21 @@ export const BriefSchema = z.object({
     deadline: z.string().trim().min(1).max(40).optional(),
     action: sourceLink,
     secondaryAction: sourceLink.optional(),
+    /** The shown Gmail source this card is about. Required in digest_begin runs. */
+    messageId: IdSchema.optional(),
   }).strict()).max(8),
-  later: z.array(z.object({ title: z.string().trim().min(1).max(180), action: sourceLink.optional() }).strict()).max(12).default([]),
+  later: z.array(z.object({ title: z.string().trim().min(1).max(180), action: sourceLink.optional(),
+    secondaryAction: sourceLink.optional(), messageId: IdSchema.optional() }).strict()).max(12).default([]),
   laterLabel: z.string().max(60).default("Later"),
   tail: z.object({ label: z.string().trim().min(1).max(80), details: z.string().trim().min(1).max(20000),
     items: z.array(emailRow).max(100).optional(),
   }).strict().optional(),
   all: z.object({ label: z.string().trim().min(1).max(80), items: z.array(emailRow).max(1000) }).strict().optional(),
+  /** Emails left out because another brief owns or already showed them: one muted "Also:" line. */
+  elsewhere: z.array(z.object({
+    label: z.string().trim().min(1).max(120), digestId: DigestIdSchema,
+    count: z.number().int().min(1).max(1000), threadId: IdSchema.optional(),
+  }).strict()).max(6).optional(),
 }).strict();
 
 export const SaveDigestSchema = z.object({
@@ -243,6 +283,30 @@ export const IssueListInputSchema = z.object({
   offset: z.number().int().nonnegative().max(1_000_000).default(0),
 }).strict();
 
+/**
+ * Reads JSON stored by a newer Briefs build: drops keys this build doesn't
+ * know and still validates everything else. Writes stay strict.
+ */
+export function parseStored<T>(schema: z.ZodType<T>, value: unknown): T {
+  let current = value;
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const result = schema.safeParse(current);
+    if (result.success) return result.data;
+    const unknown = result.error.issues.filter((issue) => issue.code === "unrecognized_keys");
+    if (!unknown.length) throw result.error;
+    if (attempt === 0) current = structuredClone(current);
+    for (const issue of unknown) {
+      let target: unknown = current;
+      for (const key of issue.path) target = (target as Record<PropertyKey, unknown>)?.[key];
+      if (target && typeof target === "object") for (const key of issue.keys) delete (target as Record<string, unknown>)[key];
+    }
+  }
+  return schema.parse(current);
+}
+
+export type MailClass = z.infer<typeof MailClassSchema>;
+export type Source = z.infer<typeof SourceSchema>;
+export type Brief = z.infer<typeof BriefSchema>;
 export type DigestDefinition = z.infer<typeof DigestDefinitionSchema>;
 export type Connection = z.infer<typeof ConnectionSchema>;
 export type Issue = z.infer<typeof IssueSchema>;

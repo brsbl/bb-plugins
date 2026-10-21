@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { cliCommand, defineCli, defineRpcContract, type BbPluginApi, type PluginCliContext, type PluginThreadEventPayloads } from "@get-bb/plugin-sdk";
 import { z } from "zod";
-import { actionIcons, actionLabel, actionMessage, mentionId, readItem, storedItem, title, logSchema, actionSchema, answerSchema, assertAction, bulkLabel, contentSchema, draftSchema, followUpSchema, idSchema, itemSchema, itemViewSchema, noteSchema, tableContentSchema, tableSchema, tableViewSchema, waitingSchema, type FollowUp, type Item, type Priority } from "./model.js";
+import { canDismiss, dismissReasonSchema, actionIcons, actionLabel, actionMessage, mentionId, readItem, storedItem, title, logSchema, actionSchema, answerSchema, assertAction, bulkLabel, contentSchema, draftSchema, followUpSchema, idSchema, itemSchema, itemViewSchema, noteSchema, tableContentSchema, tableSchema, tableViewSchema, waitingSchema, type FollowUp, type Item, type Priority } from "./model.js";
 
 const ref = z.object({ threadId: idSchema, id: idSchema }).strict();
 const versioned = ref.extend({ revision: z.number().int().positive() });
@@ -27,6 +27,10 @@ export const rpcContract = defineRpcContract({
   prepare: { input: versioned.extend({ action: actionSchema, note: noteSchema.optional() }), output: itemSchema },
   comment: { input: versioned.extend({ note: noteSchema.refine((value) => value.length > 0, "Write a comment first.") }), output: z.object({ item: itemSchema, commentId: z.string().uuid(), note: noteSchema }).strict() },
   reopen: { input: versioned, output: itemSchema },
+  // Settle a waiting item without answering it, and tell its thread.
+  dismiss: { input: versioned.extend({ reason: dismissReasonSchema.optional() }), output: itemSchema },
+  // Tell the thread again after a known failed notice. Never sends twice.
+  notifyDismissed: { input: ref, output: itemSchema },
   choose: { input: versioned.extend({ choice: idSchema, note: noteSchema.optional() }), output: itemSchema },
   table: { input: ref, output: tableViewSchema },
   prepareTable: { input: ref.extend({ items: z.array(z.object({ id: idSchema, revision: z.number().int().positive(), note: noteSchema.optional() }).strict()).min(1).max(20) }), output: z.array(itemSchema) },
@@ -121,7 +125,7 @@ export function createStore(bb: BbPluginApi) {
       const rows = db.prepare("SELECT value FROM action_items WHERE thread_id = ?").all(threadId) as { value: string }[];
       const items = rows.flatMap((row) => readItem(row.value) ?? []);
       const open = distinctOpen(items).map((item) => {
-        const earlier = items.filter((other) => !isOpen(other) && other.attempt && other.updatedAt < item.updatedAt && sameQuestion(other, item))
+        const earlier = items.filter((other) => !isOpen(other) && other.attempt && !other.dismissed && other.updatedAt < item.updatedAt && sameQuestion(other, item))
           .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
         return earlier ? { ...item, earlier: answeredLabel(earlier) } : item;
       });
@@ -154,7 +158,7 @@ export function createStore(bb: BbPluginApi) {
       const sorted = (await withSources(rows.flatMap((row) => readItem(row.value) ?? [])))
         .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || a.threadId.localeCompare(b.threadId) || a.id.localeCompare(b.id));
       // Failures need a retry and Later cards need a Resume, so both stay in Waiting on you; Later sorts last.
-      const later = (item: Item) => item.state === "succeeded" && item.attempt?.action === "later";
+      const later = (item: Item) => item.state === "succeeded" && !item.dismissed && item.attempt?.action === "later";
       return { waiting: [...sorted.filter((item) => item.state !== "succeeded"), ...sorted.filter(later)],
         done: sorted.filter((item) => item.state === "succeeded" && !later(item)) };
     },
@@ -232,6 +236,32 @@ export function createStore(bb: BbPluginApi) {
         }
         item.state = "succeeded";
         item.result = { message, retryable: false };
+      });
+    },
+    // Dismissed by the user: settled with no approval. A failed attempt stays as history; nothing can claim it.
+    dismiss(input: z.infer<typeof rpcContract.dismiss.input>) {
+      return change(input.threadId, input.id, input.revision, (item) => {
+        if (!canDismiss(item)) throw new Error("This item is in progress or already settled, so it can't be dismissed.");
+        item.state = "succeeded";
+        item.result = { message: input.reason ? `Dismissed · ${input.reason}` : "Dismissed", retryable: false };
+        item.dismissed = { at: new Date().toISOString(), ...(input.reason ? { reason: input.reason } : {}), notice: "pending" };
+      });
+    },
+    // Claims the right to send a dismissal notice: pending (never tried) or failed (known undelivered). One caller wins.
+    claimNotice(threadId: string, id: string) {
+      try {
+        return change(threadId, id, null, (item) => {
+          if (!item.dismissed || (item.dismissed.notice !== "pending" && item.dismissed.notice !== "failed")) throw new Error("not claimable");
+          item.dismissed.notice = "sending";
+          delete item.dismissed.noticeError;
+        });
+      } catch { return null; }
+    },
+    finishNotice(threadId: string, id: string, error?: string) {
+      return change(threadId, id, null, (item) => {
+        if (item.dismissed?.notice !== "sending") return;
+        item.dismissed.notice = error ? "failed" : "sent";
+        if (error) item.dismissed.noticeError = error.slice(0, 300);
       });
     },
     // The thread went idle with nothing queued, yet a sent request was never claimed: the agent never got it
@@ -346,7 +376,7 @@ export function createStore(bb: BbPluginApi) {
     },
     reopen(input: z.infer<typeof rpcContract.reopen.input>) {
       return change(input.threadId, input.id, input.revision, (item) => {
-        const deferred = item.state === "succeeded" && ["later", "skip"].includes(item.attempt?.action ?? "");
+        const deferred = item.state === "succeeded" && !item.dismissed && ["later", "skip"].includes(item.attempt?.action ?? "");
         if (!deferred && !(item.state === "failed" && item.result?.retryable)) throw new Error("Check the outcome with the agent before reopening this card.");
         item.state = "ready"; item.result = null; item.attempt = null;
       });
@@ -381,6 +411,18 @@ function distinctOpen(items: Item[]): Item[] {
   return kept;
 }
 
+// Cards stay small and plain: context is at most one short sentence, never a labelled or bulleted brief.
+const CONTEXT_WORDS = 40;
+// Horizontal whitespace only: \s would let long runs of newlines make each line start rescan the rest.
+const BRIEF_PATTERN = /\*\*[ \t]*(what|why|options?|recommend|next)|^[ \t]*(?:[-*+]|\d{1,3}[.)])[ \t]|why now/im;
+export function contextWarning(context: string | undefined): string {
+  if (!context) return "";
+  const words = context.trim().split(/\s+/).length;
+  return words > CONTEXT_WORDS || BRIEF_PATTERN.test(context)
+    ? "Warning: keep context to one plain sentence (25 words or fewer, no lists or labels such as What/Why now/Next). The question says what is decided, option labels say what each choice does, and recommended tags the pick. Link evidence instead of pasting it.\n"
+    : "";
+}
+
 // Card requests carry an action mention whose id is threadId:itemId:attemptId.
 function attemptRefs(pluginId: string, entry: QueueEntry) {
   return entry.content.flatMap((block) => block.type === "text" ? block.mentions : []).flatMap(({ resource }) => {
@@ -393,6 +435,25 @@ function attemptRefs(pluginId: string, entry: QueueEntry) {
 
 export default function plugin(bb: BbPluginApi): void {
   const store = createStore(bb);
+  // Sends a dismissal notice at most once: only the caller that claims it sends, and a failure is stored for retry.
+  const notifyDismissed = async (threadId: string, id: string) => {
+    const item = store.claimNotice(threadId, id);
+    if (!item) return store.get(threadId, id);
+    const label = title(item).replace(/[?\s]+$/, "");
+    const prefix = "brsbl dismissed: ";
+    const reason = item.dismissed?.reason;
+    try {
+      await bb.sdk.threads.send({ threadId, mode: "queue-if-active", input: [{
+        type: "text", text: `${prefix}${label}${reason ? ` · ${reason}` : ""}`,
+        mentions: [{ start: prefix.length, end: prefix.length + label.length, resource: { kind: "plugin", pluginId: "inline-action-cards", itemId: `action:${threadId}:${id}:dismissed`, label, icon: "X" } }],
+      }] });
+      return store.finishNotice(threadId, id);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      bb.log.warn(`Dismissed ${id} but could not tell its thread: ${message}`);
+      return store.finishNotice(threadId, id, message);
+    }
+  };
   // Sends card answers and comments to their thread as one message. Never accepts arbitrary message text from the client.
   const sendEntries = async (threadId: string, entries: z.infer<typeof rpcContract.dispatch.input>["entries"]) => {
     if (new Set(entries.map((entry) => entry.id)).size !== entries.length) throw new Error("Each card can appear only once in a message.");
@@ -435,6 +496,9 @@ export default function plugin(bb: BbPluginApi): void {
       return sent!;
     },
     get: async ({ threadId, id }) => ({ ...store.view(threadId, id), ...await threadSource(bb, threadId) }),
+    // Settle first (it approves nothing), then tell the owning thread so its agent stops waiting.
+    dismiss: async (input) => { const item = store.dismiss(input); return notifyDismissed(item.threadId, item.id); },
+    notifyDismissed: ({ threadId, id }) => notifyDismissed(threadId, id),
     save: store.save, prepare: store.prepare, comment: store.comment, reopen: store.reopen, choose: store.choose,
     table: async ({ threadId, id }) => {
       const table = store.table(threadId, id);
@@ -469,6 +533,11 @@ export default function plugin(bb: BbPluginApi): void {
           instruction: "This is the user's comment on the card, not a click: it never approves the card's own action, so do not create or claim an attempt. Treat it like a chat message from the user. Answer a question on the card with bb action-cards answer <itemId> --comment <commentId> --message-stdin and keep any chat reply to one short line. Follow a clear instruction only as you would the same instruction typed in chat, under the user's existing authorization; when the request is ambiguous or the card's own action needs approval, ask the user to use the card's buttons instead. If it requests a change to a Reply, revise the same draft using its latest revision; Decide and Choice question/consequence updates are not supported, so explain the change. If what you did makes the card moot (for example the user said 'close this' and you closed the PR, or they withdrew the question), settle it with bb action-cards resolve <itemId> --message '<what happened>'. Other cards in the same table stay as the user left them.",
         }) };
       }
+      if (attempt === "dismissed") return { context: JSON.stringify({
+        kind: "inline-action-card", threadId: item.threadId, itemId: item.id, intent: "dismissed", question: title(item),
+        ...(item.dismissed?.reason ? { reason: item.dismissed.reason } : {}),
+        instruction: "The user dismissed this item without answering it. Nothing was approved, and it is already settled: do not claim, report, resolve or act on it. Stop waiting on it and carry on without it. Do not ask it again, as a card, an ask or in prose, unless something material changes; then say what changed.",
+      }) };
       const changes = attempt === "changes";
       if (!changes && item.attempt?.id !== attempt) throw new Error("This action was replaced. Use the latest card.");
       if (!changes && item.attempt?.action === "answer") {
@@ -531,7 +600,7 @@ export default function plugin(bb: BbPluginApi): void {
         positionals: askPositions,
         options: {
           thread: threadOption, urgent: { type: "boolean", description: "List it first in Waiting on you" },
-          context: { type: "string", description: "Optional short brief in Markdown" },
+          context: { type: "string", description: "Optional: one plain sentence the question can't carry" },
           replaces: replacesOption,
         },
         run({ options, positionals }, ctx) {
@@ -539,7 +608,7 @@ export default function plugin(bb: BbPluginApi): void {
           const replaces = options.replaces === undefined ? undefined : idSchema.parse(options.replaces);
           if (replaces) store.assertReplaceable(scope(ctx, options.thread), replaces);
           const item = store.create(scope(ctx, options.thread), id, { type: "ask", question: positionals.question, ...(options.urgent ? { priority: "urgent" } : {}), ...(options.context ? { context: options.context } : {}) });
-          const notes = afterCreate(item, replaces);
+          const notes = contextWarning(item.content.context) + afterCreate(item, replaces);
           return { ...output(item), ...(notes ? { stderr: notes } : {}) };
         },
       }),
@@ -551,7 +620,7 @@ export default function plugin(bb: BbPluginApi): void {
           const replaces = options.replaces === undefined ? undefined : idSchema.parse(options.replaces);
           if (replaces) store.assertReplaceable(scope(ctx, options.thread), replaces);
           const item = store.create(scope(ctx, options.thread), id, JSON.parse(options.item));
-          const notes = (!item.content.context ? "Warning: this card has no context. Include a short brief: what this is, why it needs the user's decision now, options, recommendation and why, and what happens after each answer. See the inline-action-cards skill.\n" : "") + afterCreate(item, replaces);
+          const notes = contextWarning(item.content.context) + afterCreate(item, replaces);
           return { exitCode: 0, stdout: `::action{id="${id}"}\n`, ...(notes ? { stderr: notes } : {}) };
         },
       }),

@@ -14,9 +14,9 @@ import { loadViewerBundle } from "./viewer-bundle.js";
 const vendor = fileURLToPath(new URL("./vendor/moss-viewer/", import.meta.url));
 const httpRoot = "/api/v1/plugins/moss-viewer/http";
 const video = Buffer.from(Array.from({ length: ASSET_CHUNK_BYTES * 2 + 10 }, (_, index) => index % 251));
-const notePath = "/Users/me/Moss/Notes/Clip/Clip.md";
+const notePath = "/Users/alex/Moss/Notes/Clip/Clip.md";
 /** A Moss note the host says bb may not edit. */
-const readOnlyPath = "/Users/me/Moss/Notes/External/Clip/Clip.md";
+const readOnlyPath = "/Users/alex/Moss/Notes/External/Clip/Clip.md";
 const V1 = "sha256:content-1";
 const V2 = "sha256:content-2";
 const M1 = "sha256:meta-1";
@@ -43,7 +43,7 @@ async function setup(machines: Machines = {}) {
     pluginId: "moss-viewer",
     experimental_hostEntry: true,
     sdk: {
-      environments: { get: async () => ({ hostId: machines.envHost ?? "mac", path: "/Users/me/project" }) },
+      environments: { get: async () => ({ hostId: machines.envHost ?? "mac", path: "/Users/alex/project" }) },
       hosts: { list: async () => (machines.hosts ?? []).map((machine) => makeHostResponse(machine)) },
     } as never,
     experimental_callHostRpc: async ({ method, input, hostId }) => {
@@ -107,7 +107,7 @@ describe("reading notes", () => {
     expect(h.inspection.experimental_hostRpcCalls.at(-1)).toMatchObject({ hostId: "studio" });
 
     expect(await h.behavior.callRpc("read", { kind: "workspace", path: "docs/plan.md", hostId: null, environmentId: "env" })).toEqual({ moss: false, message: null });
-    expect(h.inspection.experimental_hostRpcCalls.at(-1)).toMatchObject({ input: { path: "/Users/me/project/docs/plan.md" } });
+    expect(h.inspection.experimental_hostRpcCalls.at(-1)).toMatchObject({ input: { path: "/Users/alex/project/docs/plan.md" } });
     await expect(h.behavior.callRpc("read", { kind: "workspace", path: "../secret.md", hostId: null, environmentId: "env" })).rejects.toThrow("inside its worktree");
     await expect(h.behavior.callRpc("read", { kind: "host", path: notePath, hostId: null, environmentId: null })).rejects.toThrow("no host");
   });
@@ -165,7 +165,7 @@ describe("reading notes", () => {
       expect(await plain.behavior.callRpc("read", chatLink)).toEqual({ moss: false, message: null });
       expect(readNoteHosts(plain)).toEqual(["linux"]);
 
-      const workspace = await setup({ envHost: "linux", hosts, files: { "mac-a": { "/Users/me/project/Tweets.md": "moss" } } });
+      const workspace = await setup({ envHost: "linux", hosts, files: { "mac-a": { "/Users/alex/project/Tweets.md": "moss" } } });
       expect(await workspace.behavior.callRpc("read", { kind: "workspace", path: "Tweets.md", hostId: null, environmentId: "env" })).toEqual({
         moss: false,
         message: null,
