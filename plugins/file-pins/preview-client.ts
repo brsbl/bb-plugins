@@ -80,7 +80,7 @@ export class PreviewClient {
       const merged: PreviewAnswer = { ...answer, preview: answer.preview ?? entry.state.answer?.preview ?? null };
       if (current()) {
         const now = Date.now();
-        entry.freshUntil = usefulAnswer(answer) ? now + CLIENT_PREVIEW_LIMITS.freshMs
+        entry.freshUntil = usefulAnswer(answer) ? now + (answer.preview?.github ? 15_000 : CLIENT_PREVIEW_LIMITS.freshMs)
           : Math.min(Math.max(now + CLIENT_PREVIEW_LIMITS.retryMs, answer.retryAt ?? 0), now + CLIENT_PREVIEW_LIMITS.freshMs);
         entry.bytes = merged.preview ? merged.preview.title.length + merged.preview.description.length + merged.preview.site.length + (merged.preview.image?.length ?? 0) : 0;
         entry.state = { ...entry.state, answer: merged, failed: false };

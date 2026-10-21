@@ -319,6 +319,8 @@ const fakeBb = {
                   : "env_1",
           projectId,
           providerId: "codex",
+          id: input.threadId, title: "Improve navigation",
+          hasPendingInteraction: true, lastReadAt: 100, latestAttentionAt: 120,
           runtime: { displayStatus },
           updatedAt: 123,
         };
@@ -427,10 +429,10 @@ assert.ok(
 );
 
 const summary = await summaryHandler({ threadId: "thr_1" });
-assert.ok("title" in summary, "includes the thread title without another request");
-assert.ok("unread" in summary, "includes the canonical unread state");
-assert.ok("hasPendingInteraction" in summary, "distinguishes waiting for an answer");
-assert.ok("updatedAt" in summary, "includes last activity");
+assert.equal(summary.title, "Improve navigation", "includes the thread title without another request");
+assert.equal(summary.unread, true, "includes the canonical unread state");
+assert.equal(summary.hasPendingInteraction, true, "distinguishes waiting for an answer");
+assert.equal(summary.updatedAt, 123, "includes last activity");
 assert.deepEqual(withoutDiagnostics(summary), {
   currentTurnCompletedAt: null,
   currentTurnStartedAt: null,

@@ -488,7 +488,7 @@ export const SECTION_CARD_CSS = String.raw`
 /* Aggregates are short; the card hugs them instead of reserving thread-card width. */
 /* Counts are short; the card hugs them rather than reserving thread-card width. */
 .bb-thread-hover-card[data-bb-card="section"] {
-  width: max-content;
+  width: min(20rem, calc(100vw - 1rem));
   max-width: min(20rem, calc(100vw - 1rem));
   padding: 0.625rem 0.75rem;
 }
