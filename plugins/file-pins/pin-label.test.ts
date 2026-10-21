@@ -62,9 +62,9 @@ it("never splits a surrogate pair", () => {
 });
 
 it("keeps the start and destination name in a one-line preview address", () => {
-  const path = "/Users/example/Notes/Planning Notes/Planning Notes.md";
+  const path = "/Users/alex/Notes/Planning Notes/Planning Notes.md";
   const url = "https://example.com/guides/very/deep/Planning-Notes.html";
-  expect(previewAddressLabel(path)).toBe("/Users/examp…/Planning Notes.md");
+  expect(previewAddressLabel(path)).toBe("/Users/alex/…/Planning Notes.md");
   expect(previewAddressLabel(url)).toBe("https://exam…/Planning-Notes.html");
   expect(length(previewAddressLabel(path))).toBeLessThanOrEqual(44);
   expect(previewAddressLabel("/docs/readme.md")).toBe("/docs/readme.md");
