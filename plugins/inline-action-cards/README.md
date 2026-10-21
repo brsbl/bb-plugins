@@ -2,7 +2,7 @@
 
 Answer everything agents need from you in one place: **Waiting on you**, a drawer above the prompt box that collects decisions, email replies and plain questions from every thread.
 
-![Questions collected in Waiting on you](docs/waiting-drawer.png)
+![A sample Workshop plan thread with the decision "Use the garden room for the workshop?" open in Waiting on you, showing its context, both options, Recommended and Submit](docs/decision-in-thread.png)
 
 ## Install
 
