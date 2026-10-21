@@ -40,6 +40,11 @@ package tree, lockfile digest, SDK archive, and builder provenance in
 no install-time package dependencies. Source manifests on `main` retain the
 dependencies needed for development.
 
+Pinned Files & Links also publishes `file-pins/v<version>` tags. Its existing
+marketplace entry has no subdirectory, so these tags contain the same root package
+tree as `plugin/file-pins`. The tag commit records its source as its parent; the
+root package does not include the monorepo provenance file.
+
 Published version tags are immutable. A rerun accepts an existing tag only when
 its plugin contents match; otherwise bump the version. Other plugins keep their
 existing release process. The remote compatibility test installs the generated
