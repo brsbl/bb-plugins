@@ -5,6 +5,7 @@ const line = z.string().trim().min(1).max(300).regex(/^[^\r\n]+$/);
 const label = z.string().trim().min(1).max(80).regex(/^[^\r\n]+$/);
 const address = z.string().trim().min(1).max(320).regex(/^[^\r\n]+$/);
 export const noteSchema = z.string().trim().max(1000);
+export const dismissReasonSchema = z.string().trim().min(1).max(200).regex(/^[^\r\n]+$/);
 export const draftSchema = z.string().max(40_000);
 // Optional evidence on any card: Markdown the host renders like a chat message, and up to four images.
 const contextSchema = z.string().trim().min(1).max(20_000);
@@ -74,8 +75,22 @@ export const itemSchema = z.object({
   }).strict().nullable(),
   result: z.object({ message: z.string().min(1).max(500), retryable: z.boolean() }).strict().nullable(),
   updatedAt: z.string(),
+  // The user dismissed the item without answering: settled, nothing approved. Older builds drop this field on read.
+  // notice: whether the owning thread was told. "sending" is claimed by one sender; only "failed" is retried.
+  dismissed: z.object({
+    at: z.iso.datetime(), reason: dismissReasonSchema.optional(),
+    notice: z.enum(["pending", "sending", "sent", "failed"]).optional(), noticeError: z.string().max(300).optional(),
+  }).strict().optional(),
 }).strict();
 export type Item = z.infer<typeof itemSchema>;
+/** Whether the user can dismiss this item: unanswered, a safe failure, or an answer that never reached the agent. */
+export function canDismiss(item: Item): boolean {
+  if (item.state === "ready") return true;
+  // A Later/Skip attempt kept on a settled item reads as deferred (and resumable) to every build, so it can't be dismissed.
+  if (["later", "skip"].includes(item.attempt?.action ?? "")) return false;
+  if (item.state === "failed") return !!item.result?.retryable;
+  return item.state === "pending" && !item.attempt?.claimed && !item.attempt?.sentAt;
+}
 // A newer build may have saved item types or fields this build doesn't know. Unknown fields are set aside on
 // read and put back on write (storedItem), so a rollback never loses them; an item that still doesn't parse
 // (for example an unknown type) reads as null, so it can't break the rest and can't be acted on.

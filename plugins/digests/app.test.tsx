@@ -342,6 +342,99 @@ describe("Digests app", () => {
     }
   });
 
+  it("shows each newsletter's takeaways under its row and keeps rows without them compact", async () => {
+    const app = await loadPluginApp(() => import("./app.js"));
+    const slot = renderSlot(app.messageDirectives[0]!, directiveProps, { rpc: { getIssue: () => ({ ...readyIssue, brief: {
+      summaryLinks: [{ label: "2 newsletters", section: "tail" }],
+      heading: "Needs you", items: [], later: [], laterLabel: "Later",
+      tail: { label: "In brief", details: "Two newsletters.", items: [
+        { title: "Example Weekly · Issue 12", sender: "Example Weekly", subject: "Issue 12", text: "Agents moved into the editor.", url: "https://example.test/weekly", kind: "newsletter",
+          takeaways: ["Editors now ship agent panes by default.", "Review queues are the new bottleneck."] },
+        { title: "Sample Digest · Notes", text: "A short note on pricing.", url: "https://example.test/digest" },
+      ] },
+    } }) } });
+    fireEvent.click(await slot.findByRole("link", { name: "2 newsletters" }));
+    const takeaways = slot.getByRole("list", { name: "Takeaways from Example Weekly" });
+    expect(Array.from(takeaways.querySelectorAll("li"), (item) => item.textContent)).toEqual(["Editors now ship agent panes by default.", "Review queues are the new bottleneck."]);
+    expect(slot.container.querySelectorAll(".digest-email-row")).toHaveLength(2);
+    expect(slot.container.querySelectorAll(".digest-email-takeaways")).toHaveLength(1);
+    expect(slot.container.querySelector(".digest-email-scroll-tall")).not.toBeNull();
+    fireEvent.click(slot.getByRole("link", { name: /Sample Digest/ }));
+    expect(slot.inspection.navigateCalls).toEqual([{ method: "openUrl", url: "https://example.test/digest" }]);
+  });
+
+  it("shows a task button's domain after the email button, and none beside a Gmail action", async () => {
+    const app = await loadPluginApp(() => import("./app.js"));
+    const gmail = "https://mail.google.com/mail/u/0/#inbox/msg_1";
+    const slot = renderSlot(app.messageDirectives[0]!, directiveProps, { rpc: { getIssue: () => ({ ...readyIssue, brief: {
+      heading: "Needs you", items: [
+        { title: "Missing receipt", text: "$42 at Cafe.", messageId: "msg_1", action: { label: "Upload receipt in Mercury", url: "https://app.mercury.com/transactions?receipt=missing" },
+          secondaryAction: { label: "Open email", url: gmail } },
+        { title: "Reply to Ada", text: "Coffee Thursday.", messageId: "msg_2", action: { label: "Open email", url: "https://mail.google.com/mail/u/0/#inbox/msg_2" } },
+      ], later: [], laterLabel: "Later",
+    } }) } });
+    const task = await slot.findByRole("button", { name: "Upload receipt in Mercury" });
+    const meta = task.closest(".digest-card-meta")!;
+    expect(Array.from(meta.children, (child) => child.textContent)).toEqual(["Open email", "Upload receipt in Mercury", "mercury.com"]);
+    expect(meta.querySelector(".digest-action-domain")?.getAttribute("title")).toBe("app.mercury.com");
+    expect(slot.container.querySelectorAll(".digest-action-domain")).toHaveLength(1);
+    expect(slot.getAllByRole("button", { name: "Open email" })[1]!.closest(".digest-card-meta")?.querySelector(".digest-action-domain")).toBeNull();
+    fireEvent.click(slot.getAllByRole("button", { name: "Open email" })[0]!);
+    expect(slot.inspection.navigateCalls).toContainEqual({ method: "openUrl", url: gmail });
+  });
+
+  it("shows a later item's email button and the elsewhere line", async () => {
+    const app = await loadPluginApp(() => import("./app.js"));
+    const gmail = "https://mail.google.com/mail/u/0/#inbox/msg_3";
+    const slot = renderSlot(app.messageDirectives[0]!, directiveProps, { rpc: { getIssue: () => ({ ...readyIssue, brief: {
+      heading: "Needs you", items: [], laterLabel: "Later",
+      later: [{ title: "Pay the Guardian premium", messageId: "msg_3", action: { label: "Pay in Guardian", url: "https://www.guardiananytime.com/billing" }, secondaryAction: { label: "Open email", url: gmail } }],
+      elsewhere: [{ label: "3 in Money", digestId: "money", count: 3, threadId: "thr_money" }, { label: "2 in Reading", digestId: "reading", count: 2 }],
+    } }) } });
+    const email = await slot.findByRole("button", { name: "Open email" });
+    expect(email.closest("li")?.querySelector(".digest-action-domain")?.textContent).toBe("guardiananytime.com");
+    fireEvent.click(email);
+    expect(slot.inspection.navigateCalls).toContainEqual({ method: "openUrl", url: gmail });
+    expect(slot.container.querySelector(".digest-elsewhere")?.textContent).toBe("Also: 3 in Money · 2 in Reading");
+    fireEvent.click(slot.getByRole("link", { name: "3 in Money" }));
+    expect(slot.inspection.navigateCalls).toContainEqual({ method: "toThread", threadId: "thr_money" });
+    expect(slot.queryByRole("link", { name: "2 in Reading" })).toBeNull();
+  });
+
+  it("marks an email row that collapses copies from other inboxes", async () => {
+    const app = await loadPluginApp(() => import("./app.js"));
+    const slot = renderSlot(app.messageDirectives[0]!, directiveProps, { rpc: { getIssue: () => ({ ...readyIssue, brief: {
+      summaryLinks: [{ label: "2 routine", section: "tail" }],
+      heading: "Needs you", items: [], later: [], laterLabel: "Later",
+      tail: { label: "Routine (2)", details: "Receipts.", items: [
+        { title: "Amex · Statement ready", text: "October statement.", url: "https://example.test/amex", messageIds: ["msg_4"],
+          copies: [{ label: "Work inbox", url: "https://mail.google.com/mail/u/1/#inbox/msg_5" }] },
+        { title: "Figma · Receipt", text: "Paid.", url: "https://example.test/figma" },
+      ] },
+    } }) } });
+    fireEvent.click(await slot.findByRole("link", { name: "2 need nothing from you" }));
+    const chips = slot.container.querySelectorAll(".digest-email-copies");
+    expect(chips).toHaveLength(1);
+    expect(chips[0]!.textContent).toBe("2 inboxes");
+    expect(chips[0]!.getAttribute("title")).toBe("Work inbox");
+    fireEvent.click(chips[0]!);
+    expect(slot.inspection.navigateCalls).toEqual([{ method: "openUrl", url: "https://example.test/amex" }]);
+  });
+
+  it("renders an older brief without the new fields as before", async () => {
+    const app = await loadPluginApp(() => import("./app.js"));
+    const gmail = "https://mail.google.com/mail/u/0/#inbox/msg_6";
+    const slot = renderSlot(app.messageDirectives[0]!, directiveProps, { rpc: { getIssue: () => ({ ...readyIssue, brief: {
+      heading: "Needs you", items: [{ title: "Reply to Ada", text: "Coffee Thursday.", action: { label: "Review reply", url: gmail }, secondaryAction: { label: "Archive", url: gmail } }],
+      later: [{ title: "Renew passport", action: { label: "Review", url: gmail } }], laterLabel: "Later",
+      all: { label: "All unread (1)", items: [{ title: "Meeting", text: "Thursday.", url: gmail }] },
+    } }) } });
+    const action = await slot.findByRole("button", { name: "Review reply" });
+    expect(Array.from(action.closest(".digest-card-meta")!.children, (child) => child.textContent)).toEqual(["Archive", "Review reply"]);
+    expect(slot.getByRole("button", { name: "Review" }).closest("li")?.textContent).toBe("Renew passportReview");
+    expect(slot.container.querySelector(".digest-action-domain, .digest-elsewhere, .digest-email-copies")).toBeNull();
+  });
+
   it("keeps an unverified unread restoration visible even in a published issue", async () => {
     const app = await loadPluginApp(() => import("./app.js"));
     const slot = renderSlot(app.messageDirectives[0]!, directiveProps, { rpc: { getIssue: () => ({ ...readyIssue,
