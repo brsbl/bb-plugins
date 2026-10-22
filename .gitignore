@@ -12,3 +12,6 @@ plugins/.scaffold-smoke-*
 toolchain-*/
 
 .action-cards-dev/
+
+# Launch evals contain private paths, thread IDs, transcripts and screenshots.
+/plugins/playgrounds/evals/launch/reports/

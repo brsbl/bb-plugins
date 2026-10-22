@@ -661,9 +661,9 @@ describe("records written by other apps", () => {
 describe("trusted files", () => {
   it("remembers files attached through bb", async () => {
     const { service } = setup();
-    service.trustFile("mac-1", "/Users/brsbl/Moss/Notes/Draft/Draft.md");
-    service.trustFile("mac-1", "/Users/brsbl/Moss/Notes/Draft/Draft.md");
-    expect(service.isTrustedFile("mac-1", "/Users/brsbl/Moss/Notes/Draft/Draft.md")).toBe(true);
-    expect(service.isTrustedFile("mac-2", "/Users/brsbl/Moss/Notes/Draft/Draft.md")).toBe(false);
+    service.trustFile("mac-1", "/Users/alex/Moss/Notes/Draft/Draft.md");
+    service.trustFile("mac-1", "/Users/alex/Moss/Notes/Draft/Draft.md");
+    expect(service.isTrustedFile("mac-1", "/Users/alex/Moss/Notes/Draft/Draft.md")).toBe(true);
+    expect(service.isTrustedFile("mac-2", "/Users/alex/Moss/Notes/Draft/Draft.md")).toBe(false);
   });
 });
