@@ -1,0 +1,39 @@
+/* Mesh Aurora — generated from a mesh gradient (seed 47).
+   Only the anchors, accent, and semantics are set; bb derives the rest. */
+:root, .light {
+  --canvas: #f6f9f8;
+  --ink: #182f27;
+  --primary: #2d29ae;
+  --primary-foreground: #f6f9f8;
+  --muted-foreground: color-mix(in oklch, var(--ink) 70%, var(--canvas));
+  --subtle-foreground: color-mix(in oklch, var(--ink) 58%, var(--canvas));
+  --readback-foreground: color-mix(in oklch, var(--ink) 64%, var(--canvas));
+  --timeline-accent: #2d29ae;
+  --file-accent: var(--timeline-accent);
+  --destructive: #b3261e;
+  --destructive-text: #8c1d18;
+  --warning: #b06000;
+  --warning-text: #8a4b00;
+  --attention: #413cdd;
+  --success: #2e7d32;
+  --diff-added: #2e7d32;
+  --diff-removed: #b3261e;
+  --pr-merged: #9646b9;
+}
+.dark {
+  --canvas: #15231e;
+  --ink: #e1eae7;
+  --primary: #7e7be0;
+  --primary-foreground: #15231e;
+  --timeline-accent: #7e7be0;
+  --file-accent: var(--timeline-accent);
+  --destructive: #f2b8b5;
+  --destructive-text: #f2b8b5;
+  --warning: #ffb77c;
+  --warning-text: #ffb77c;
+  --attention: #7874e7;
+  --success: #7bc47f;
+  --diff-added: #7bc47f;
+  --diff-removed: #f2b8b5;
+  --pr-merged: #c28cd9;
+}
