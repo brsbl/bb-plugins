@@ -1,11 +1,9 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactElement, type RefObject } from "react";
-import * as Menu from "@radix-ui/react-dropdown-menu";
 import { definePluginApp, experimental_FileLink as FileLink, UrlLink, useBbNavigate, useComposer, useRealtime, useRealtimeConnectionState, useRpc } from "@get-bb/plugin-sdk/app";
 import { toast } from "sonner";
 import { PIN_MENTION, isUrlPin, type FileReference, type Reference, type UrlPin, type rpcContract } from "./contract.js";
 import { Button } from "./components/ui/button.js";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from "./components/ui/context-menu.js";
-import { DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "./components/ui/dropdown-menu.js";
 import { useIsCompactViewport } from "./components/ui/hooks/use-compact-viewport.js";
 import { usePointerCoarse } from "./components/ui/hooks/use-pointer-coarse.js";
 import { Icon } from "./components/ui/icon.js";
@@ -24,11 +22,11 @@ import { cn } from "./lib/utils.js";
 
 const linkClass = `group inline-flex h-7 min-w-0 items-center gap-1.5 rounded px-1.5 text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`;
 // bb's composer-stack card chrome at chip scale, kept quiet: a hairline at rest, a shadow on hover.
-const moreClass = `${linkClass} shrink-0`;
 const pinClass = cn(linkClass, "rounded-md border border-border-seam bg-surface-raised-solid transition-shadow hover:shadow-xs");
-// ⋯ list rows use bb's menu item density; their ⋯ shows on hover, keyboard focus and touch.
+const moreClass = cn(pinClass, "shrink-0 tabular-nums");
+// Overflow rows expose Unpin on hover, keyboard focus and touch.
 const rowLinkClass = "flex min-w-0 flex-1 items-center gap-2 rounded-sm px-2 py-[0.3125rem] text-xs text-foreground outline-none focus-visible:ring-1 focus-visible:ring-ring";
-const rowActionClass = "flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground opacity-0 hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring group-hover/row:opacity-100 group-has-[:focus-visible]/row:opacity-100 data-[state=open]:opacity-100 pointer-coarse:opacity-100 [@media(hover:none)]:opacity-100";
+const rowActionClass = "flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground opacity-0 hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring group-hover/row:opacity-100 group-has-[:focus-visible]/row:opacity-100 pointer-coarse:opacity-100 [@media(hover:none)]:opacity-100";
 const noMotion = { animation: "none", transition: "none" };
 const menuClass = "min-w-40 p-1";
 type PinAction = { label: string; hint?: string; disabled?: boolean; run(): void };
@@ -120,8 +118,6 @@ function PinStrip({ threadId }: { threadId: string }) {
   // Refresh preview is busy per pin, so other pins' actions stay available.
   const [refreshing, setRefreshing] = useState<ReadonlySet<string>>(() => new Set());
   const [moreOpen, setMoreOpen] = useState(false);
-  const [rowMenu, setRowMenu] = useState<string | null>(null);
-  // Phones have no room beside the list, so row menus open below the row there.
   const compact = useIsCompactViewport();
   const measureRow = useRef<HTMLDivElement>(null);
   const metrics = useMeasurePins(measureRow, pins.map((pin) => pin.id).join("\n"));
@@ -210,7 +206,7 @@ function PinStrip({ threadId }: { threadId: string }) {
   const hasMore = listed.length > 0;
   const moreLabel = `${listed.length} more ${listed.length === 1 ? "pin" : "pins"}`;
   useEffect(() => {
-    if (!hasMore) { setMoreOpen(false); setRowMenu(null); }
+    if (!hasMore) setMoreOpen(false);
   }, [hasMore]);
   // A small, hoverable preview card for both pointer and keyboard users.
   function withTooltip(pin: Reference, trigger: ReactElement) {
@@ -288,48 +284,38 @@ function PinStrip({ threadId }: { threadId: string }) {
   }
   function listRow(pin: Reference) {
     const name = <><PinIcon threadId={threadId} pin={pin} /><span className="truncate">{pinLabel(pin)}</span></>;
-    // Right-click opens the row's ⋯ menu, anchored beside the row, in place of FileLink's own menu.
-    const onContextMenu = (event: MouseEvent) => { event.preventDefault(); setRowMenu(pin.id); };
     const link = isUrlPin(pin)
-      ? <UrlLink href={pin.url} onContextMenu={onContextMenu} aria-label={openLabel(pin)} className={cn(rowLinkClass, "cursor-pointer")}>{name}</UrlLink>
+      ? <UrlLink href={pin.url} aria-label={openLabel(pin)} className={cn(rowLinkClass, "cursor-pointer")}>{name}</UrlLink>
       : pin.status === "missing"
-      ? <span tabIndex={0} aria-label={`${pin.name} (missing)`} onContextMenu={onContextMenu} className={cn(rowLinkClass, "cursor-default text-destructive/55")}>{name}<span className="sr-only"> (missing)</span></span>
-      : <FileLink target={linkTarget(pin)} onClick={(event) => open(pin, event)} onContextMenu={onContextMenu}
+      ? <span tabIndex={0} aria-label={`${pin.name} (missing)`} className={cn(rowLinkClass, "cursor-default text-destructive/55")}>{name}<span className="sr-only"> (missing)</span></span>
+      : <FileLink target={linkTarget(pin)} onClick={(event) => open(pin, event)}
         aria-label={openLabel(pin)} className={cn(rowLinkClass, pin.status === "available" ? "cursor-pointer" : "opacity-60")}>{name}</FileLink>;
-    return <div key={pin.id} className="group/row flex min-w-0 items-center rounded-sm pr-1 hover:bg-state-hover has-[:focus-visible]:bg-state-hover has-[[data-state=open]]:bg-state-hover">
+    return <div key={pin.id} className="group/row flex min-w-0 items-center rounded-sm pr-1 hover:bg-state-hover has-[:focus-visible]:bg-state-hover">
       {withTooltip(pin, link)}
-      <Menu.Root modal={false} open={rowMenu === pin.id} onOpenChange={(open) => setRowMenu(open ? pin.id : null)}>
-        <Menu.Trigger asChild><button type="button" aria-label={`Actions for ${pin.name}`} title="Actions" className={rowActionClass}><Icon name="MoreHorizontal" className="size-4" /></button></Menu.Trigger>
-        <DropdownMenuContent side={compact ? "bottom" : "right"} align={compact ? "end" : "start"} alignOffset={compact ? 0 : -4} sideOffset={compact ? 4 : 8} collisionPadding={8} style={noMotion} className={menuClass}>
-          {menuGroups(pin).map((group, index) => <Fragment key={index}>
-            {index > 0 && <DropdownMenuSeparator />}
-            {group.map((action) => <DropdownMenuItem key={action.label} disabled={action.disabled} onSelect={action.run}><ActionLabel action={action} /></DropdownMenuItem>)}
-          </Fragment>)}
-        </DropdownMenuContent>
-      </Menu.Root>
+      <button type="button" aria-label={`Unpin ${pin.name}`} title="Unpin" disabled={busy} className={rowActionClass} onClick={() => void remove(pin)}><Icon name="X" className="size-3.5" /></button>
     </div>;
   }
   return <TooltipProvider delayDuration={300}><div ref={root} className="relative min-w-0">
     {/* bb's composer fade, repeated above the flat strip so text scrolling under it doesn't end in a hard edge. */}
     {fade && <span aria-hidden="true" data-overflow-fade="above" className="pointer-events-none absolute inset-x-0 -top-6 h-6 bg-gradient-to-b from-transparent to-background" />}
     {pins.length > 0 && <section aria-label="Pinned files and links" className="flex min-w-0 items-center gap-1 overflow-hidden rounded-lg px-1 py-1">
-      <div className="flex min-w-0 flex-1 items-center gap-1 [&>*]:shrink-0">
+      <div className="flex min-w-0 items-center gap-1 [&>*]:shrink-0">
         {layout.strip.map((pin) => stripPin(pin))}
       </div>
       {hasMore && <Popover open={moreOpen} onOpenChange={setMoreOpen}>
-        <PopoverTrigger asChild><button type="button" aria-label={moreLabel} title="More pins" className={cn(moreClass, "-mr-1 cursor-pointer")}><Icon name="MoreHorizontal" className="size-4" /></button></PopoverTrigger>
+        <PopoverTrigger asChild><button type="button" aria-label={moreLabel} title={moreLabel} className={cn(moreClass, "cursor-pointer")}>+{listed.length}</button></PopoverTrigger>
         <PopoverContent aria-label="More pins" className={cn("p-1", compact ? "w-[calc(100vw-2rem)]" : "w-56")}>
           <div className="max-h-64 overflow-y-auto">{listed.map((pin) => listRow(pin))}</div>
         </PopoverContent>
       </Popover>}
     </section>}
-    {/* Mirrors the strip row with every pin at its natural width, plus ⋯ and the minimum pin, to measure what fits. */}
+    {/* Mirrors the strip row with every pin at its natural width, plus count chips and the minimum pin, to measure what fits. */}
     <div ref={measureRow} aria-hidden="true" className="pointer-events-none invisible absolute inset-x-0 top-0 flex h-0 items-center gap-1 overflow-hidden px-1">
       {pins.map((pin) => <span key={pin.id} data-pin-id={pin.id} className={cn(pinClass, "shrink-0", !isUrlPin(pin) && pin.status === "missing" && "pr-4")}>
         {isUrlPin(pin) && showsPrState(pin.url) ? <span className="flex shrink-0 gap-0.5"><span className="size-3.5" /><span className="size-3.5" /></span> : <span className="size-3.5 shrink-0" />}
         <span className="truncate">{pinLabel(pin)}</span>
       </span>)}
-      <span data-measure="more" className={moreClass}><Icon name="MoreHorizontal" className="size-4" /></span>
+      {Array.from({ length: String(pins.length).length }, (_, index) => <span key={index} data-measure="more" data-digits={index + 1} className={moreClass}>+{"9".repeat(index + 1)}</span>)}
       <span data-measure="min" className={cn(PIN_MIN_WIDTH_CLASS, "shrink-0")} />
     </div>
   </div></TooltipProvider>;

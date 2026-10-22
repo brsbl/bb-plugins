@@ -5,7 +5,7 @@ composer even when the file viewer is closed, and are shared across clients.
 
 ![A pull request, a Markdown file, a localhost dev server, a Linear issue and a Figma link pinned above the composer](docs/strip.png)
 
-![Overflowing files and links in the ⋯ list above the strip](docs/more-list.png)
+![Overflowing files and links in the overflow list above the strip](docs/more-list.png)
 
 ![The Pin pill in the composer, followed by the files and link to pin](docs/pin-files-pill.png)
 
@@ -31,7 +31,7 @@ removed when its server is retired. A short always-on instruction points every t
 
 Pinned files read as quiet raised chips above the composer. At every window width, pins stay
 in order with whole labels while they fit; the first that does not fit and all later pins go
-into **⋯**. The button appears only when it has pins. A lone first pin wider than the row
+into a **+N** count chip immediately after the last visible pin. The chip appears only when it has pins. A lone first pin wider than the row
 shortens to fit. The strip does not scroll sideways or shrink several labels to make room.
 Long names and addresses still use the label rules in [`pin-label.ts`](pin-label.ts).
 Previously hand-hidden pins participate in the same layout again; saved hiding preferences
@@ -39,12 +39,12 @@ are ignored. Hover cards open once the preview and its image have loaded (prefet
 pointer arrives), or after 800 ms with what has arrived.
 File icons mark code, documents and images in the theme's file color. Hover or focus a pin for a preview card with its URL or path in a subtle header. Web links use Moss’s rich-card layout: a thumbnail or site-icon fallback, site name, title, and description. Files show their title, availability, and machine when needed.
 Right-click a strip file for **Open preview**, **Open externally**, **Copy file path** and
-**Copy file name**, then **Unpin**. The **⋯** list uses the same actions. **Unpin** removes the
+**Copy file name**, then **Unpin**. In the overflow list, click a row to open its pin. Its **×** unpins the item; it appears on row hover or keyboard focus and stays visible on touch screens. **Unpin** removes the
 item from the thread and offers **Undo**. Missing files keep their light red tint and
 assistive labels, and their **×** also unpins them. Availability refreshes on focus and every
 30 seconds.
 
-Pinned links share the same menus and Undo behavior. Clicking a link follows bb's browser
+Pinned links share the same strip context menus and Undo behavior. Clicking a link follows bb's browser
 preference; its menu offers **Open**, **Copy link**, and **Unpin**.
 
 A thread without pins shows no strip; the pin button is always in the action row.
@@ -73,7 +73,7 @@ PR keeps the site icon unless it is the thread's own PR, whose state comes from 
 GitHub pauses every lookup until it resets, and the last known state stays meanwhile.
 
 A normal click on a pinned file follows bb's FileLink click behavior and opener
-choices. Pin menus start with bb's open and copy items, then Unpin.
+choices. Strip context menus start with bb's open and copy items, then Unpin.
 With [Moss Viewer](../moss-viewer) installed, a pinned Moss note opens in its panel, even when the
 note lives on another machine, and **Open in Moss** there opens it for editing.
 

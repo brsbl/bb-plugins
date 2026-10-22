@@ -2,7 +2,7 @@ import { expect, it } from "vitest";
 import { layoutPins, type PinMetrics } from "./pin-layout.js";
 
 const pins = ["a", "b", "c", "d", "e"].map((id) => ({ id }));
-const metrics = (width: number, widths: Record<string, number>): PinMetrics => ({ width, gap: 4, more: 28, min: 96, pins: widths });
+const metrics = (width: number, widths: Record<string, number>): PinMetrics => ({ width, gap: 4, more: { 1: 28, 2: 36 }, min: 96, pins: widths });
 
 it("keeps whole labels in order at desktop, medium, and narrow widths", () => {
   const widths = { a: 250, b: 240, c: 230, d: 220, e: 210 };
@@ -39,4 +39,17 @@ it("shortens only a lone first pin that is wider than the available row", () => 
 it("preserves every saved pin and its order before measurement", () => {
   expect(layoutPins(pins, null)).toEqual({ strip: pins, more: [], caps: {} });
   expect(layoutPins([], metrics(100, {}))).toEqual({ strip: [], more: [], caps: {} });
+});
+
+
+it("uses the actual count's digit width when overflow crosses from nine to ten pins", () => {
+  const dozen = Array.from({ length: 12 }, (_, index) => ({ id: String(index) }));
+  const widths = Object.fromEntries(dozen.map(({ id }) => [id, 100]));
+  // Three pins and +9 need 340px; two pins and +10 need 244px.
+  for (const [width, count] of [[340, 3], [339, 2], [244, 2], [243, 1], [340, 3]] as const) {
+    const result = layoutPins(dozen, metrics(width, widths));
+    expect(result.strip).toEqual(dozen.slice(0, count));
+    expect(result.more).toEqual(dozen.slice(count));
+    expect(result.caps).toEqual({});
+  }
 });

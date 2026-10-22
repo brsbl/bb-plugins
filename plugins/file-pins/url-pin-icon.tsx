@@ -12,7 +12,7 @@ const favicons = new Map<string, Promise<string | null>>();
 const faviconAnswers = new Map<string, string>();
 const SAFE_ICON = /^data:image\/png;base64,[A-Za-z0-9+/]+=*$/;
 
-// One request per PR per minute on this page, shared by the strip and the ⋯ list. Answers are kept for the page,
+// One request per PR per minute on this page, shared by the strip and the overflow list. Answers are kept for the page,
 // so a remount paints the right icon at once and pin labels can name the state.
 const prStates = new Map<string, { at: number; state: Promise<PrState | null> }>();
 const answered = new Map<string, PrState | null>();
