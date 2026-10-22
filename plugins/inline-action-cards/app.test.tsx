@@ -839,8 +839,9 @@ it.each(commentCases)("submits %s from the %s with comment=%s in one delivery", 
     expect(saved.attempt?.note).toBe(note);
     const context = JSON.parse((await host.harness.registrations.mentionProviders[0]!.resolve(submittedMentions[0]!.id)).context);
     if (type === "ask") {
-      expect(saved.state).toBe("succeeded");
+      // Resolving the mention is the agent reading the answer; only then is the ask settled.
       expect(context).toMatchObject({ intent: "answer", answer: note });
+      expect(await get()).toMatchObject({ state: "succeeded", attempt: { note, claimed: true } });
     } else {
       expect(context).toMatchObject({ intent: "approved-action", action: type === "choice" ? "choose" : "yes", ...(note ? { note } : {}) });
       const claimed = await host.harness.behavior.runCli(["claim", item.id, "--thread", item.threadId, "--attempt", saved.attempt!.id]);
