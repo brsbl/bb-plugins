@@ -74,9 +74,6 @@ GitHub pauses every lookup until it resets, and the last known state stays meanw
 
 A normal click on a pinned file follows bb's FileLink click behavior and opener
 choices. Strip context menus start with bb's open and copy items, then Unpin.
-With [Moss Viewer](../moss-viewer) installed, a pinned Moss note opens in its panel, even when the
-note lives on another machine, and **Open in Moss** there opens it for editing.
-
 The pill is a plugin mention whose content is the shipped skill, read when the
 message is sent, so the button and the agent share one set of instructions. Placing
 it at the cursor needs bb 0.45 or later; older bb adds it at the end of the draft.
