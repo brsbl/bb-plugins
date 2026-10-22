@@ -14,10 +14,10 @@ export type PinTooltip = { address: string; title: string; note?: string };
 /** Keep the destination visible even when the pin has a custom title. */
 export function pinTooltip(pin: Reference, threadHostId: string | null): PinTooltip {
   if (isUrlPin(pin)) {
-    return { address: truncateMiddle(pin.url), title: truncateMiddle(pin.name) };
+    return { address: pin.url, title: truncateMiddle(pin.name) };
   }
   const machine = pin.hostId !== threadHostId ? pin.hostName : undefined;
   const status = pin.status === "missing" ? "(missing)" : pin.status === "unavailable" ? "(unavailable)" : undefined;
   const note = [machine, status].filter(Boolean).join(" ");
-  return { address: truncateMiddle(pin.path), title: truncateMiddle(pin.name), note: note || undefined };
+  return { address: pin.path, title: truncateMiddle(pin.name), note: note || undefined };
 }
