@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { PublishInputSchema } from "./model";
 import { createService } from "./service";
+import type { Owner } from "./store";
 import type { SignInPage } from "./signin";
 
 const DAY = 86_400_000;
@@ -17,7 +18,8 @@ afterEach(async () => {
 function setup(options: { runs?: Array<{
   id: string; threadId: string | null; status: string; scheduledFor: number; startedAt: number;
   error: string | null; skipReason: string | null;
-}>; personal?: boolean; offline?: boolean; stageSection?: boolean; dispatchFailure?: boolean; dispatchPending?: boolean } = {}) {
+}>; personal?: boolean; offline?: boolean; stageSection?: boolean; dispatchFailure?: boolean; dispatchPending?: boolean;
+  automations?: Record<string, { enabled: boolean; nextRunAt: number | null }> } = {}) {
   let signIn: { page: SignInPage; accountName?: string | null } = { page: "signed-in" };
   let tabCount = 0;
   let deliveryCount = 0;
@@ -64,6 +66,11 @@ function setup(options: { runs?: Array<{
             result = { ok: true };
           } else if (pluginId === "automations" && ["automations_create", "automations_pause", "automations_resume", "automations_update"].includes(method)) {
             result = { id: "auto_digest_new", enabled: method === "automations_resume", nextRunAt: null };
+          } else if (pluginId === "automations" && method === "automations_get") {
+            const { automationId } = input as { automationId: string };
+            const found = options.automations?.[automationId];
+            if (!found) throw new Error(`No automation ${automationId}`);
+            result = { id: automationId, ...found };
           } else if (pluginId === "automations" && method === "automations_run") {
             result = { run: { id: "run_manual", threadId: options.dispatchFailure || options.dispatchPending ? null : "thr_manual", status: options.dispatchFailure ? "failed" : "running", scheduledFor: Date.now(), startedAt: Date.now(), error: options.dispatchFailure ? "HTTP 404: Project has no local-path source for host" : null, skipReason: null } };
           } else if (pluginId === "automations" && method === "automations_runs") {
@@ -90,8 +97,19 @@ function setup(options: { runs?: Array<{
 const payload = () => PublishInputSchema.parse({
   headline: "One worthwhile read", metrics: [{ label: "Newsletters", value: "1" }],
   details: "A useful product essay, summarized from its preview snippet.",
-  sources: [{ connectionId: "gmail", messageId: "message_1" }],
+  sources: [{ connectionId: "gmail", messageId: "message_1", placement: "shown", class: "other", from: "Essays <essays@example.com>", subject: "A product essay" }],
 });
+
+function withTwoInboxes(service: ReturnType<typeof setup>["service"], money?: { enabled: boolean }) {
+  service.store.connections.put({ id: "gmail-alex", name: "Gmail (alex)", url: "https://mail.google.com/mail/u/1/", browserHostId: "host_browser" });
+  service.store.definitions.put({ ...service.requiredDefinition("reading"), connectionIds: ["gmail", "gmail-alex"] });
+  if (money) service.store.definitions.put({
+    id: "money", name: "Money", projectId: "proj_digest", instructions: "Bills and receipts.", connectionIds: ["gmail", "gmail-alex"],
+    schedule: { cron: "0 9 * * *", timezone: "America/Los_Angeles" }, automationId: "auto_money", enabled: money.enabled,
+    providerId: "codex", model: "model-test", createdAt: NOW,
+  });
+}
+const moneyMail = (messageId: string, connectionId = "gmail-alex") => ({ connectionId, messageId, class: "money" as const, from: "Bills <bills@example.com>", subject: "Your bill" });
 
 describe("digest issue lifecycle", () => {
   it("waits for another Gmail collection before exposing a browser or observing unread state", async () => {
@@ -582,5 +600,104 @@ describe("digest issue lifecycle", () => {
     expect(automationCalls[0]?.input.execution).not.toHaveProperty("targetThreadId");
     expect(automationCalls.slice(1).map(({ input }) => input.automationId)).toEqual(["auto_digest_new", "auto_digest_new", "auto_digest_new"]);
     expect(JSON.stringify(automationCalls.map(({ input }) => input))).not.toMatch(/auto_zto0dtbcxme|auto_fffup3wj2me|auto_l_llrtabhlw/u);
+  });
+});
+
+describe("email ownership across briefs", () => {
+  it("takes the Gmail lock for any Gmail inbox and returns owners and handoffs", async () => {
+    const nextRunAt = Date.now() + DAY;
+    const { bb, service } = setup({ automations: { auto_money: { enabled: true, nextRunAt } } });
+    withTwoInboxes(service, { enabled: true });
+    service.store.definitions.put({ id: "replies", name: "Replies", projectId: "proj_digest", instructions: "Replies only.", connectionIds: ["gmail-alex"], providerId: "codex", model: "model-test", createdAt: NOW });
+    const reading = await service.begin("reading", "thr_reading");
+    expect(reading).toMatchObject({ complete: false, handoffs: [],
+      owners: [{ class: "money", digestId: "money", name: "Money", connectionIds: ["gmail", "gmail-alex"], nextRunAt }] });
+    expect(await bb.storage.kv.get("gmail-collector")).toBe(reading.issue.id);
+    expect((await service.begin("replies", "thr_replies")).instructions).toContain("Another brief is reading Gmail");
+
+    await expect(service.publishCurrent("thr_reading", { ...payload(), sources: [{ ...moneyMail("bill_1"), placement: "shown" }] })).rejects.toThrow("Money owns money mail");
+    await service.publishCurrent("thr_reading", { ...payload(), sources: [{ ...moneyMail("bill_1"), placement: "handoff" }] });
+    const money = await service.begin("money", "thr_money");
+    expect(money.handoffs).toEqual([expect.objectContaining({ connectionId: "gmail-alex", messageId: "bill_1", ownerDigestId: "money", handedOffBy: "reading" })]);
+    expect(await bb.storage.kv.get(`handoffs:${money.issue.id}`)).toEqual([money.handoffs![0]!.emailId]);
+    expect(await service.emailStatus("thr_money", [{ connectionId: "gmail-alex", messageId: "bill_1" }])).toMatchObject([{ status: "handed-to-you" }]);
+    await expect(service.publishCurrent("thr_money", { ...payload(), sources: [] })).rejects.toThrow("Show or release");
+    await service.publishCurrent("thr_money", { ...payload(), sources: [{ ...moneyMail("bill_1"), placement: "shown" }] });
+    expect(await bb.storage.kv.get(`begun:${money.issue.id}`)).toBeUndefined();
+    expect(await bb.storage.kv.get(`handoffs:${money.issue.id}`)).toBeUndefined();
+  });
+
+  it.each([
+    { name: "Money is off", enabled: false, automation: { enabled: true, nextRunAt: Date.now() + DAY } },
+    { name: "its automation has no next run", enabled: true, automation: { enabled: true, nextRunAt: null } },
+    { name: "its automation is paused", enabled: true, automation: { enabled: false, nextRunAt: Date.now() + DAY } },
+  ])("lets another brief show money mail when $name", async ({ enabled, automation }) => {
+    const { service } = setup({ automations: { auto_money: automation } });
+    withTwoInboxes(service, { enabled });
+    expect(await service.begin("reading", "thr_reading")).toMatchObject({ owners: [] });
+    const published = await service.publishCurrent("thr_reading", { ...payload(), sources: [{ ...moneyMail("bill_2"), placement: "shown" }] });
+    expect(published.issue.state).toBe("ready");
+  });
+
+  it("fails a brief closed when an owner's schedule can't be read, without taking its handoffs", async () => {
+    const { service } = setup({ automations: {} });
+    withTwoInboxes(service, { enabled: true });
+    const money: Owner = { class: "money", digestId: "money", name: "Money", connectionIds: ["gmail", "gmail-alex"], nextRunAt: NOW };
+    service.store.issues.create({ id: "iss_handoff", digestId: "reading", headline: "Preparing", createdAt: NOW });
+    service.store.issues.publish("iss_handoff", { ...payload(), sources: [{ ...moneyMail("bill_9"), placement: "handoff" }] }, NOW, { strict: true, owners: [money] });
+    const result = await service.begin("reading", "thr_owner_check");
+    expect(result).toMatchObject({ complete: true, issue: { state: "failed", recovery: "retry", details: "Couldn't check Money's schedule. Retry this brief." } });
+    expect(result).not.toHaveProperty("handoffs");
+    expect(service.store.emailStatus("reading", [{ connectionId: "gmail-alex", messageId: "bill_9" }], [money], []))
+      .toMatchObject([{ status: "handed-off", ownerDigestId: "money" }]);
+  });
+
+  it("downgrades a strict run's unverifiable task link to its email", async () => {
+    const { service } = setup();
+    await service.begin("reading", "thr_links");
+    const gmailUrl = "https://mail.google.com/mail/u/0/#inbox/message_1";
+    const published = await service.publishCurrent("thr_links", PublishInputSchema.parse({ ...payload(),
+      sources: [{ connectionId: "gmail", messageId: "message_1", placement: "shown", class: "other", from: "Bills <bills@example.com>", subject: "Your bill", signedBy: "example.com" }],
+      brief: { heading: "Today", items: [{ title: "Pay the bill", text: "Due Friday", messageId: "message_1",
+        action: { label: "Pay now", url: "https://u123.ct.sendgrid.net/ls/click?upn=abc" }, secondaryAction: { label: "Email", url: gmailUrl } }] },
+    }));
+    expect(published.issue.brief?.items[0]?.action).toEqual({ label: "Open email", url: gmailUrl });
+    expect(published.issue.brief?.items[0]).not.toHaveProperty("secondaryAction");
+  });
+
+  it("keeps external publishing non-strict", async () => {
+    const { service, harness } = setup();
+    const action = { label: "Read on site", url: "https://example.com/essay" };
+    const published = await service.publishExternal("reading", PublishInputSchema.parse({ ...payload(),
+      sources: [{ connectionId: "gmail", messageId: "message_external" }],
+      brief: { heading: "Reading", items: [{ title: "An essay", text: "Worth it", action }] },
+    }), "external-1");
+    expect(published.issue).toMatchObject({ state: "ready", brief: { items: [{ action }] } });
+
+    // Another brief can't show it again, and the rejected publish creates no thread.
+    service.store.definitions.put({ ...service.requiredDefinition("reading"), id: "inbox", name: "Inbox" });
+    const spawned = harness.inspection.sdk.callsTo("threads.spawn").length;
+    await expect(service.publishExternal("inbox", PublishInputSchema.parse({ ...payload(),
+      sources: [{ connectionId: "gmail", messageId: "message_external" }] }), "external-2"))
+      .rejects.toThrow("Message message_external from gmail was already shown in Reading. Remove it and publish again.");
+    expect(harness.inspection.sdk.callsTo("threads.spawn")).toHaveLength(spawned);
+  });
+
+  it("adds connections and sets owned classes while keeping the brief's automation and switch", async () => {
+    const { service, harness } = setup();
+    service.store.connections.put({ id: "gmail-alex", name: "Gmail (alex)", url: "https://mail.google.com/mail/u/1/", browserHostId: "host_browser" });
+    const before = service.store.definitions.put({ ...service.requiredDefinition("reading"), enabled: true, automationId: "auto_reading" });
+    const updated = await service.updateDigest("reading", { addConnectionIds: ["gmail-alex", "gmail"] });
+    expect(updated).toMatchObject({ id: "reading", automationId: "auto_reading", enabled: true, schedule: before.schedule, connectionIds: ["gmail", "gmail-alex"] });
+    const calls = harness.inspection.sdk.callsTo("plugins.callRpc").map(([value]) => value as { method: string; input: { automationId?: string } });
+    expect(calls.filter((call) => call.method === "automations_create")).toEqual([]);
+    expect(calls.find((call) => call.method === "automations_update")?.input.automationId).toBe("auto_reading");
+    await expect(service.updateDigest("reading", { addConnectionIds: ["nope"] })).rejects.toThrow("Unknown connection nope. Run bb digest connections status.");
+    expect((await service.updateDigest("reading", { owns: ["money"] })).owns).toEqual(["money"]);
+    expect(await service.updateDigest("reading", { owns: null })).not.toHaveProperty("owns");
+
+    service.store.definitions.put({ ...service.requiredDefinition("reading"), enabled: false, automationId: null, connectionIds: ["gmail"] });
+    const saved = await service.saveDigest({ id: "reading", connectionId: "gmail-alex", name: "Reading", instructions: before.instructions, schedule: before.schedule });
+    expect(saved).toMatchObject({ id: "reading", connectionIds: ["gmail", "gmail-alex"], enabled: false });
   });
 });
