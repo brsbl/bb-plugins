@@ -23,7 +23,9 @@ import { cn } from "./lib/utils.js";
 const linkClass = `group inline-flex h-7 min-w-0 items-center gap-1.5 rounded px-1.5 text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`;
 // bb's composer-stack card chrome at chip scale, kept quiet: a hairline at rest, a shadow on hover.
 const pinClass = cn(linkClass, "rounded-md border border-border-seam bg-surface-raised-solid transition-shadow hover:shadow-xs");
-const moreClass = cn(linkClass, "min-w-7 shrink-0 justify-center rounded-full bg-timeline-accent/2 text-timeline-accent tabular-nums hover:bg-timeline-accent/3 hover:text-timeline-accent active:bg-timeline-accent/4 data-[pressed]:bg-timeline-accent/4 data-[state=open]:bg-timeline-accent/4 [.dark_&]:bg-timeline-accent/10 [.dark_&]:hover:bg-timeline-accent/15 [.dark_&]:active:bg-timeline-accent/20 [.dark_&]:data-[pressed]:bg-timeline-accent/20 [.dark_&]:data-[state=open]:bg-timeline-accent/20");
+// Solid accent distinguishes the control from the strip; inverse text keeps the count readable.
+const moreClass = cn(linkClass, "min-w-7 shrink-0 justify-center rounded-full bg-timeline-accent text-background tabular-nums hover:text-background hover:bg-[color-mix(in_oklab,var(--timeline-accent)_90%,var(--foreground))] active:bg-[color-mix(in_oklab,var(--timeline-accent)_80%,var(--foreground))] data-[pressed]:bg-[color-mix(in_oklab,var(--timeline-accent)_80%,var(--foreground))] data-[state=open]:bg-[color-mix(in_oklab,var(--timeline-accent)_80%,var(--foreground))]");
+function countClass(count: number) { return cn(moreClass, count < 10 && "w-7 px-0"); }
 // Overflow rows expose Unpin on hover, keyboard focus and touch.
 const rowLinkClass = "flex min-w-0 flex-1 items-center gap-2 rounded-sm px-2 py-[0.3125rem] text-xs text-foreground outline-none focus-visible:ring-1 focus-visible:ring-ring";
 const rowActionClass = "flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground opacity-0 hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring group-hover/row:opacity-100 group-has-[:focus-visible]/row:opacity-100 pointer-coarse:opacity-100 [@media(hover:none)]:opacity-100";
@@ -303,12 +305,12 @@ function PinStrip({ threadId }: { threadId: string }) {
         {layout.strip.map((pin) => stripPin(pin))}
       </div>
       {hasMore && <Popover open={moreOpen} onOpenChange={setMoreOpen}>
-        <PopoverTrigger asChild><button type="button" aria-label={moreLabel} title={moreLabel} className={cn(moreClass, "cursor-pointer")}
+        <PopoverTrigger asChild><button type="button" aria-label={moreLabel} title={moreLabel} className={cn(countClass(listed.length), "cursor-pointer")}
           onPointerDown={(event) => { if (event.button === 0) event.currentTarget.dataset.pressed = ""; }}
           onPointerUp={(event) => { delete event.currentTarget.dataset.pressed; }}
           onPointerCancel={(event) => { delete event.currentTarget.dataset.pressed; }}
           onPointerLeave={(event) => { delete event.currentTarget.dataset.pressed; }}
-          onBlur={(event) => { delete event.currentTarget.dataset.pressed; }}>+{listed.length}</button></PopoverTrigger>
+          onBlur={(event) => { delete event.currentTarget.dataset.pressed; }}><span className="leading-none">+{listed.length}</span></button></PopoverTrigger>
         <PopoverContent aria-label="More pins" className={cn("p-1", compact ? "w-[calc(100vw-2rem)]" : "w-56")}>
           <div className="max-h-64 overflow-y-auto">{listed.map((pin) => listRow(pin))}</div>
         </PopoverContent>
@@ -320,7 +322,7 @@ function PinStrip({ threadId }: { threadId: string }) {
         {isUrlPin(pin) && showsPrState(pin.url) ? <span className="flex shrink-0 gap-0.5"><span className="size-3.5" /><span className="size-3.5" /></span> : <span className="size-3.5 shrink-0" />}
         <span className="truncate">{pinLabel(pin)}</span>
       </span>)}
-      {Array.from({ length: String(pins.length).length }, (_, index) => <span key={index} data-measure="more" data-digits={index + 1} className={moreClass}>+{"9".repeat(index + 1)}</span>)}
+      {Array.from({ length: String(pins.length).length }, (_, index) => <span key={index} data-measure="more" data-digits={index + 1} className={countClass(10 ** index)}><span className="leading-none">+{"9".repeat(index + 1)}</span></span>)}
       <span data-measure="min" className={cn(PIN_MIN_WIDTH_CLASS, "shrink-0")} />
     </div>
   </div></TooltipProvider>;
