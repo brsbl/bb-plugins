@@ -62,7 +62,7 @@ page contents or automatically add them to agent context.
 
 Pins show above the thread composer; links show their site's icon and open the
 way bb opens links. In the UI, Unpin removes an item from the thread with an Undo toast.
-Pin moves a previously hidden item back to the strip while there is room.
+Pins that do not fit in the strip stay in the overflow menu.
 The CLI `remove` command matches Unpin, without the Undo toast.
 Missing files stay visible with a small × to remove them. The composer's pin
 button adds a "Pin" pill for the user to follow with the files or links to
