@@ -1,95 +1,42 @@
 import { expect, it } from "vitest";
-import { layoutPins, pinFile, unpinFile, type PinMetrics } from "./pin-layout.js";
+import { layoutPins, type PinMetrics } from "./pin-layout.js";
 
-const order = ["a", "b", "c", "d", "e"];
-const pins = order.map((id) => ({ id }));
-const ids = (items: Array<{ id: string }>) => items.map((pin) => pin.id);
-// A strip `width` px wide with a 4px gap, a 28px ⋯ button when needed and a 96px minimum pin.
+const pins = ["a", "b", "c", "d", "e"].map((id) => ({ id }));
 const metrics = (width: number, widths: Record<string, number>): PinMetrics => ({ width, gap: 4, more: 28, min: 96, pins: widths });
-const even = (width: number) => metrics(width, Object.fromEntries(order.map((id) => [id, 100])));
 
-it("shows one short pin, or one long pin with room, at its full width", () => {
-  expect(layoutPins([{ id: "a" }], [], metrics(600, { a: 60 }))).toEqual({ strip: [{ id: "a" }], more: [], caps: {} });
-  expect(layoutPins([{ id: "a" }], [], metrics(600, { a: 320 })).caps).toEqual({});
-});
-
-it("truncates the longest pins first and leaves shorter ones whole", () => {
-  // 600 - 2 gaps = 592; the 80px pin keeps its width and the two long ones share 512.
-  const layout = layoutPins(pins.slice(0, 3), [], metrics(600, { a: 80, b: 400, c: 300 }));
-  expect([ids(layout.strip), layout.caps]).toEqual([["a", "b", "c"], { b: 256, c: 256 }]);
-  // Only the longest pin truncates when that alone makes room.
-  expect(layoutPins(pins.slice(0, 3), [], metrics(600, { a: 80, b: 400, c: 150 })).caps).toEqual({ b: 362 });
-  // A label just over the share (105.5 vs 105) stays whole; the two long pins give up the difference.
-  expect(layoutPins(pins.slice(0, 3), [], metrics(323, { a: 300, b: 300, c: 105.5 })).caps).toEqual({ a: 104.75, b: 104.75 });
-});
-
-it("moves pins into ⋯ only once every shown pin is at the minimum", () => {
-  // Five 100px pins need 516px; at 510 each truncates slightly rather than overflowing.
-  const tight = layoutPins(pins, [], even(510));
-  expect([ids(tight.strip), tight.more, tight.caps]).toEqual([order, [], Object.fromEntries(order.map((id) => [id, 98.8]))]);
-  // At 490 five minimum pins (496 with gaps) no longer fit, so the last goes to ⋯.
-  const crowded = layoutPins(pins, [], even(490));
-  expect([ids(crowded.strip), ids(crowded.more)]).toEqual([["a", "b", "c", "d"], ["e"]]);
-});
-
-it("keeps labels whole on touch, moving a pin that doesn't fit whole into ⋯", () => {
-  // 155 + 4 + 170 overflows the 314px left beside ⋯, so the second pin waits in ⋯ rather than shortening.
-  const next = layoutPins(pins.slice(0, 3), [], metrics(350, { a: 155, b: 170, c: 150 }), { whole: true });
-  expect([ids(next.strip), ids(next.more), next.caps]).toEqual([["a"], ["b", "c"], {}]);
-  // A short "Example" pin, then a long URL whose whole label (260px) doesn't fit in the 314px beside ⋯ with it.
-  const url = layoutPins(pins.slice(0, 2), [], metrics(350, { a: 90, b: 260 }), { whole: true });
-  expect([ids(url.strip), ids(url.more), url.caps]).toEqual([["a"], ["b"], {}]);
-
-  // Two long links in a 350px phone strip: the first keeps its whole label and the second waits in ⋯.
-  const phone = layoutPins(pins.slice(0, 2), [], metrics(350, { a: 280, b: 260 }), { whole: true });
-  expect([ids(phone.strip), ids(phone.more), phone.caps]).toEqual([["a"], ["b"], {}]);
-  // Both fit whole when there is room.
-  expect(layoutPins(pins.slice(0, 2), [], metrics(350, { a: 150, b: 150 }), { whole: true })).toEqual({ strip: [{ id: "a" }, { id: "b" }], more: [], caps: {} });
-  // A first pin wider than the row still shows, truncated beside ⋯ for the second pin.
-  const lone = layoutPins(pins.slice(0, 2), [], metrics(350, { a: 500, b: 100 }), { whole: true });
-  expect([ids(lone.strip), ids(lone.more), lone.caps]).toEqual([["a"], ["b"], { a: 318 }]);
-});
-
-it("lists pinned files that don't fit before unpinned ones", () => {
-  const layout = layoutPins(pins, ["b"], even(212));
-  expect([ids(layout.strip), ids(layout.more)]).toEqual([["a"], ["c", "d", "e", "b"]]);
-});
-
-it("unpins only the chosen file, so the next pinned file takes its place", () => {
-  const next = unpinFile({ order, more: [] }, "b");
-  expect(next).toEqual({ order, more: ["b"] });
-  expect(ids(layoutPins(pins, next.more, even(240)).strip)).toEqual(["a", "c"]);
-});
-
-it("pins a file last on the strip only when every pinned file still fits", () => {
-  const roomy = { order, more: ["b", "c", "d", "e"] };
-  expect(pinFile(pins, roomy, "d", even(240))).toEqual({ order: ["a", "d", "b", "c", "e"], more: ["b", "c", "e"] });
-  // Two pins fit at 260, so a third would push one into ⋯.
-  const full = { order, more: ["c", "d", "e"] };
-  expect(pinFile(pins, full, "e", even(260))).toBeNull();
-  // A short label still fits where a long one would not.
-  expect(pinFile(pins, full, "e", metrics(260, { a: 100, b: 100, e: 20 }))).toEqual({ order: ["a", "b", "e", "c", "d"], more: ["c", "d"] });
-});
-
-it("uses the whole compact row when the overflow list is empty", () => {
-  const pair = pins.slice(0, 2);
-  const widths = { a: 150, b: 150 };
-  // No button is needed at the exact whole-label boundary, or above it.
-  for (const width of [304, 305, 335, 304]) {
-    expect(layoutPins(pair, [], metrics(width, widths), { whole: true })).toEqual({ strip: pair, more: [], caps: {} });
+it("keeps whole labels in order at desktop, medium, and narrow widths", () => {
+  const widths = { a: 250, b: 240, c: 230, d: 220, e: 210 };
+  for (const [width, count] of [[1440, 5], [800, 3], [600, 2], [390, 1]] as const) {
+    expect(layoutPins(pins, metrics(width, widths))).toEqual({ strip: pins.slice(0, count), more: pins.slice(count), caps: {} });
   }
-  // Below that boundary, reserve the button and move the second pin into it.
-  expect(layoutPins(pair, [], metrics(303, widths), { whole: true })).toEqual({ strip: [pair[0]], more: [pair[1]], caps: {} });
-  // A single long touch label uses the entire row without an empty menu.
-  expect(layoutPins(pair.slice(0, 1), [], metrics(200, { a: 300 }), { whole: true }).caps).toEqual({ a: 200 });
 });
 
-it("reserves the button only when at least one pin belongs in its list", () => {
-  expect(layoutPins(pins, [], even(496)).more).toEqual([]);
-  expect(ids(layoutPins(pins, [], even(495)).more)).toEqual(["e"]);
+it("moves the first label that cannot fit and all later pins into overflow without shrinking labels", () => {
+  const widths = { a: 80, b: 400, c: 150 };
+  expect(layoutPins(pins.slice(0, 3), metrics(600, widths))).toEqual({ strip: pins.slice(0, 2), more: pins.slice(2, 3), caps: {} });
+  // A short later pin cannot jump ahead of the first pin that doesn't fit.
+  expect(layoutPins(pins.slice(0, 3), metrics(450, widths))).toEqual({ strip: pins.slice(0, 1), more: pins.slice(1, 3), caps: {} });
+});
+
+it("uses the entire row when all labels fit, without reserving an empty menu", () => {
   const pair = pins.slice(0, 2);
-  expect(layoutPins(pair, ["b"], metrics(160, { a: 150, b: 150 }), { whole: true })).toEqual({ strip: [pair[0]], more: [pair[1]], caps: { a: 128 } });
-  // Desktop's scrolling strip has no measured capacity and no overflow menu entries.
-  expect(layoutPins(pins, [], null)).toEqual({ strip: pins, more: [], caps: {} });
-  expect(layoutPins([], [], even(100))).toEqual({ strip: [], more: [], caps: {} });
+  for (const width of [304, 305, 335, 304]) {
+    expect(layoutPins(pair, metrics(width, { a: 150, b: 150 }))).toEqual({ strip: pair, more: [], caps: {} });
+  }
+  expect(layoutPins(pair, metrics(303, { a: 150, b: 150 }))).toEqual({ strip: pair.slice(0, 1), more: pair.slice(1), caps: {} });
+});
+
+it("reserves overflow space even when doing so moves another pin into the menu", () => {
+  expect(layoutPins(pins.slice(0, 3), metrics(210, { a: 100, b: 100, c: 20 }))).toEqual({ strip: pins.slice(0, 1), more: pins.slice(1, 3), caps: {} });
+});
+
+it("shortens only a lone first pin that is wider than the available row", () => {
+  expect(layoutPins(pins.slice(0, 1), metrics(200, { a: 300 }))).toEqual({ strip: pins.slice(0, 1), more: [], caps: { a: 200 } });
+  expect(layoutPins(pins.slice(0, 2), metrics(350, { a: 500, b: 100 }))).toEqual({ strip: pins.slice(0, 1), more: pins.slice(1, 2), caps: { a: 318 } });
+  expect(layoutPins(pins.slice(0, 2), metrics(20, { a: 500, b: 100 })).caps).toEqual({ a: 0 });
+});
+
+it("preserves every saved pin and its order before measurement", () => {
+  expect(layoutPins(pins, null)).toEqual({ strip: pins, more: [], caps: {} });
+  expect(layoutPins([], metrics(100, {}))).toEqual({ strip: [], more: [], caps: {} });
 });

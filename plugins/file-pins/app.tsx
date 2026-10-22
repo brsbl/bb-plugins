@@ -11,7 +11,7 @@ import { usePointerCoarse } from "./components/ui/hooks/use-pointer-coarse.js";
 import { Icon } from "./components/ui/icon.js";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./components/ui/tooltip.js";
 import { PinPopover as Popover, PinPopoverContent as PopoverContent, PinPopoverTrigger as PopoverTrigger } from "./pin-popover.js";
-import { layoutPins, pinFile, PIN_MIN_WIDTH_CLASS, useMeasurePins, type Arrangement } from "./pin-layout.js";
+import { layoutPins, PIN_MIN_WIDTH_CLASS, useMeasurePins } from "./pin-layout.js";
 import { previewTarget } from "./open-target.js";
 import { pinTooltip } from "./pin-tooltip.js";
 import { LinkPreviewCard, PREVIEW_HOLD_MS, preparePreview } from "./link-preview-card.js";
@@ -115,7 +115,6 @@ function PinStrip({ threadId }: { threadId: string }) {
   const navigate = useBbNavigate();
   const connection = useRealtimeConnectionState();
   const [pins, setPins] = useState<Reference[]>([]);
-  const [more, setMore] = useState<string[]>([]);
   const [threadHostId, setThreadHostId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   // Refresh preview is busy per pin, so other pins' actions stay available.
@@ -125,10 +124,7 @@ function PinStrip({ threadId }: { threadId: string }) {
   // Phones have no room beside the list, so row menus open below the row there.
   const compact = useIsCompactViewport();
   const measureRow = useRef<HTMLDivElement>(null);
-  const arranging = useRef({ pending: 0, queue: Promise.resolve() });
   const metrics = useMeasurePins(measureRow, pins.map((pin) => pin.id).join("\n"));
-  // Touch screens have no hover tooltip to reveal a cut-off label, so pins keep whole labels and the rest wait in ⋯.
-  const whole = usePointerCoarse();
   // Re-render labels when a pinned PR's state arrives, so they name it for screen readers.
   usePrStateAnswers();
   const openLabel = (pin: Reference) => {
@@ -144,7 +140,7 @@ function PinStrip({ threadId }: { threadId: string }) {
     const request = ++generation.current;
     try {
       const result = await rpc.call("inspect", { threadId });
-      if (alive.current && request === generation.current && arranging.current.pending === 0) { setPins(result.pins); setMore(result.more); setThreadHostId(result.threadHostId); }
+      if (alive.current && request === generation.current) { setPins(result.pins); setThreadHostId(result.threadHostId); }
     } catch (cause) { report(cause); }
   }, [rpc, threadId, report]);
   useEffect(() => {
@@ -207,55 +203,15 @@ function PinStrip({ threadId }: { threadId: string }) {
   function linkTarget(pin: FileReference) {
     return previewTarget(pin, threadHostId) ?? { kind: "host" as const, hostId: pin.hostId, path: pin.path };
   }
-  // Use bb's compact breakpoint. Wide strips keep every pinned item at its natural width.
-  const layoutMetrics = compact ? metrics : null;
-  const layout = layoutPins(pins, more, layoutMetrics, { whole });
-  const scrollRow = useRef<HTMLDivElement>(null);
-  const [edges, setEdges] = useState({ left: false, right: false });
-  useLayoutEffect(() => {
-    const row = scrollRow.current;
-    if (compact || !row) return;
-    const check = () => {
-      const left = row.scrollLeft > 1;
-      const right = row.scrollLeft < row.scrollWidth - row.clientWidth - 1;
-      setEdges((previous) => previous.left === left && previous.right === right ? previous : { left, right });
-    };
-    // Some platforms leave Shift-wheel on the vertical axis. Trackpad deltaX stays native.
-    const wheel = (event: WheelEvent) => {
-      if (!event.shiftKey || event.ctrlKey || event.deltaX !== 0 || event.deltaY === 0) return;
-      const unit = event.deltaMode === 1 ? row.clientHeight : event.deltaMode === 2 ? row.clientWidth : 1;
-      const before = row.scrollLeft;
-      row.scrollLeft += event.deltaY * unit;
-      if (row.scrollLeft !== before) event.preventDefault();
-    };
-    check();
-    row.addEventListener("scroll", check, { passive: true });
-    row.addEventListener("wheel", wheel, { passive: false });
-    const observer = new ResizeObserver(check);
-    observer.observe(row);
-    for (const child of Array.from(row.children)) observer.observe(child);
-    return () => { row.removeEventListener("scroll", check); row.removeEventListener("wheel", wheel); observer.disconnect(); };
-  }, [compact, metrics, pins, more]);
-  // ⋯ lists only pins the strip doesn't show: ones that didn't fit, then ones hidden by hand.
-  // Pins reachable by scrolling the strip stay off it.
+  // Every viewport uses whole labels and measured overflow. Legacy hand-hidden
+  // preferences are ignored; all saved pins participate in their stored order.
+  const layout = layoutPins(pins, metrics);
   const listed = layout.more;
   const hasMore = listed.length > 0;
   const moreLabel = `${listed.length} more ${listed.length === 1 ? "pin" : "pins"}`;
   useEffect(() => {
     if (!hasMore) { setMoreOpen(false); setRowMenu(null); }
   }, [hasMore]);
-  const current: Arrangement = { order: pins.map((pin) => pin.id), more };
-  function arrange(next: Arrangement) {
-    // Apply locally first; saves run in order and
-    // refreshes wait until the last one lands so the strip never steps back.
-    generation.current++;
-    setPins(next.order.map((id) => pins.find((pin) => pin.id === id)!));
-    setMore(next.more);
-    const saves = arranging.current;
-    saves.pending++;
-    saves.queue = saves.queue.then(() => rpc.call("arrange", { threadId, ...next })).then(() => undefined, report)
-      .finally(() => { if (--saves.pending === 0) void refresh(); });
-  }
   // A small, hoverable preview card for both pointer and keyboard users.
   function withTooltip(pin: Reference, trigger: ReactElement) {
     const tip = pinTooltip(pin, threadHostId);
@@ -270,15 +226,8 @@ function PinStrip({ threadId }: { threadId: string }) {
           </div>
       </div>} />;
   }
-  // Overflowed pins can move back to the strip; Unpin always removes with Undo.
   function actions(pin: Reference): PinAction[] {
-    if (!more.includes(pin.id)) return [{ label: "Unpin", disabled: busy, run: () => void remove(pin) }];
-    const next = pinFile(pins, current, pin.id, layoutMetrics, { whole });
-    return [{
-      label: "Show in strip", disabled: busy || !next, hint: next ? undefined : "No room on the strip", run: () => {
-        if (next) { setMoreOpen(false); arrange(next); }
-      },
-    }, { label: "Unpin", disabled: busy, run: () => void remove(pin) }];
+    return [{ label: "Unpin", disabled: busy, run: () => void remove(pin) }];
   }
   // bb's FileLink menu items that the public SDK can reproduce, then this plugin's actions.
   // "Open with" and "Open in" need core-only openers and local app targets, so they are left out.
@@ -364,15 +313,9 @@ function PinStrip({ threadId }: { threadId: string }) {
     {/* bb's composer fade, repeated above the flat strip so text scrolling under it doesn't end in a hard edge. */}
     {fade && <span aria-hidden="true" data-overflow-fade="above" className="pointer-events-none absolute inset-x-0 -top-6 h-6 bg-gradient-to-b from-transparent to-background" />}
     {pins.length > 0 && <section aria-label="Pinned files and links" className="flex min-w-0 items-center gap-1 overflow-hidden rounded-lg px-1 py-1">
-      <div ref={scrollRow}
-        className={cn("flex min-w-0 flex-1 items-center gap-1", !compact && "-m-0.5 overflow-x-auto p-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>*]:shrink-0 [&>*]:scroll-mx-4")}
-        style={compact ? undefined : { maskImage: `linear-gradient(to right, ${edges.left ? "transparent, black 16px" : "black"}, ${edges.right ? "black calc(100% - 16px), transparent" : "black"})` }}
-        onFocusCapture={(event) => {
-          if (!compact) event.target.scrollIntoView({ block: "nearest", inline: "nearest" });
-        }}>
+      <div className="flex min-w-0 flex-1 items-center gap-1 [&>*]:shrink-0">
         {layout.strip.map((pin) => stripPin(pin))}
       </div>
-      {/* ⋯ sits outside the scrolling row, flush with the composer's right edge, so pins scroll under its fade and it never moves. */}
       {hasMore && <Popover open={moreOpen} onOpenChange={setMoreOpen}>
         <PopoverTrigger asChild><button type="button" aria-label={moreLabel} title="More pins" className={cn(moreClass, "-mr-1 cursor-pointer")}><Icon name="MoreHorizontal" className="size-4" /></button></PopoverTrigger>
         <PopoverContent aria-label="More pins" className={cn("p-1", compact ? "w-[calc(100vw-2rem)]" : "w-56")}>
