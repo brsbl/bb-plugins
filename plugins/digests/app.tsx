@@ -469,6 +469,7 @@ function DigestForm({ connection, definition, pending, onCancel, onSave }: {
   onSave: (input: SaveDigest) => Promise<void>;
 }) {
   const formId = useId();
+  const gmail = connection.url ? new URL(connection.url).hostname === "mail.google.com" : connection.id === "gmail";
   const rpc = useRpc<typeof rpcContract>();
   const [execution, setExecution] = useState(definition?.execution ?? null);
   const [options, setOptions] = useState<{ projects: Array<{ id: string; name: string; kind: string }>; hosts: Array<{ id: string; name: string }>; environments: Array<{ id: string; name: string; projectId: string; hostId: string | null }> } | null>(null);
@@ -477,7 +478,7 @@ function DigestForm({ connection, definition, pending, onCancel, onSave }: {
   const [name, setName] = useState(definition?.name ?? "");
   const [emoji, setEmoji] = useState(digestEmoji(definition ?? { id: "digest-new", connectionIds: [connection.id] }));
   const [instructions, setInstructions] = useState(definition?.instructions ?? "");
-  const [afterReading, setAfterReading] = useState<NonNullable<DigestDefinition["afterReading"]>>(definition?.afterReading ?? "keep-unread");
+  const [afterReading, setAfterReading] = useState<NonNullable<DigestDefinition["afterReading"]>>(definition?.afterReading ?? "mark-read");
   const [minute = "0", hour = "10", day = "*", month = "*", weekday = "1-5"] = definition?.schedule?.cron.split(/\s+/u) ?? [];
   const simpleSchedule = day === "*" && month === "*" && DAYS.some(([value]) => value === weekday) && /^\d+$/u.test(hour) && /^\d+$/u.test(minute);
   const [frequency, setFrequency] = useState(simpleSchedule ? weekday : "custom");
@@ -489,7 +490,7 @@ function DigestForm({ connection, definition, pending, onCancel, onSave }: {
     event.preventDefault();
     const [hours, minutes] = time.split(":");
     void onSave({ ...(definition ? { id: definition.id } : {}), connectionId: connection.id, name, ...(emoji.trim() ? { emoji: emoji.trim() } : {}), instructions, ...(execution || definition?.execution ? { execution } : {}),
-      ...(connection.id === "gmail" ? { afterReading } : {}),
+      ...(gmail ? { afterReading } : {}),
       schedule: publishOnly ? null : frequency === "custom" ? definition!.schedule : { cron: `${Number(minutes)} ${Number(hours)} * * ${frequency}`, timezone: definition?.schedule?.timezone ?? "America/Los_Angeles" } });
   }}>
     <div className="digest-name-fields">
@@ -497,17 +498,17 @@ function DigestForm({ connection, definition, pending, onCancel, onSave }: {
       <label htmlFor={`${formId}-emoji`}>Emoji<input id={`${formId}-emoji`} maxLength={32} value={emoji} onChange={(event) => setEmoji(event.target.value)} placeholder="📰" /></label>
     </div>
     <label htmlFor={`${formId}-prompt`}>What should it tell you?</label>
-    <textarea id={`${formId}-prompt`} required maxLength={30000} rows={4} value={instructions} onChange={(event) => setInstructions(event.target.value)} placeholder={`e.g. ${connection.id === "gmail" ? "Unread emails that need a reply, newest first. Skip newsletters and recruiting." : `The updates from ${connection.name} that need my attention.`}`} />
+    <textarea id={`${formId}-prompt`} required maxLength={30000} rows={4} value={instructions} onChange={(event) => setInstructions(event.target.value)} placeholder={`e.g. ${gmail ? "Unread emails that need a reply, newest first. Skip newsletters and recruiting." : `The updates from ${connection.name} that need my attention.`}`} />
     {!publishOnly && <div className="digest-schedule-fields"><label htmlFor={`${formId}-days`}>When</label>
       <select id={`${formId}-days`} value={frequency} onChange={(event) => setFrequency(event.target.value)}>
         {!simpleSchedule && <option value="custom">Keep current schedule</option>}{DAYS.map(([value, label]) => <option value={value} key={value}>{label}</option>)}
       </select>
       {frequency !== "custom" && <><span>at</span><select aria-label="Time" value={time} onChange={(event) => setTime(event.target.value)}>{times.sort().map((value) => { const [h, m] = value.split(":"); const n = Number(h); return <option key={value} value={value}>{n % 12 || 12}:{m} {n < 12 ? "AM" : "PM"}</option>; })}</select><span>{definition?.schedule?.timezone && definition.schedule.timezone !== "America/Los_Angeles" ? definition.schedule.timezone : "PT"}</span></>}
     </div>}
-    {connection.id === "gmail" && <><label htmlFor={`${formId}-after-reading`}>After reading</label>
+    {gmail && <><label htmlFor={`${formId}-after-reading`}>After reading</label>
       <select id={`${formId}-after-reading`} value={afterReading} onChange={(event) => setAfterReading(event.target.value as typeof afterReading)}>
-        <option value="keep-unread">Keep unread (default)</option><option value="mark-read">Mark as read</option>
-      </select><p className="digest-muted">Reads the full email and needed thread context. Keep unread restores messages that were unread before the run; already-read mail stays read.</p></>}
+        <option value="mark-read">Mark as read (default)</option><option value="keep-unread">Keep unread</option>
+      </select><p className="digest-muted">Reads every email in full, including every message in a thread, and leaves it read. Keep unread preserves each message’s original state.</p></>}
     <details className="digest-execution" onToggle={(event) => { if (event.currentTarget.open && !options) loadExecution(); }}>
       <summary>Where it runs</summary>
       <p className="digest-muted">Uses a Personal workspace on the computer with your browser sign-ins.</p>
