@@ -7,7 +7,7 @@
 
 ## How it works
 
-Click a pin to open it the way bb opens files and links. Hover or focus a pin for its **×** to unpin it. Right-click a file, or long-press a pin on a touch screen, for **Open preview**, **Open externally**, **Copy file path** and **Copy file name**, then **Unpin** to remove it with **Undo**. Hover or focus a pin for a preview card with the URL or path in its header; link cards open complete, without loading placeholders, when the page answers quickly. Web cards show a thumbnail or site icon, site name, title, and description. Missing files stay visible with a light red tint.
+Click a pin to open it the way bb opens files and links. Hover or focus a pin for its **×** to unpin it. Right-click a file, or long-press a pin on a touch screen, for **Open preview**, **Open externally**, **Copy file path** and **Copy file name**, then **Unpin** to remove it with **Undo**. Hover or focus a pin for a preview card with the URL or path in its header; link cards open complete, without loading placeholders, when the page answers quickly, and a preview over an hour old updates in place while the card is open. Web cards show a thumbnail or site icon, site name, title, and description. Missing files stay visible with a light red tint.
 
 Pins persist per thread across clients and restarts. Agents and scripts can also run `bb file-pins pin`, `list` and `remove`.
 

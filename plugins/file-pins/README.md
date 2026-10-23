@@ -35,7 +35,8 @@ swipe on a trackpad or touch screen, or turn the mouse wheel over it. A soft fad
 side that has more pins, and focusing a pin from the keyboard scrolls it into view.
 Long names and addresses still use the label rules in [`pin-label.ts`](pin-label.ts).
 Previously hand-hidden pins show in the strip again; saved hiding preferences are ignored. Hover cards open once the preview and its image have loaded (prefetched as the
-pointer arrives), or after 800 ms with what has arrived.
+pointer arrives), or after 800 ms with what has arrived. A link preview older than an hour shows at once and updates
+in place when the reload finishes, with no notice; a failed reload keeps the last preview.
 File icons mark code, documents and images in the theme's file color. Hover or focus a pin for a preview card with its URL or path in a subtle header. Web links use Moss’s rich-card layout: a thumbnail or site-icon fallback, site name, title, and description. Files show their title, availability, and machine when needed.
 Right-click a strip file for **Open preview**, **Open externally**, **Copy file path** and
 **Copy file name**, then **Unpin**; on a touch screen, long-press a pin for the same menu.

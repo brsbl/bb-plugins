@@ -7,7 +7,8 @@ export { pageMetadata };
 export type LinkPreview = { title: string; description: string; site: string; image: string | null };
 /** How the latest load for a URL ended. `preview` may still hold earlier useful content after a failure. */
 export type PreviewStatus = "ready" | "no-image" | "blocked" | "not-found" | "timeout" | "rate-limited" | "unsupported" | "invalid-image" | "network" | "busy";
-export type PreviewResult = { preview: LinkPreview | null; status: PreviewStatus; retryAt?: number };
+/** `refreshing` marks a cached preview answered while a reload of that URL runs behind it. */
+export type PreviewResult = { preview: LinkPreview | null; status: PreviewStatus; retryAt?: number; refreshing?: true };
 /** Bounded diagnostics only: never the URL, image data or a remote response body. */
 export type PreviewDiagnostic = { reason: PreviewStatus; status?: number; elapsedMs: number };
 export type PreviewLogger = (diagnostic: PreviewDiagnostic) => void;
@@ -30,7 +31,6 @@ export const PREVIEW_LIMITS = {
   transientMs: 30_000,
   cooldownMs: 10 * 60_000,
   backoffMs: 24 * 60 * 60_000,
-  refreshDebounceMs: 5_000,
 } as const;
 const USER_AGENT = "Mozilla/5.0 (compatible; BB-Link-Preview/1.0; +https://getbb.app)";
 const PAGE_ACCEPT = "text/html,application/xhtml+xml;q=0.9,image/png;q=0.8,image/jpeg;q=0.8,image/webp;q=0.8,*/*;q=0.1";
@@ -80,7 +80,6 @@ type Entry = {
   status?: PreviewStatus;
   freshUntil: number;
   retryAt?: number;
-  refreshedAt?: number;
   inflight?: Promise<PreviewResult>;
   bytes: number;
 };
@@ -185,8 +184,8 @@ export class LinkPreviews {
     return (await this.getResult(value)).preview;
   }
 
-  /** A stale useful preview returns at once while one refresh runs; `refresh` waits, but never overrides a server-directed pause. */
-  getResult(value: string, refresh = false): Promise<PreviewResult> {
+  /** A stale useful preview returns at once, marked `refreshing`, while one reload runs behind it. */
+  getResult(value: string): Promise<PreviewResult> {
     const url = iconUrl(value);
     if (!url) return Promise.resolve({ preview: null, status: "unsupported" });
     if (this.disposed) return Promise.resolve({ preview: null, status: "busy" });
@@ -198,15 +197,25 @@ export class LinkPreviews {
     if (!entry && saturated) return Promise.resolve({ preview: null, status: "busy" });
     if (entry) this.cache.delete(key);
     this.cache.set(key, entry ??= { freshUntil: 0, bytes: 0 });
-    if (entry.inflight) return entry.good && !refresh ? Promise.resolve(this.snapshot(entry)) : entry.inflight;
+    if (entry.inflight) return entry.good ? Promise.resolve(this.behind(entry)) : entry.inflight;
     if (entry.retryAt && entry.retryAt > now) return Promise.resolve(this.snapshot(entry));
-    if (!refresh && entry.freshUntil > now) return Promise.resolve(this.snapshot(entry));
-    if (refresh && entry.refreshedAt !== undefined && now - entry.refreshedAt < PREVIEW_LIMITS.refreshDebounceMs) return Promise.resolve(this.snapshot(entry));
+    if (entry.freshUntil > now) return Promise.resolve(this.snapshot(entry));
     if (saturated) return Promise.resolve({ ...this.snapshot(entry), status: "busy" });
-    if (refresh) entry.refreshedAt = now;
     const result = this.start(key, url, entry);
     entry.inflight = result;
-    return entry.good && !refresh ? Promise.resolve(this.snapshot(entry)) : result;
+    return entry.good ? Promise.resolve(this.behind(entry)) : result;
+  }
+
+  /** The reload already running for a URL, or its current answer. Never starts a load. */
+  settled(value: string): Promise<PreviewResult> {
+    const url = iconUrl(value);
+    const entry = url ? this.cache.get(url.href) : undefined;
+    if (!entry) return Promise.resolve({ preview: null, status: url ? "busy" : "unsupported" });
+    return entry.inflight ?? Promise.resolve(this.snapshot(entry));
+  }
+
+  private behind(entry: Entry): PreviewResult {
+    return { ...this.snapshot(entry), refreshing: true };
   }
 
   private snapshot(entry: Entry): PreviewResult {

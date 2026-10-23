@@ -13,7 +13,7 @@ import { pinTooltip } from "./pin-tooltip.js";
 import { LinkPreviewCard, PREVIEW_HOLD_MS, preparePreview } from "./link-preview-card.js";
 import { pinLabel } from "./pin-label.js";
 import { PreviewAddress } from "./preview-address.js";
-import { previewClient, previewKey, refreshNotice } from "./preview-client.js";
+import { previewKey } from "./preview-client.js";
 import { ReferenceIcon } from "./reference-icon.js";
 import { prStateLabel, UrlPinIcon, usePrStateAnswers } from "./url-pin-icon.js";
 import { cn } from "./lib/utils.js";
@@ -112,8 +112,6 @@ function PinStrip({ threadId }: { threadId: string }) {
   const [pins, setPins] = useState<Reference[]>([]);
   const [threadHostId, setThreadHostId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  // Refresh preview is busy per pin, so other pins' actions stay available.
-  const [refreshing, setRefreshing] = useState<ReadonlySet<string>>(() => new Set());
   // A touch long-press opens a pin's menu; the click that ends that same press must not also open the pin.
   const pressedAt = useRef(0);
   const menuOpenedAt = useRef(0);
@@ -164,23 +162,6 @@ function PinStrip({ threadId }: { threadId: string }) {
     } catch (cause) { report(cause); }
     finally { if (alive.current) setBusy(false); }
   }
-  async function refreshPreview(pin: UrlPin) {
-    if (refreshing.has(pin.id)) return;
-    const mark = (on: boolean) => setRefreshing((ids) => {
-      const next = new Set(ids);
-      if (on) next.add(pin.id); else next.delete(pin.id);
-      return next;
-    });
-    mark(true);
-    try {
-      // An open card for this pin shows the new answer as it lands; the current preview stays until then.
-      const answer = await previewClient.refresh(previewKey(threadId, pin.id, pin.url), () => rpc.call("refreshPreview", { threadId, pinId: pin.id }));
-      if (!alive.current) return;
-      const notice = refreshNotice(answer);
-      if (notice.ok) toast.success(notice.message); else toast.error(notice.message);
-    } catch (cause) { report(cause); }
-    finally { if (alive.current) mark(false); }
-  }
   function open(pin: FileReference, event: MouseEvent<HTMLAnchorElement>) {
     if (!plainClick(event)) return;
     if (pin.status !== "available") { event.preventDefault(); report(new Error(`${pin.hostName} is unavailable. Reconnect the machine and try again.`)); }
@@ -224,10 +205,7 @@ function PinStrip({ threadId }: { threadId: string }) {
   function menuGroups(pin: Reference): PinAction[][] {
     if (isUrlPin(pin)) return [
       [{ label: "Open", run: () => openUrl(pin) }],
-      [
-        { label: "Copy link", run: () => void copyText(pin.url, "Link copied", "Failed to copy link") },
-        { label: "Refresh preview", disabled: refreshing.has(pin.id), run: () => void refreshPreview(pin) },
-      ],
+      [{ label: "Copy link", run: () => void copyText(pin.url, "Link copied", "Failed to copy link") }],
       actions(pin),
     ];
     if (pin.status === "missing") return [actions(pin)];
