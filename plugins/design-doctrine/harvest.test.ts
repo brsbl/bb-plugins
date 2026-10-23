@@ -446,7 +446,7 @@ describe("harvest pure helpers", () => {
     ] as const;
     for (const field of scalarFields) {
       expect(
-        harvestProposalSchema.safeParse({ ...base, [field]: "contains thr_private123" })
+        harvestProposalSchema.safeParse({ ...base, [field]: "contains thr_example002" })
           .success,
         field,
       ).toBe(false);

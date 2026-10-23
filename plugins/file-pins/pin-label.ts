@@ -32,6 +32,27 @@ export function cutMiddle(value: string, max: number): string {
   return `${chars.slice(0, head).join("")}${ELLIPSIS}${chars.slice(chars.length - (keep - head)).join("")}`;
 }
 
+/** A preview header keeps the beginning of an address and its final file or page name. */
+export function previewAddressLabel(value: string, max = 44): string {
+  let shown = value;
+  let last: string | undefined;
+  if (/^https?:\/\//iu.test(value)) {
+    try {
+      const url = new URL(value);
+      // A query or fragment can contain slashes, but cannot name the destination page.
+      shown = value.split(/[?#]/u, 1)[0]!;
+      last = url.pathname.split("/").at(-1);
+    } catch { /* Keep an unparseable address as written. */ }
+  }
+  if ([...shown].length <= max) return shown;
+  const start = [...shown].slice(0, Math.min(12, max - 4)).join("");
+  const lastSlash = shown.lastIndexOf("/");
+  last ??= shown.slice(lastSlash + 1);
+  const room = max - [...start].length - 2; // ellipsis and slash
+  if (lastSlash > start.length && last && room >= 4) return `${start}${ELLIPSIS}/${fileLabel(last, room)}`;
+  return cutMiddle(shown, max);
+}
+
 export function fileLabel(name: string, max: number = PIN_LABEL_LIMITS.file): string {
   const chars = [...name];
   if (chars.length <= max) return name;

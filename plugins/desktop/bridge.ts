@@ -140,6 +140,8 @@ export function installDesktopBridge(): () => void {
   window.bbDesktopApps = bridge;
   window.dispatchEvent(new Event("bb-desktop-apps:ready"));
   return () => {
-    if (window.bbDesktopApps === bridge) delete window.bbDesktopApps;
+    if (window.bbDesktopApps !== bridge) return;
+    delete window.bbDesktopApps;
+    window.dispatchEvent(new Event("bb-desktop-apps:ready"));
   };
 }

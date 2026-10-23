@@ -58,7 +58,7 @@ describe("Markdown link interception", () => {
   it("opens encoded Markdown file links through the plugin route", async () => {
     const fetch = vi.fn(async () => ({ ok: true }));
     vi.stubGlobal("fetch", fetch);
-    const anchor = link("file:///Users/brsbl/My%20Notes/spec.md#L12");
+    const anchor = link("file:///Users/alex/My%20Notes/spec.md#L12");
     const reachedAnchor = vi.fn();
     anchor.addEventListener("click", reachedAnchor);
 
@@ -72,7 +72,7 @@ describe("Markdown link interception", () => {
       {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ path: "/Users/brsbl/My Notes/spec.md" }),
+        body: JSON.stringify({ path: "/Users/alex/My Notes/spec.md" }),
       },
     );
     expect(toast.error).not.toHaveBeenCalled();
@@ -151,7 +151,7 @@ describe("Markdown link interception", () => {
       status: 502,
       json: async () => ({ ok: false, error: { code: "open_failed", message: "" } }),
     })));
-    const anchor = link("file:///Users/brsbl/notes/spec.md");
+    const anchor = link("file:///Users/alex/notes/spec.md");
     const bbPreview = vi.fn((event: Event) => event.preventDefault());
     anchor.addEventListener("click", bbPreview);
 
@@ -245,7 +245,7 @@ describe("Moss Viewer", () => {
 
   // Clicks a fresh Markdown link and reports whether Open in Moss took it.
   function opensInMoss(): boolean {
-    const anchor = link("file:///Users/brsbl/Moss/Notes/spec.md");
+    const anchor = link("file:///Users/alex/Moss/Notes/spec.md");
     let reachedBb = false;
     anchor.addEventListener("click", (event) => {
       reachedBb = true;
