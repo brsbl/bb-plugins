@@ -273,7 +273,7 @@ describe("Digests app", () => {
   it.each([undefined, "keep-unread"])("edits legacy Gmail definitions with preference %s", async (afterReading) => {
     const app = await loadPluginApp(() => import("./app.js"));
     const slot = renderSlot(app.settingsSections[0]!, {}, { rpc: {
-      overview: () => ({ definitions: [{ ...definition, afterReading, connectionIds: ["work-mail"] }], connections: [{ id: "work-mail", name: "Work mail", url: "https://mail.google.com/mail/u/1/", status: "signed-in" }], organizerReady: true }),
+      overview: () => ({ definitions: [{ ...definition, ...(afterReading ? { afterReading } : {}), connectionIds: ["work-mail"] }], connections: [{ id: "work-mail", name: "Work mail", url: "https://mail.google.com/mail/u/1/", status: "signed-in" }], organizerReady: true }),
     } });
     fireEvent.click(await slot.findByRole("button", { name: "Edit Reading" }));
     expect((slot.getByLabelText("After reading") as HTMLSelectElement).value).toBe(afterReading ?? "mark-read");
