@@ -4,31 +4,26 @@ import { toast } from "sonner";
 import { PIN_MENTION, isUrlPin, type FileReference, type Reference, type UrlPin, type rpcContract } from "./contract.js";
 import { Button } from "./components/ui/button.js";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from "./components/ui/context-menu.js";
-import { useIsCompactViewport } from "./components/ui/hooks/use-compact-viewport.js";
 import { usePointerCoarse } from "./components/ui/hooks/use-pointer-coarse.js";
 import { Icon } from "./components/ui/icon.js";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./components/ui/tooltip.js";
-import { PinPopover as Popover, PinPopoverContent as PopoverContent, PinPopoverTrigger as PopoverTrigger } from "./pin-popover.js";
-import { layoutPins, PIN_MIN_WIDTH_CLASS, useMeasurePins } from "./pin-layout.js";
 import { previewTarget } from "./open-target.js";
+import { edgeMask, useSwipeStrip } from "./pin-strip.js";
 import { pinTooltip } from "./pin-tooltip.js";
 import { LinkPreviewCard, PREVIEW_HOLD_MS, preparePreview } from "./link-preview-card.js";
 import { pinLabel } from "./pin-label.js";
 import { PreviewAddress } from "./preview-address.js";
 import { previewClient, previewKey, refreshNotice } from "./preview-client.js";
 import { ReferenceIcon } from "./reference-icon.js";
-import { prStateLabel, showsPrState, UrlPinIcon, usePrStateAnswers } from "./url-pin-icon.js";
+import { prStateLabel, UrlPinIcon, usePrStateAnswers } from "./url-pin-icon.js";
 import { cn } from "./lib/utils.js";
 
 const linkClass = `group inline-flex h-7 min-w-0 items-center gap-1.5 rounded px-1.5 text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`;
 // bb's composer-stack card chrome at chip scale, kept quiet: a hairline at rest, a shadow on hover.
 const pinClass = cn(linkClass, "rounded-md border border-border-seam bg-surface-raised-solid transition-shadow hover:shadow-xs");
-// Solid accent distinguishes the control from the strip; inverse text keeps the count readable.
-const moreClass = cn(linkClass, "min-w-7 shrink-0 justify-center rounded-full bg-timeline-accent text-background tabular-nums hover:text-background hover:bg-[color-mix(in_oklab,var(--timeline-accent)_90%,var(--foreground))] active:bg-[color-mix(in_oklab,var(--timeline-accent)_80%,var(--foreground))] data-[pressed]:bg-[color-mix(in_oklab,var(--timeline-accent)_80%,var(--foreground))] data-[state=open]:bg-[color-mix(in_oklab,var(--timeline-accent)_80%,var(--foreground))]");
-function countClass(count: number) { return cn(moreClass, count < 10 && "w-7 px-0"); }
-// Overflow rows expose Unpin on hover, keyboard focus and touch.
-const rowLinkClass = "flex min-w-0 flex-1 items-center gap-2 rounded-sm px-2 py-[0.3125rem] text-xs text-foreground outline-none focus-visible:ring-1 focus-visible:ring-ring";
-const rowActionClass = "flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground opacity-0 hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring group-hover/row:opacity-100 group-has-[:focus-visible]/row:opacity-100 pointer-coarse:opacity-100 [@media(hover:none)]:opacity-100";
+// Desktop Unpin: a × over the pin's end on hover or keyboard focus, fading the label beneath it.
+// Touch screens long-press the pin for its menu instead.
+const unpinClass = "absolute inset-y-px right-px flex w-6 items-center justify-center rounded-r-[5px] bg-surface-raised-solid text-muted-foreground opacity-0 hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring group-hover/pin:opacity-100 group-has-[:focus-visible]/pin:opacity-100 before:pointer-events-none before:absolute before:inset-y-0 before:right-full before:w-3 before:bg-gradient-to-r before:from-transparent before:to-surface-raised-solid pointer-coarse:hidden";
 const noMotion = { animation: "none", transition: "none" };
 const menuClass = "min-w-40 p-1";
 type PinAction = { label: string; hint?: string; disabled?: boolean; run(): void };
@@ -119,10 +114,9 @@ function PinStrip({ threadId }: { threadId: string }) {
   const [busy, setBusy] = useState(false);
   // Refresh preview is busy per pin, so other pins' actions stay available.
   const [refreshing, setRefreshing] = useState<ReadonlySet<string>>(() => new Set());
-  const [moreOpen, setMoreOpen] = useState(false);
-  const compact = useIsCompactViewport();
-  const measureRow = useRef<HTMLDivElement>(null);
-  const metrics = useMeasurePins(measureRow, pins.map((pin) => pin.id).join("\n"));
+  // A touch long-press opens a pin's menu; the click that ends that same press must not also open the pin.
+  const pressedAt = useRef(0);
+  const menuOpenedAt = useRef(0);
   // Re-render labels when a pinned PR's state arrives, so they name it for screen readers.
   usePrStateAnswers();
   const openLabel = (pin: Reference) => {
@@ -160,7 +154,6 @@ function PinStrip({ threadId }: { threadId: string }) {
     setBusy(true);
     try {
       const { undoToken } = await rpc.call("remove", { threadId, pinId: pin.id });
-      setMoreOpen(false);
       await refresh();
       if (undoToken) toast(`Unpinned ${pin.name}`, {
         duration: 10_000,
@@ -201,15 +194,10 @@ function PinStrip({ threadId }: { threadId: string }) {
   function linkTarget(pin: FileReference) {
     return previewTarget(pin, threadHostId) ?? { kind: "host" as const, hostId: pin.hostId, path: pin.path };
   }
-  // Every viewport uses whole labels and measured overflow. Legacy hand-hidden
-  // preferences are ignored; all saved pins participate in their stored order.
-  const layout = layoutPins(pins, metrics);
-  const listed = layout.more;
-  const hasMore = listed.length > 0;
-  const moreLabel = `${listed.length} more ${listed.length === 1 ? "pin" : "pins"}`;
-  useEffect(() => {
-    if (!hasMore) setMoreOpen(false);
-  }, [hasMore]);
+  // Every pin keeps its whole label in one row that scrolls sideways at every width. Legacy
+  // hand-hidden preferences are ignored; all saved pins show in their stored order.
+  const scrollRow = useRef<HTMLDivElement>(null);
+  const edges = useSwipeStrip(scrollRow, pins.map((pin) => pin.id).join("\n"));
   // A small, hoverable preview card for both pointer and keyboard users.
   function withTooltip(pin: Reference, trigger: ReactElement) {
     const tip = pinTooltip(pin, threadHostId);
@@ -231,7 +219,6 @@ function PinStrip({ threadId }: { threadId: string }) {
   // "Open with" and "Open in" need core-only openers and local app targets, so they are left out.
   // A URL opens the way bb opens links: its browser preference, else a new tab.
   function openUrl(pin: UrlPin) {
-    setMoreOpen(false);
     if (!navigate.openUrl(pin.url)) window.open(pin.url, "_blank", "noopener,noreferrer");
   }
   function menuGroups(pin: Reference): PinAction[][] {
@@ -249,10 +236,9 @@ function PinStrip({ threadId }: { threadId: string }) {
     return [
       [
         { label: "Open preview", run: () => {
-          setMoreOpen(false);
           if (preview) navigate.experimental_openFilePreview({ target: preview, location: null }); else elsewhere(pin);
         } },
-        { label: "Open externally", disabled: pin.status !== "available", run: () => { setMoreOpen(false); navigate.experimental_openFileExternally(file); } },
+        { label: "Open externally", disabled: pin.status !== "available", run: () => navigate.experimental_openFileExternally(file) },
       ],
       [
         { label: "Copy file path", run: () => void copyText(pin.path, "File path copied", "Failed to copy file path") },
@@ -270,61 +256,40 @@ function PinStrip({ threadId }: { threadId: string }) {
     </ContextMenuContent>;
   }
   function stripPin(pin: Reference) {
-    const cap = layout.caps[pin.id];
-    const style = cap === undefined ? undefined : { maxWidth: cap };
-    const link = isUrlPin(pin) ? <UrlLink href={pin.url} style={style} aria-label={openLabel(pin)} className={cn(pinClass, "cursor-pointer")}>
+    const link = isUrlPin(pin) ? <UrlLink href={pin.url} aria-label={openLabel(pin)} className={cn(pinClass, "cursor-pointer")}>
       <PinIcon threadId={threadId} pin={pin} /><span className="truncate group-hover:underline">{pinLabel(pin)}</span>
-    </UrlLink> : pin.status === "missing" ? <span className="relative inline-flex min-w-0" style={style}>
+    </UrlLink> : pin.status === "missing" ? <span className="relative inline-flex min-w-0">
       <span aria-label={`${pin.name} (missing)`} className={cn(pinClass, "cursor-default pr-4 text-destructive/55 hover:text-destructive/55")}>
         <ReferenceIcon path={pin.path} muted /><span className="truncate">{pinLabel(pin)}</span><span className="sr-only"> (missing)</span>
       </span>
       <button type="button" disabled={busy} aria-label={`Unpin missing ${pin.name}`} onClick={() => void remove(pin)}
         className="absolute right-0.5 top-0.5 flex size-3.5 items-center justify-center rounded-sm text-xs leading-none text-muted-foreground/70 hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">×</button>
-    </span> : <FileLink target={linkTarget(pin)} onClick={(event) => open(pin, event)} style={style}
+    </span> : <FileLink target={linkTarget(pin)} onClick={(event) => open(pin, event)}
       aria-label={openLabel(pin)} className={cn(pinClass, pin.status === "available" ? "cursor-pointer" : "[&>*]:opacity-60")}><PinIcon threadId={threadId} pin={pin} /><span className="truncate group-hover:underline">{pinLabel(pin)}</span></FileLink>;
-    return <ContextMenu key={pin.id}>{withTooltip(pin, <ContextMenuTrigger asChild>{link}</ContextMenuTrigger>)}{contextMenu(pin)}</ContextMenu>;
-  }
-  function listRow(pin: Reference) {
-    const name = <><PinIcon threadId={threadId} pin={pin} /><span className="truncate">{pinLabel(pin)}</span></>;
-    const link = isUrlPin(pin)
-      ? <UrlLink href={pin.url} aria-label={openLabel(pin)} className={cn(rowLinkClass, "cursor-pointer")}>{name}</UrlLink>
-      : pin.status === "missing"
-      ? <span tabIndex={0} aria-label={`${pin.name} (missing)`} className={cn(rowLinkClass, "cursor-default text-destructive/55")}>{name}<span className="sr-only"> (missing)</span></span>
-      : <FileLink target={linkTarget(pin)} onClick={(event) => open(pin, event)}
-        aria-label={openLabel(pin)} className={cn(rowLinkClass, pin.status === "available" ? "cursor-pointer" : "opacity-60")}>{name}</FileLink>;
-    return <div key={pin.id} className="group/row flex min-w-0 items-center rounded-sm pr-1 hover:bg-state-hover has-[:focus-visible]:bg-state-hover">
-      {withTooltip(pin, link)}
-      <button type="button" aria-label={`Unpin ${pin.name}`} title="Unpin" disabled={busy} className={rowActionClass} onClick={() => void remove(pin)}><Icon name="X" className="size-3.5" /></button>
-    </div>;
+    const missing = !isUrlPin(pin) && pin.status === "missing";
+    return <ContextMenu key={pin.id} onOpenChange={(open) => { if (open) menuOpenedAt.current = performance.now(); }}>
+      <span className="group/pin relative inline-flex min-w-0 select-none [-webkit-touch-callout:none]"
+        onPointerDownCapture={() => { pressedAt.current = performance.now(); }}
+        onKeyDownCapture={() => { pressedAt.current = performance.now(); }}
+        onClickCapture={(event) => { if (menuOpenedAt.current > pressedAt.current) { event.preventDefault(); event.stopPropagation(); } }}>
+        {withTooltip(pin, <ContextMenuTrigger asChild>{link}</ContextMenuTrigger>)}
+        {!missing && <button type="button" aria-label={`Unpin ${pin.name}`} title="Unpin" disabled={busy} className={unpinClass} onClick={() => void remove(pin)}><Icon name="X" className="size-3.5" /></button>}
+      </span>
+      {contextMenu(pin)}
+    </ContextMenu>;
   }
   return <TooltipProvider delayDuration={300}><div ref={root} className="relative min-w-0">
     {/* bb's composer fade, repeated above the flat strip so text scrolling under it doesn't end in a hard edge. */}
     {fade && <span aria-hidden="true" data-overflow-fade="above" className="pointer-events-none absolute inset-x-0 -top-6 h-6 bg-gradient-to-b from-transparent to-background" />}
-    {pins.length > 0 && <section aria-label="Pinned files and links" className="flex min-w-0 items-center gap-1 overflow-hidden rounded-lg px-1 py-1">
-      <div className="flex min-w-0 items-center gap-1 [&>*]:shrink-0">
-        {layout.strip.map((pin) => stripPin(pin))}
+    {pins.length > 0 && <section aria-label="Pinned files and links" className="flex min-w-0 items-center overflow-hidden rounded-lg px-1 py-1">
+      {/* Edge fades show only on sides with more pins; focus scrolls a pin clear of them. */}
+      <div ref={scrollRow} data-pin-strip=""
+        className="-m-0.5 flex min-w-0 flex-1 items-center gap-1 overflow-x-auto p-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>*]:shrink-0 [&>*]:scroll-mx-4"
+        style={{ maskImage: edgeMask(edges) }}
+        onFocusCapture={(event) => event.target.scrollIntoView({ block: "nearest", inline: "nearest" })}>
+        {pins.map((pin) => stripPin(pin))}
       </div>
-      {hasMore && <Popover open={moreOpen} onOpenChange={setMoreOpen}>
-        <PopoverTrigger asChild><button type="button" aria-label={moreLabel} title={moreLabel} className={cn(countClass(listed.length), "cursor-pointer")}
-          onPointerDown={(event) => { if (event.button === 0) event.currentTarget.dataset.pressed = ""; }}
-          onPointerUp={(event) => { delete event.currentTarget.dataset.pressed; }}
-          onPointerCancel={(event) => { delete event.currentTarget.dataset.pressed; }}
-          onPointerLeave={(event) => { delete event.currentTarget.dataset.pressed; }}
-          onBlur={(event) => { delete event.currentTarget.dataset.pressed; }}><span className="leading-none">+{listed.length}</span></button></PopoverTrigger>
-        <PopoverContent aria-label="More pins" className={cn("p-1", compact ? "w-[calc(100vw-2rem)]" : "w-56")}>
-          <div className="max-h-64 overflow-y-auto">{listed.map((pin) => listRow(pin))}</div>
-        </PopoverContent>
-      </Popover>}
     </section>}
-    {/* Mirrors the strip row with every pin at its natural width, plus count chips and the minimum pin, to measure what fits. */}
-    <div ref={measureRow} aria-hidden="true" className="pointer-events-none invisible absolute inset-x-0 top-0 flex h-0 items-center gap-1 overflow-hidden px-1">
-      {pins.map((pin) => <span key={pin.id} data-pin-id={pin.id} className={cn(pinClass, "shrink-0", !isUrlPin(pin) && pin.status === "missing" && "pr-4")}>
-        {isUrlPin(pin) && showsPrState(pin.url) ? <span className="flex shrink-0 gap-0.5"><span className="size-3.5" /><span className="size-3.5" /></span> : <span className="size-3.5 shrink-0" />}
-        <span className="truncate">{pinLabel(pin)}</span>
-      </span>)}
-      {Array.from({ length: String(pins.length).length }, (_, index) => <span key={index} data-measure="more" data-digits={index + 1} className={countClass(10 ** index)}><span className="leading-none">+{"9".repeat(index + 1)}</span></span>)}
-      <span data-measure="min" className={cn(PIN_MIN_WIDTH_CLASS, "shrink-0")} />
-    </div>
   </div></TooltipProvider>;
 }
 function PinsBanner() {

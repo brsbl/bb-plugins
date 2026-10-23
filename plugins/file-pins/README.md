@@ -5,7 +5,7 @@ composer even when the file viewer is closed, and are shared across clients.
 
 ![A pull request, a Markdown file, a localhost dev server, a Linear issue and a Figma link pinned above the composer](docs/strip.png)
 
-![Overflowing files and links in the overflow list above the strip](docs/more-list.png)
+![Pins on a phone in one row, scrolled partway, with fades on both sides where more pins wait](docs/phone-strip.png)
 
 ![The Pin pill in the composer, followed by the files and link to pin](docs/pin-files-pill.png)
 
@@ -29,17 +29,17 @@ story server, its BB Connect URL, or a deployed preview). Each gets a clear titl
 URLs are never pinned, superseded links are replaced rather than piling up, and a dev site's pin is
 removed when its server is retired. A short always-on instruction points every thread at the skill's rule.
 
-Pinned files read as quiet raised chips above the composer. At every window width, pins stay
-in order with whole labels while they fit; the first that does not fit and all later pins go
-into a **+N** count chip immediately after the last visible pin. The chip appears only when it has pins. A lone first pin wider than the row
-shortens to fit. The strip does not scroll sideways or shrink several labels to make room.
+Pinned files read as quiet raised chips above the composer. Every pin keeps its whole label,
+in order, in one row. When they don't all fit, the row scrolls sideways at any window width:
+swipe on a trackpad or touch screen, or turn the mouse wheel over it. A soft fade marks each
+side that has more pins, and focusing a pin from the keyboard scrolls it into view.
 Long names and addresses still use the label rules in [`pin-label.ts`](pin-label.ts).
-Previously hand-hidden pins participate in the same layout again; saved hiding preferences
-are ignored. Hover cards open once the preview and its image have loaded (prefetched as the
+Previously hand-hidden pins show in the strip again; saved hiding preferences are ignored. Hover cards open once the preview and its image have loaded (prefetched as the
 pointer arrives), or after 800 ms with what has arrived.
 File icons mark code, documents and images in the theme's file color. Hover or focus a pin for a preview card with its URL or path in a subtle header. Web links use Moss’s rich-card layout: a thumbnail or site-icon fallback, site name, title, and description. Files show their title, availability, and machine when needed.
 Right-click a strip file for **Open preview**, **Open externally**, **Copy file path** and
-**Copy file name**, then **Unpin**. In the overflow list, click a row to open its pin. Its **×** unpins the item; it appears on row hover or keyboard focus and stays visible on touch screens. **Unpin** removes the
+**Copy file name**, then **Unpin**; on a touch screen, long-press a pin for the same menu.
+Hovering or focusing a pin shows its **×**, which unpins it. **Unpin** removes the
 item from the thread and offers **Undo**. Missing files keep their light red tint and
 assistive labels, and their **×** also unpins them. Availability refreshes on focus and every
 30 seconds.

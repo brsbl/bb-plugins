@@ -355,13 +355,11 @@ Keep a thread's key files and links one click away in a strip above the composer
 
 ![A pull request, a Markdown file, a localhost dev server, a Linear issue and a Figma link pinned above the composer](plugins/file-pins/docs/strip.png)
 
-![Unpinned files and links in the ⋯ list above the strip](plugins/file-pins/docs/more-list.png)
-
 ![A pinned file's menu with Open preview, Open externally, Copy file path, Copy file name, Unpin and Remove, in dark mode](plugins/file-pins/docs/pin-menu-dark.png)
 
 ![The Pin pill in the composer, followed by the files and link to pin](plugins/file-pins/docs/pin-files-pill.png)
 
-![Pins with whole labels on a phone, the last one shortened to fill the row, and the rest in the full-width ⋯ list](plugins/file-pins/docs/phone-more-list.png)
+![Pins on a phone in one row, scrolled partway, with fades on both sides where more pins wait](plugins/file-pins/docs/phone-strip.png)
 
 [Source](plugins/file-pins) · [README](plugins/file-pins/README.md)
 
