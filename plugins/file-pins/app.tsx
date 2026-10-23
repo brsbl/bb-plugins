@@ -267,7 +267,7 @@ function PinStrip({ threadId }: { threadId: string }) {
     </span> : <FileLink target={linkTarget(pin)} onClick={(event) => open(pin, event)}
       aria-label={openLabel(pin)} className={cn(pinClass, pin.status === "available" ? "cursor-pointer" : "[&>*]:opacity-60")}><PinIcon threadId={threadId} pin={pin} /><span className="truncate group-hover:underline">{pinLabel(pin)}</span></FileLink>;
     const missing = !isUrlPin(pin) && pin.status === "missing";
-    return <ContextMenu key={pin.id} onOpenChange={(open) => { if (open) menuOpenedAt.current = performance.now(); }}>
+    return <ContextMenu key={pin.id} onOpenChange={(open) => { menuOpenedAt.current = open ? performance.now() : 0; }}>
       <span className="group/pin relative inline-flex min-w-0 select-none [-webkit-touch-callout:none]"
         onPointerDownCapture={() => { pressedAt.current = performance.now(); }}
         onKeyDownCapture={() => { pressedAt.current = performance.now(); }}
@@ -286,7 +286,11 @@ function PinStrip({ threadId }: { threadId: string }) {
       <div ref={scrollRow} data-pin-strip=""
         className="-m-0.5 flex min-w-0 flex-1 items-center gap-1 overflow-x-auto p-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>*]:shrink-0 [&>*]:scroll-mx-4"
         style={{ maskImage: edgeMask(edges) }}
-        onFocusCapture={(event) => event.target.scrollIntoView({ block: "nearest", inline: "nearest" })}>
+        onFocusCapture={(event) => {
+          // Keyboard focus only: a pointer press focuses too, and scrolling then would move the pin out from under the click.
+          // The pin's wrapper carries the scroll margin that keeps it clear of the fades.
+          if (event.target.matches(":focus-visible")) event.target.closest("[data-pin-strip] > *")?.scrollIntoView({ block: "nearest", inline: "nearest" });
+        }}>
         {pins.map((pin) => stripPin(pin))}
       </div>
     </section>}
