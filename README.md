@@ -355,7 +355,7 @@ Keep a thread's key files and links one click away in a strip above the composer
 
 ![A pull request, a Markdown file, a localhost dev server, a Linear issue and a Figma link pinned above the composer](plugins/file-pins/docs/strip.png)
 
-![A pinned file's menu with Open preview, Open externally, Copy file path, Copy file name, Unpin and Remove, in dark mode](plugins/file-pins/docs/pin-menu-dark.png)
+![A pinned file's menu with Open preview, Open externally, Copy file path, Copy file name and Unpin, in dark mode](plugins/file-pins/docs/pin-menu-dark.png)
 
 ![The Pin pill in the composer, followed by the files and link to pin](plugins/file-pins/docs/pin-files-pill.png)
 
