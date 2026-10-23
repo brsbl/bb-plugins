@@ -30,6 +30,8 @@
 .ac-option-label { display: flex; flex-wrap: wrap; align-items: center; gap: calc(var(--ac-s) * 2); }
 .ac-option[data-destructive] .ac-option-label { color: var(--destructive); }
 .ac-option-hint { color: var(--muted-foreground); font-size: var(--ac-meta); line-height: 1.4; }
+/* The picked option's optional comment lines up with the option text. */
+.ac-option-comment { flex: none; margin: 0 0 calc(var(--ac-s) * 1) calc(var(--ac-glyph) + var(--ac-s) * 2); }
 .ac-tag { padding: 0 calc(var(--ac-s) * 1.5); border: 1px solid var(--border); border-radius: 999px; color: var(--muted-foreground); font-size: var(--ac-meta); font-weight: 400; line-height: 1.4; }
 /* The note and Submit share one row; a wrapped note grows in place. */
 .ac-submit { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: calc(var(--ac-s) * 2); }

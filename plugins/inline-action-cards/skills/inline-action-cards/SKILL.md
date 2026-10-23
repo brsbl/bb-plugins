@@ -198,7 +198,7 @@ The card shows Retry. A new click creates a new attempt, which must be claimed a
 
 ## Notes and comments
 
-Decide, Choice and Ask forms in Waiting on you and the Decision log offer **Add comment**. Submit sends the optional comment with the answer in the existing attempt `note`; for an Ask, it follows the answer as `Comment: …` in that same note. Answer and comment together must fit the existing 1,000-character limit. Follow the note as part of the answer or approval, including on retries.
+In Waiting on you and the Decision log, picking a Decide or Choice option shows an optional comment field under it, and an Ask offers **Add comment** under its answer. Submit sends the optional comment with the answer in the existing attempt `note`; for an Ask, it follows the answer as `Comment: …` in that same note. Answer and comment together must fit the existing 1,000-character limit. Follow the note as part of the answer or approval, including on retries.
 
 Answers from older card versions can still carry a `note` after the mention pill; treat it as part of the approval. A note an older card sent with no answer picked arrives on its own as a follow-up question, with a speech-bubble pill. Hidden context contains `intent: comment`, `note`, `commentId`, `threadId`, and `itemId`; it has no action or attempt. A comment never approves the card's own action: never claim or create an attempt for it. Treat it as a chat message from the user. Answer questions, and follow a clear instruction only as you would the same instruction typed in chat, under the user's existing authorization. If it is ambiguous, or the card's own action needs approval, ask the user to answer it in Waiting on you. The card stays ready.
 

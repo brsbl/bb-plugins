@@ -1,6 +1,6 @@
 // Action Cards components. Presentational only: they take values and callbacks and never call RPC.
 // Hierarchy, top to bottom: question → what happens → evidence → answer → note + submit → outcome.
-import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
+import { Fragment, useEffect, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode, type RefObject } from "react";
 import { Button } from "../components/ui/button.js";
 import { cn } from "../lib/utils.js";
 import "./tokens.css";
@@ -49,21 +49,54 @@ export function ContextLine({ media, children }: { media?: boolean; children: Re
 }
 
 /** bb's question-form option row, with a real radio underneath for keyboard and screen readers. */
-export function OptionList({ name, label, options, value, recommended, disabled, onChange, shortcuts }: {
+/** `selected` renders right under the picked option, outside its label so clicks in it don't re-pick. */
+export function OptionList({ name, label, options, value, recommended, disabled, onChange, shortcuts, selected }: {
   name: string; label: string; options: Option[]; value: string | null; recommended?: string | null; disabled?: boolean; onChange: (id: string) => void; shortcuts?: boolean;
+  selected?: ReactNode;
 }) {
   return <fieldset className="ac-options" disabled={disabled}>
     <legend className="ac-sr">{label}</legend>
-    {options.map((option, index) => <label key={option.id} className="ac-option" data-destructive={option.destructive || undefined}>
-      <input type="radio" name={name} value={option.id} checked={value === option.id} onChange={() => onChange(option.id)} />
-      <span className="ac-glyph" aria-hidden="true" />
-      <span className="ac-option-text">
-        <span className="ac-option-label">{option.label}{recommended === option.id && <span className="ac-tag">Recommended</span>}</span>
-        {option.hint && <span className="ac-option-hint">{option.hint}</span>}
-      </span>
-      {shortcuts && index < 9 && <kbd className="ac-option-key" aria-hidden="true">{index + 1}</kbd>}
-    </label>)}
+    {options.map((option, index) => <Fragment key={option.id}>
+      <label className="ac-option" data-destructive={option.destructive || undefined}>
+        <input type="radio" name={name} value={option.id} checked={value === option.id} onChange={() => onChange(option.id)} />
+        <span className="ac-glyph" aria-hidden="true" />
+        <span className="ac-option-text">
+          <span className="ac-option-label">{option.label}{recommended === option.id && <span className="ac-tag">Recommended</span>}</span>
+          {option.hint && <span className="ac-option-hint">{option.hint}</span>}
+        </span>
+        {shortcuts && index < 9 && <kbd className="ac-option-key" aria-hidden="true">{index + 1}</kbd>}
+      </label>
+      {value === option.id && selected}
+    </Fragment>)}
   </fieldset>;
+}
+
+// Grows a one-line textarea to fit its text, in browsers without field-sizing support too.
+function useAutoGrow(ref: RefObject<HTMLTextAreaElement | null>, value: string, active = true) {
+  useLayoutEffect(() => {
+    if (!active) return;
+    const resize = () => {
+      const node = ref.current;
+      if (node) { node.style.height = "0px"; node.style.height = `${node.scrollHeight}px`; }
+    };
+    resize();
+    window.addEventListener("resize", resize);
+    return () => window.removeEventListener("resize", resize);
+  }, [ref, active, value]);
+}
+
+/** An optional comment for the picked option: one line that grows as you type. Enter adds a line; only Submit sends it. */
+export function CommentInput({ value, onChange, disabled, invalid, describedBy }: {
+  value: string; onChange: (value: string) => void; disabled?: boolean; invalid?: boolean; describedBy?: string;
+}) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  useAutoGrow(ref, value);
+  return <div className="ac-note-field ac-option-comment">
+    <textarea ref={ref} className="ac-note-input" aria-label="Comment (optional)" placeholder="Add a comment (optional)" value={value} rows={1} disabled={disabled}
+      aria-invalid={invalid || undefined} aria-describedby={describedBy}
+      onChange={(event) => onChange(event.target.value)}
+      onKeyDown={(event) => { if (event.key === "Enter") event.stopPropagation(); }} />
+  </div>;
 }
 
 /** A note stays in one inline field. Saving keeps it with the answer; only Submit sends it. */
@@ -82,17 +115,8 @@ export function NoteField({ value, onChange, disabled, placeholder, comment = fa
     else if (wasEditing.current) (node ?? toggleRef.current)?.focus();
     wasEditing.current = editing;
   }, [editing]);
-  // Comments stay editable until the answer is submitted; grow in browsers without field-sizing support too.
-  useLayoutEffect(() => {
-    if (!comment || (!editing && !value.trim())) return;
-    const resize = () => {
-      const node = ref.current;
-      if (node) { node.style.height = "0px"; node.style.height = `${node.scrollHeight}px`; }
-    };
-    resize();
-    window.addEventListener("resize", resize);
-    return () => window.removeEventListener("resize", resize);
-  }, [comment, editing, value]);
+  // Comments stay editable until the answer is submitted.
+  useAutoGrow(ref, value, comment && (editing || !!value.trim()));
   const edit = () => { saved.current = value; setEditing(true); };
   const cancel = () => { onChange(saved.current); setEditing(false); };
   const save = () => { onChange(value.trim()); setEditing(false); };

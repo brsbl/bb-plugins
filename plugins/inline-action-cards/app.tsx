@@ -5,7 +5,7 @@ import { actionLabel, canDismiss, idSchema, title, type Action, type FollowUp, t
 import { ActionButton, IconButton, MoreMenu, MenuAction, MailIcon, SignpostIcon, ViewIcon, ActionGlyphIcon, type ActionGlyph } from "./controls.js";
 import { pendingLabel, sentStatus } from "./presentation.js";
 import { FollowUps, Media } from "./evidence.js";
-import { Button, ContextLine, DecisionBody, DecisionCard, DecisionHeader, NoteField, OptionList, Outcome, SubmitRow, type Option } from "./ui/components.js";
+import { Button, CommentInput, ContextLine, DecisionBody, DecisionCard, DecisionHeader, NoteField, OptionList, Outcome, SubmitRow, type Option } from "./ui/components.js";
 import { readableError, submitting } from "./submit.js";
 import { ReloadFrame } from "./reload-frame.js";
 import { DismissBar, useDismiss } from "./dismiss.js";
@@ -274,9 +274,11 @@ export function ActionCard({ id, threadId, surface, initialItem, onItem, logEntr
     answer={ask
       ? <textarea className="ac-textarea" aria-label="Your answer" aria-invalid={!!noteError || undefined} aria-describedby={noteError ? `${fieldId}-note-error` : undefined} placeholder="Your answer" value={note} readOnly={!ready || busy} rows={2} maxLength={1000} onChange={(event) => changeNote(event.target.value)}
         onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); submit(); } }} />
-      : <OptionList name={fieldId} label={heading} options={formOptions} value={value} recommended={suggested} disabled={!ready || busy} onChange={setPicked} shortcuts={drawer} />} />
-    {!reply && <div className="iac-comment">
-      <NoteField comment value={comment} onChange={setComment} disabled={!ready || busy} invalid={!!noteError} describedBy={noteError ? `${fieldId}-note-error` : undefined} />
+      : <OptionList name={fieldId} label={heading} options={formOptions} value={value} recommended={suggested} disabled={!ready || busy} onChange={setPicked} shortcuts={drawer}
+        selected={!reply && <CommentInput value={comment} onChange={setComment} invalid={!!noteError} describedBy={noteError ? `${fieldId}-note-error` : undefined} />} />} />
+    {/* A decision's comment sits under its picked option; a written answer keeps Add comment below it. */}
+    {(ask || noteError) && <div className="iac-comment">
+      {ask && <NoteField comment value={comment} onChange={setComment} disabled={!ready || busy} invalid={!!noteError} describedBy={noteError ? `${fieldId}-note-error` : undefined} />}
       {noteError && <div id={`${fieldId}-note-error`} className="iac-error" role="alert">{noteError}</div>}
     </div>}
   </>;

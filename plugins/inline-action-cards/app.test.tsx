@@ -356,7 +356,7 @@ it("Decision log answers waiting cards in place, keeps failures and Later cards 
   const [ready, failure, deferred, decide] = await within(waiting).findAllByRole("article");
   // Waiting cards are forms: their options, then Dismiss and Submit.
   expect(within(decide!).getAllByRole("radio").map((radio) => radio.closest("label")?.textContent)).toEqual(["Merge", "Keep open"]);
-  expect(within(decide!).getAllByRole("button").map((button) => button.textContent)).toEqual(["Add comment", "Dismiss", "Submit"]);
+  expect(within(decide!).getAllByRole("button").map((button) => button.textContent)).toEqual(["Dismiss", "Submit"]);
   // Labels that collide with Object.prototype keys render as plain options instead of crashing the log.
   expect(within(waiting).getByRole("radio", { name: "Constructor run" })).toBeTruthy();
   expect(within(ready!).getByRole("radio", { name: "Send" })).toBeTruthy();
@@ -814,9 +814,12 @@ function pickCommentAnswer(type: CommentType) {
   if (type === "ask") fireEvent.change(screen.getByRole("textbox", { name: "Your answer" }), { target: { value: "#feedback" } });
   else answer(type === "decide" ? /^Merge/ : /^Staged/);
 }
+// An ask opens its comment with Add comment; a decision shows it under the picked option, and the user clicks into it.
 function typeComment(value: string) {
-  fireEvent.click(screen.getByRole("button", { name: "Add comment" }));
+  const toggle = screen.queryByRole("button", { name: "Add comment" });
+  if (toggle) fireEvent.click(toggle);
   const field = screen.getByRole("textbox", { name: "Comment (optional)" }) as HTMLTextAreaElement;
+  if (!toggle) field.focus();
   expect(document.activeElement).toBe(field);
   expect(field.rows).toBe(1);
   fireEvent.change(field, { target: { value } });
@@ -849,6 +852,35 @@ it.each(commentCases)("submits %s from the %s with comment=%s in one delivery", 
     }
     expect(submittedMessages).toHaveLength(1);
     expect(slot.inspection.navigateCalls).toEqual([]);
+  } finally { await host.harness.lifecycle.dispose(); }
+});
+
+it.each((["drawer", "log"] as const).flatMap((surface) => (["decide", "choice"] as const).map((type) => [surface, type] as const)))("shows a %s %s comment under the picked option and keeps it when the pick changes", async (surface, type) => {
+  const { host, mount, get } = await commentCard(type, surface);
+  const [first, second] = type === "decide" ? [/^Merge/, /^Keep open/] : [/^Staged/, /^Everyone/];
+  const fieldAfter = (option: RegExp) => screen.getByRole("radio", { name: option }).closest("label")!.nextElementSibling?.querySelector("textarea") ?? null;
+  try {
+    await mount(); await screen.findByRole("form");
+    // Nothing before a pick: no field and no Add comment.
+    expect(screen.queryByRole("textbox", { name: "Comment (optional)" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add comment" })).toBeNull();
+    answer(first);
+    const field = screen.getByRole("textbox", { name: "Comment (optional)" }) as HTMLTextAreaElement;
+    expect(field.placeholder).toBe("Add a comment (optional)");
+    expect(field.value).toBe("");
+    expect(field.rows).toBe(1);
+    expect(fieldAfter(first)).toBe(field);
+    expect(screen.queryByRole("button", { name: "Add comment" })).toBeNull();
+    fireEvent.change(field, { target: { value: "Only after the 3pm freeze." } });
+    answer(second);
+    const moved = screen.getAllByRole("textbox", { name: "Comment (optional)" });
+    expect(moved).toHaveLength(1);
+    expect(fieldAfter(second)).toBe(moved[0]);
+    expect(fieldAfter(first)).toBeNull();
+    expect((moved[0] as HTMLTextAreaElement).value).toBe("Only after the 3pm freeze.");
+    submit();
+    await waitFor(() => expect(submittedMessages).toHaveLength(1));
+    expect((await get()).attempt).toMatchObject(type === "decide" ? { action: "no", note: "Only after the 3pm freeze." } : { action: "choose", choice: { id: "b" }, note: "Only after the 3pm freeze." });
   } finally { await host.harness.lifecycle.dispose(); }
 });
 
@@ -949,7 +981,7 @@ it.each(["drawer", "log"] as const)("reopening in the %s clears the previous ans
       slot.lifecycle.unmount(); await mount();
     } else await slot.behavior.emitRealtime("items", {});
     fireEvent.click(await screen.findByRole("button", { name: "Choose again" }));
-    await screen.findByRole("button", { name: "Add comment" });
+    await screen.findByRole("radio", { name: /^Merge/ });
     expect(screen.queryByRole("textbox", { name: "Comment (optional)" })).toBeNull();
     expect(screen.getAllByRole("radio").every((radio) => !(radio as HTMLInputElement).checked)).toBe(true);
     pickCommentAnswer("decide"); submit();
