@@ -441,7 +441,7 @@ globalThis.fetch = async (url, init) => {
               branch: null,
               isGitRepository: false,
               name: "Personal",
-              path: "/Users/test/.bb/personal-workspaces/env_pmgnprh2j6",
+              path: "/Users/alex/.bb/personal-workspaces/env_pmgnprh2j6",
             }
           : {
               branch: isBranchIdentity
@@ -1121,11 +1121,11 @@ assert.equal(
 );
 assert.equal(
   card.querySelector(".bb-thread-hover-card__local")?.getAttribute("aria-label"),
-  "Local workspace: /Users/test/.bb/personal-workspaces/env_pmgnprh2j6",
+  "Local workspace: /Users/alex/.bb/personal-workspaces/env_pmgnprh2j6",
 );
 assert.equal(
   card.querySelector(".bb-thread-hover-card__local-path")?.title,
-  "/Users/test/.bb/personal-workspaces/env_pmgnprh2j6",
+  "/Users/alex/.bb/personal-workspaces/env_pmgnprh2j6",
 );
 assert.deepEqual(
   Array.from(card.children).map((child) => child.className),

@@ -21,14 +21,14 @@ async function openNote(canOpenInMoss: boolean | undefined = false) {
   const app = await loadPluginApp(() => import("./app"));
   let adopted = false;
   const read = vi.fn(() => ({
-    moss: true, hostId: "host-test", path: "/home/test/Moss/Notes/Plan/Plan.md",
+    moss: true, hostId: "host-test", path: "/home/user/Moss/Notes/Plan/Plan.md",
     markdown: "# Plan", layout: null, noteId: adopted ? "note-1" : null,
     modifiedMs: 1, version: "unchanged-markdown", canOpenInMoss,
     frameUrl: "/viewer", htmlFrameUrl: "/html", assetRoute: "/assets",
     editor: adopted ? { noteId: "note-1", frameUrl: "/editor", htmlFrameUrl: "/html" } : null,
   }));
   const slot = renderSlot(app.fileOpeners[0]!, {
-    path: "/home/test/Moss/Notes/Plan/Plan.md",
+    path: "/home/user/Moss/Notes/Plan/Plan.md",
     source: { kind: "host", threadId: null, projectId: null, environmentId: null }, Original: () => null,
   }, { rpc: {
     read, watchNote: () => ({ version: "unchanged-markdown" }),
