@@ -21,9 +21,9 @@ import { cn } from "./lib/utils.js";
 const linkClass = `group inline-flex h-7 min-w-0 items-center gap-1.5 rounded px-1.5 text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`;
 // bb's composer-stack card chrome at chip scale, kept quiet: a hairline at rest, a shadow on hover.
 const pinClass = cn(linkClass, "rounded-md border border-border-seam bg-surface-raised-solid transition-shadow hover:shadow-xs");
-// Desktop Unpin: a × over the pin's end on hover or keyboard focus, fading the label beneath it.
-// Touch screens long-press the pin for its menu instead.
-const unpinClass = "absolute inset-y-px right-px flex w-6 items-center justify-center rounded-r-[5px] bg-surface-raised-solid text-muted-foreground opacity-0 hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring group-hover/pin:opacity-100 group-has-[:focus-visible]/pin:opacity-100 before:pointer-events-none before:absolute before:inset-y-0 before:right-full before:w-3 before:bg-gradient-to-r before:from-transparent before:to-surface-raised-solid pointer-coarse:hidden";
+// Desktop Unpin: on hover or keyboard focus a × covers the pin's icon, as Safari's tab bar does, so the label
+// stays readable and nothing shifts. Touch screens long-press the pin for its menu instead.
+const unpinClass = "absolute inset-y-px left-px flex w-6 items-center justify-center rounded-l-[5px] bg-surface-raised-solid text-muted-foreground opacity-0 hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring group-hover/pin:opacity-100 group-has-[:focus-visible]/pin:opacity-100 pointer-coarse:hidden";
 const noMotion = { animation: "none", transition: "none" };
 const menuClass = "min-w-40 p-1";
 type PinAction = { label: string; hint?: string; disabled?: boolean; run(): void };
