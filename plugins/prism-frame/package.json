@@ -28,6 +28,7 @@
   "license": "UNLICENSED",
   "files": [
     "dist",
+    "docs",
     "icons",
     "skills",
     "README.md"

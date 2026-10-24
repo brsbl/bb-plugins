@@ -64,9 +64,8 @@ Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/i
 
 Adds a moving, theme-derived sheen to the app frame, navigation rail, and outer title bar, with matching glass mention pills and distinct selected states. Includes motion, intensity, and independent pill controls.
 
-![Prism Frame in light mode with normal and selected mention pills](https://github.com/user-attachments/assets/b9ac396f-a79e-49f5-9fd6-44b512067efb)
+![Prism Frame in light mode with a glass plugin mention](plugins/prism-frame/docs/overview.png)
 
-![Prism Frame in dark mode with normal and selected mention pills](https://github.com/user-attachments/assets/961e1f3f-9831-412e-b344-0e1354a3509d)
 
 [Source](plugins/prism-frame) · [README](plugins/prism-frame/README.md)
 
@@ -104,7 +103,7 @@ Organizes work into configurable workflow sections that agents follow, and keeps
 
 ![Thread Organizer showing the current development-phase sections in bb's sidebar](plugins/thread-organizer/docs/screenshot.png)
 
-![Thread Organizer workflow settings](https://github.com/user-attachments/assets/4dba26ce-4033-4f4a-929d-98c630e72e57)
+![Thread Organizer workflow settings](plugins/thread-organizer/docs/settings.png)
 
 [Source](plugins/thread-organizer) · [README](plugins/thread-organizer/README.md)
 
@@ -180,7 +179,7 @@ Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/m
 
 Type `:` in a composer to open the picker, then choose an emoji to replace the colon. Search by name or shortcode, browse categories, and keep recent choices and a preferred skin tone close at hand.
 
-![Emoji picker with category browsing and skin tone selection](https://github.com/user-attachments/assets/a74d890d-9ad9-46e5-a7a0-2995b386e054)
+![Emoji picker with category browsing and skin tone selection](plugins/emoji-picker/docs/composer.png)
 
 [Source](plugins/emoji-picker) · [README](plugins/emoji-picker/README.md)
 
