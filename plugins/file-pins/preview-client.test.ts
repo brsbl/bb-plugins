@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { CLIENT_PREVIEW_LIMITS, PreviewClient, previewKey, refreshNotice, type PreviewAnswer } from "./preview-client.js";
+import { CLIENT_PREVIEW_LIMITS, PreviewClient, previewKey, type PreviewAnswer } from "./preview-client.js";
 
 const text = { title: "Docs", description: "", site: "example.com", image: null };
 const image = { ...text, image: "data:image/png;base64,AA==" };
@@ -114,6 +114,54 @@ describe("hover card preview cache", () => {
     expect(client.state(key)).toMatchObject({ failed: true, answer: { preview: image } });
   });
 
+  it("revalidates an open card only while a reload runs behind its answer, once at a time and once per five minutes", async () => {
+    at(0);
+    const client = new PreviewClient();
+    const wait = vi.fn(async (): Promise<PreviewAnswer> => ({ preview: text, status: "no-image" }));
+    // A fresh answer has nothing running behind it, so the card never waits.
+    await client.load(key, async () => ({ preview: image, status: "ready" }));
+    await client.revalidate(key, wait);
+    expect(wait).not.toHaveBeenCalled();
+    // A stale answer stays on screen; the open card then waits once and updates in place.
+    const other = previewKey("thread", "other", "https://example.com/");
+    await client.load(other, async () => ({ preview: image, status: "ready", refreshing: true }));
+    const listener = vi.fn();
+    client.subscribe(other, listener);
+    const reload = deferred<PreviewAnswer>();
+    const waitOther = vi.fn(() => reload.promise);
+    const first = client.revalidate(other, waitOther);
+    const second = client.revalidate(other, waitOther);
+    expect(client.state(other)).toMatchObject({ answer: { preview: image, refreshing: true }, loading: true });
+    // Reopening during the wait resolves at once with the cached preview, without another request.
+    const reopen = vi.fn(async (): Promise<PreviewAnswer> => ({ preview: text, status: "no-image" }));
+    let reopened = false;
+    void client.load(other, reopen).then(() => { reopened = true; });
+    await Promise.resolve();
+    expect(reopened).toBe(true);
+    expect(reopen).not.toHaveBeenCalled();
+    reload.resolve({ preview: text, status: "no-image" });
+    await Promise.all([first, second]);
+    expect(waitOther).toHaveBeenCalledTimes(1);
+    expect(client.state(other)).toEqual({ answer: { preview: text, status: "no-image" }, loading: false, failed: false });
+    expect(listener).toHaveBeenCalled();
+    // A pin waits at most once per five minutes, even when an answer still says a reload runs (a busy server).
+    const third = previewKey("thread", "third", "https://example.com/");
+    await client.load(third, async () => ({ preview: image, status: "ready", refreshing: true }));
+    const busy = vi.fn(async (): Promise<PreviewAnswer> => ({ preview: image, status: "busy", refreshing: true }));
+    await client.revalidate(third, busy);
+    at(CLIENT_PREVIEW_LIMITS.freshMs - 1);
+    await client.revalidate(third, busy);
+    expect(busy).toHaveBeenCalledTimes(1);
+    // After five minutes it may wait again; a failed wait keeps the preview quietly and never rejects.
+    at(CLIENT_PREVIEW_LIMITS.freshMs + 1);
+    await expect(client.revalidate(third, async () => { throw new Error("offline"); })).resolves.toBeUndefined();
+    expect(client.state(third)).toMatchObject({ answer: { preview: image }, failed: true, loading: false });
+    at(2 * CLIENT_PREVIEW_LIMITS.freshMs + 2);
+    // Once a reload's answer lands, nothing runs behind it, so the card stops waiting.
+    await client.revalidate(other, waitOther);
+    expect(waitOther).toHaveBeenCalledTimes(1);
+  });
+
   it("keeps entries per thread, pin and URL, bounded, without dropping an open card's entry", async () => {
     at(0);
     const client = new PreviewClient();
@@ -127,13 +175,5 @@ describe("hover card preview cache", () => {
     expect(client.state(previewKey("thread", "pin-0", "https://example.com/")).answer).toBeUndefined();
     expect(client.state(previewKey("other", "pin-44", "https://example.com/")).answer).toBeUndefined();
     expect(client.state(previewKey("thread", "pin-44", "https://example.com/other")).answer).toBeUndefined();
-  });
-
-  it("only reports success when the server loaded the page now", () => {
-    expect(refreshNotice({ preview: image, status: "ready" })).toEqual({ ok: true, message: "Preview refreshed" });
-    expect(refreshNotice({ preview: text, status: "no-image" }).ok).toBe(true);
-    expect(refreshNotice({ preview: image, status: "blocked" })).toEqual({ ok: false, message: "This site doesn't allow previews. Showing the last preview." });
-    expect(refreshNotice({ preview: null, status: "rate-limited", retryAt: 1_000 + 90_000 }, 1_000)).toEqual({ ok: false, message: "This site is limiting requests. Try again in 2 min." });
-    expect(refreshNotice({ preview: null }).ok).toBe(false);
   });
 });

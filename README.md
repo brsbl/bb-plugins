@@ -64,9 +64,8 @@ Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/i
 
 Adds a moving, theme-derived sheen to the app frame, navigation rail, and outer title bar, with matching glass mention pills and distinct selected states. Includes motion, intensity, and independent pill controls.
 
-![Prism Frame in light mode with normal and selected mention pills](https://github.com/user-attachments/assets/b9ac396f-a79e-49f5-9fd6-44b512067efb)
+![Prism Frame in light mode with a glass plugin mention](plugins/prism-frame/docs/overview.png)
 
-![Prism Frame in dark mode with normal and selected mention pills](https://github.com/user-attachments/assets/961e1f3f-9831-412e-b344-0e1354a3509d)
 
 [Source](plugins/prism-frame) · [README](plugins/prism-frame/README.md)
 
@@ -104,7 +103,7 @@ Organizes work into configurable workflow sections that agents follow, and keeps
 
 ![Thread Organizer showing the current development-phase sections in bb's sidebar](plugins/thread-organizer/docs/screenshot.png)
 
-![Thread Organizer workflow settings](https://github.com/user-attachments/assets/4dba26ce-4033-4f4a-929d-98c630e72e57)
+![Thread Organizer workflow settings](plugins/thread-organizer/docs/settings.png)
 
 [Source](plugins/thread-organizer) · [README](plugins/thread-organizer/README.md)
 
@@ -180,7 +179,7 @@ Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/m
 
 Type `:` in a composer to open the picker, then choose an emoji to replace the colon. Search by name or shortcode, browse categories, and keep recent choices and a preferred skin tone close at hand.
 
-![Emoji picker with category browsing and skin tone selection](https://github.com/user-attachments/assets/a74d890d-9ad9-46e5-a7a0-2995b386e054)
+![Emoji picker with category browsing and skin tone selection](plugins/emoji-picker/docs/composer.png)
 
 [Source](plugins/emoji-picker) · [README](plugins/emoji-picker/README.md)
 
@@ -356,13 +355,11 @@ Keep a thread's key files and links one click away in a strip above the composer
 
 ![A pull request, a Markdown file, a localhost dev server, a Linear issue and a Figma link pinned above the composer](plugins/file-pins/docs/strip.png)
 
-![Unpinned files and links in the ⋯ list above the strip](plugins/file-pins/docs/more-list.png)
-
-![A pinned file's menu with Open preview, Open externally, Copy file path, Copy file name, Unpin and Remove, in dark mode](plugins/file-pins/docs/pin-menu-dark.png)
+![A pinned file's menu with Open preview, Open externally, Copy file path, Copy file name and Unpin, in dark mode](plugins/file-pins/docs/pin-menu-dark.png)
 
 ![The Pin pill in the composer, followed by the files and link to pin](plugins/file-pins/docs/pin-files-pill.png)
 
-![Pins with whole labels on a phone, the last one shortened to fill the row, and the rest in the full-width ⋯ list](plugins/file-pins/docs/phone-more-list.png)
+![Pins on a phone in one row, scrolled partway, with fades on both sides where more pins wait](plugins/file-pins/docs/phone-strip.png)
 
 [Source](plugins/file-pins) · [README](plugins/file-pins/README.md)
 

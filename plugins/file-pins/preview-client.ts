@@ -1,15 +1,16 @@
 import type { LinkPreview, PreviewStatus } from "./link-preview.js";
 
-/** The `preview` and `refreshPreview` RPC output; servers before statuses send only `preview`. */
-export type PreviewAnswer = { preview: LinkPreview | null; status?: PreviewStatus; retryAt?: number };
+/** The `preview` RPC output; servers before statuses send only `preview`. `refreshing`: a reload runs behind this answer. */
+export type PreviewAnswer = { preview: LinkPreview | null; status?: PreviewStatus; retryAt?: number; refreshing?: boolean };
 /** What a hover card shows: the last answer, kept while a newer one loads, and whether the last request failed. */
 export type PreviewState = { readonly answer?: PreviewAnswer; readonly loading: boolean; readonly failed: boolean };
-type Entry = { state: PreviewState; freshUntil: number; generation: number; bytes: number; load?: Promise<void>; refresh?: Promise<PreviewAnswer> };
+type Entry = { state: PreviewState; freshUntil: number; generation: number; bytes: number; revalidatedAt?: number; load?: Promise<void>; refresh?: Promise<PreviewAnswer> };
 
 export const CLIENT_PREVIEW_LIMITS = {
   entries: 40,
   bytes: 24 * 1024 * 1024,
   // The server keeps its own hour; this only spares repeat hovers a round trip, then asks again.
+  // It is also the shortest gap between two automatic revalidations of one pin.
   freshMs: 5 * 60_000,
   // Failures are asked again on a later hover so the server's own 30-second retry is never masked.
   retryMs: 5_000,
@@ -24,7 +25,7 @@ export function usefulAnswer(answer: PreviewAnswer): boolean {
 
 /**
  * Hover cards' preview answers across mounts, keyed by thread, pin and URL. Concurrent hovers share one request,
- * Refresh replaces the answer for open cards, and an answer from before a refresh never lands after it.
+ * a revalidation replaces the answer for open cards, and an answer from before it never lands after it.
  */
 export class PreviewClient {
   private entries = new Map<string, Entry>();
@@ -47,7 +48,8 @@ export class PreviewClient {
   /** Asks the server unless a recent answer is fresh. Failures land in the state, never as a rejection. */
   load(key: string, call: () => Promise<PreviewAnswer>): Promise<void> {
     const entry = this.touch(key);
-    if (entry.refresh) return entry.refresh.then(() => undefined, () => undefined);
+    // A card reopened while a reload is awaited opens at once with the cached preview and updates when it lands.
+    if (entry.refresh) return entry.state.answer?.preview ? Promise.resolve() : entry.refresh.then(() => undefined, () => undefined);
     if (entry.load) return entry.load;
     if (entry.freshUntil > Date.now()) return Promise.resolve();
     const load = this.request(key, entry, call).then(() => undefined, () => undefined)
@@ -57,7 +59,20 @@ export class PreviewClient {
     return load;
   }
 
-  /** Re-asks through `call` (the server's refresh), keeping the current preview until a useful one replaces it. */
+  /**
+   * When a card's answer says a reload runs behind it, waits for that reload through `call` so the open card updates.
+   * At most one at a time and one per `freshMs` per pin; a failure keeps the current preview and never rejects.
+   */
+  revalidate(key: string, call: () => Promise<PreviewAnswer>): Promise<void> {
+    const entry = this.entries.get(key);
+    if (!entry?.state.answer?.refreshing || entry.refresh) return Promise.resolve();
+    const now = Date.now();
+    if (entry.revalidatedAt !== undefined && now - entry.revalidatedAt < CLIENT_PREVIEW_LIMITS.freshMs) return Promise.resolve();
+    entry.revalidatedAt = now;
+    return this.refresh(key, call).then(() => undefined, () => undefined);
+  }
+
+  /** Re-asks through `call`, keeping the current preview until a useful one replaces it. */
   refresh(key: string, call: () => Promise<PreviewAnswer>): Promise<PreviewAnswer> {
     const entry = this.touch(key);
     if (entry.refresh) return entry.refresh;
@@ -142,13 +157,4 @@ export function previewProblem(answer: PreviewAnswer | undefined, now = Date.now
     case "busy": return "Previews are busy. Try again in a moment.";
     default: return "Couldn't reach the site.";
   }
-}
-
-/** The Refresh preview toast: success only when the server loaded the page now. */
-export function refreshNotice(answer: PreviewAnswer, now = Date.now()): { ok: boolean; message: string } {
-  if (usefulAnswer(answer)) {
-    return { ok: true, message: answer.status === "no-image" ? "Preview refreshed. This page has no image." : "Preview refreshed" };
-  }
-  const problem = previewProblem(answer, now);
-  return { ok: false, message: answer.preview ? `${problem} Showing the last preview.` : problem };
 }
