@@ -64,7 +64,6 @@ export function LinkPreviewCard({ threadId, pin }: { threadId: string; pin: UrlP
     content.push(description);
   }
   const state = !settled ? "Loading" : !preview ? "Unavailable" : github ? github.state === "closed" && github.stateReason === "not_planned" ? "Not planned" : github.state[0]!.toUpperCase() + github.state.slice(1) : reference ? "Details unavailable" : "Web page";
-  const stale = failed || (answer?.status !== undefined && !["ready", "no-image"].includes(answer.status));
   return <>
     <Card data={{
       kind: github?.kind ?? reference?.kind ?? "link", title,
@@ -73,7 +72,7 @@ export function LinkPreviewCard({ threadId, pin }: { threadId: string; pin: UrlP
       facts,
       meta: github ? [github.author ? `By @${github.author}` : "Author unavailable", relativeTime(github.updatedAt)] : [site],
       content,
-      notice: !settled ? "Loading preview…" : stale || !preview ? `${previewProblem(failed ? undefined : answer)}${preview ? " Showing the last preview." : ""}` : reference && !github ? "GitHub details are unavailable. Open the link for current status." : undefined,
+      notice: !settled ? "Loading preview…" : !preview ? previewProblem(failed ? undefined : answer) : reference && !github ? "GitHub details are unavailable. Open the link for current status." : undefined,
     }} />
     {image && <img src={image} alt="" draggable={false} onError={() => setFailedImage(image)} className="h-32 w-full border-t object-cover" />}
   </>;
