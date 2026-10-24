@@ -165,7 +165,7 @@
 @media (max-width: 639px) {
   /* Question, context and any draft, then the options and Submit; images and follow-ups after it. */
   .ac-drawer .ac-body, .ac-drawer .ac-about, .ac-drawer .ac-answer { display: contents; }
-  .ac-drawer .ac-options, .ac-drawer .ac-answer > .ac-textarea { order: 1; }
+  .ac-drawer .ac-options, .ac-drawer .ac-answer > .ac-textarea, .ac-drawer .iac-comment { order: 1; }
   /* The action row (Dismiss and Submit) is the grid item here, not Submit inside it. */
   .ac-drawer .ac-submit, .ac-drawer .iac-drawer-actions { order: 2; }
   /* Only supporting images and follow-ups move below Submit; a Reply's recipients and draft stay above its options. */
@@ -177,6 +177,7 @@
 .ac-drawer .ac-option:hover:not(:has(input:disabled)) { background: var(--state-hover, var(--muted)); }
 .ac-drawer .ac-option:has(input:checked) { background: var(--surface-selected, var(--muted)); }
 .ac-drawer .ac-option-hint { font-size: var(--text-xs, .75rem); }
+.ac-drawer .ac-option-comment { margin: 2px calc(var(--spacing, .25rem) * 2.5) 4px calc(var(--spacing, .25rem) * 5 + var(--ac-glyph)); }
 .ac-option-key { margin-left: auto; padding-left: calc(var(--spacing, .25rem) * 2); color: var(--subtle-foreground, var(--muted-foreground)); font: inherit; font-size: var(--text-xs, .75rem); font-variant-numeric: tabular-nums; }
 .ac-drawer .ac-submit { justify-content: flex-end; }
 
@@ -197,3 +198,7 @@
 
 /* A waiting card in the Decision log is answered in place, in the drawer's form, under its title. */
 .iac-log-form .iac-log-card { grid-column: 2 / -1; margin-top: 8px; }
+
+/* Optional comments reuse the inline note field and its focus ring. */
+.iac-comment { min-width: 0; }
+.iac-comment .ac-note-toggle { font-size: var(--ac-meta); }

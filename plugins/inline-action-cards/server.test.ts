@@ -804,3 +804,44 @@ describe("dismissing", () => {
     expect(itemSchema.omit({ dismissed: true }).strict().safeParse(older).success).toBe(true);
   });
 });
+
+// The UI's optional comment travels in the same durable attempt as its answer.
+it.each(["decide", "choice", "ask"] as const)("delivers %s answers with and without a comment through reload and one message", async (type) => {
+  for (const withComment of [false, true]) {
+    const host = createFakePluginHost({ pluginId: "inline-action-cards", sdk: { threads: { send: () => ({ ok: true, delivery: "queued" }) } } });
+    hosts.push(host); plugin(host.bb);
+    const content = type === "decide" ? { type, question: "File the receipt?", consequence: "Move it to Receipts." }
+      : type === "choice" ? { type, question: "Which folder?", options: [{ id: "receipts", label: "Receipts" }, { id: "reading", label: "Reading" }] }
+      : { type, question: "Which day?" };
+    await host.harness.behavior.runCli(["create", ref.id, "--thread", ref.threadId, "--item", JSON.stringify(content)]);
+    const comment = "Keep the original.\nUse the reviewed copy.";
+    const note = type === "ask" ? `Friday${withComment ? `\n\nComment: ${comment}` : ""}` : withComment ? comment : "";
+    const prepared = await host.harness.behavior.callRpc(type === "choice" ? "choose" : "prepare", {
+      ...ref, revision: 1, ...(type === "choice" ? { choice: "receipts" } : { action: type === "ask" ? "answer" : "yes" }), note,
+    }) as Item;
+    const reloaded = await host.harness.lifecycle.reload(plugin);
+    hosts[hosts.indexOf(host)] = reloaded;
+    const stored = createStore(reloaded.bb).get(ref.threadId, ref.id);
+    expect(stored.attempt?.note).toBe(note || undefined);
+    await reloaded.harness.behavior.callRpc("dispatch", { threadId: ref.threadId, entries: [{ kind: "action", id: ref.id, attemptId: prepared.attempt!.id }] });
+    const sends = reloaded.harness.sdk.callsTo("threads.send");
+    expect(sends).toHaveLength(1);
+    const request = sends[0]![0] as { input: { text: string; mentions: { resource: { itemId: string } }[] }[] };
+    expect(request.input).toHaveLength(1);
+    expect(request.input[0]!.mentions).toHaveLength(1);
+    if (note) expect(request.input[0]!.text).toContain(` — ${note}`);
+    else expect(request.input[0]!.text).not.toContain(" — ");
+    const context = JSON.parse((await reloaded.harness.registrations.mentionProviders[0]!.resolve(request.input[0]!.mentions[0]!.resource.itemId.slice("action:".length))).context);
+    if (type === "ask") {
+      expect(context).toMatchObject({ intent: "answer", answer: note });
+      expect(createStore(reloaded.bb).get(ref.threadId, ref.id)).toMatchObject({ state: "succeeded", attempt: { note, claimed: true } });
+    } else {
+      expect(context).toMatchObject({ intent: "approved-action", attemptId: prepared.attempt!.id });
+      expect(context.note).toBe(note || undefined);
+      const claimed = await reloaded.harness.behavior.runCli(["claim", ref.id, "--thread", ref.threadId, "--attempt", prepared.attempt!.id]);
+      expect(claimed.exitCode).toBe(0);
+      expect(JSON.parse(claimed.stdout!).attempt).toMatchObject({ id: prepared.attempt!.id, claimed: true });
+      expect(JSON.parse(claimed.stdout!).attempt.note).toBe(note || undefined);
+    }
+  }
+});
