@@ -273,33 +273,34 @@ export async function prepareVersionedRelease(slug) {
   const temporary = await mkdtemp(resolve(tmpdir(), "bb-plugin-tag-"));
   const indexPath = resolve(temporary, "index");
   try {
-    git(["read-tree", sourceRevision], { env: { GIT_INDEX_FILE: indexPath } });
-    const paths = git(["ls-files", "-z", "--", plugin.source], {
-      env: { GIT_INDEX_FILE: indexPath },
-    });
-    git(["update-index", "--force-remove", "-z", "--stdin"], {
-      env: { GIT_INDEX_FILE: indexPath }, input: paths,
-    });
-    git(["read-tree", `--prefix=${plugin.source}/`, packageTree], {
-      env: { GIT_INDEX_FILE: indexPath },
-    });
-    const readJson = async (path) => JSON.parse(await readFile(resolve(root, path), "utf8"));
-    const provenance = {
-      sourceCommit: sourceRevision,
-      plugin: slug,
-      version,
-      packageTree,
-      lockfileSha256: createHash("sha256")
-        .update(await readFile(resolve(root, "package-lock.json"))).digest("hex"),
-      sdk: await readJson("tooling/vendor/sdk-provenance.json"),
-      builder: await readJson("tooling/vendor/plugin-build-provenance.json"),
-    };
-    addBlob(indexPath, "plugin-release.json", `${JSON.stringify(provenance, null, 2)}\n`);
-    // Root-shaped tags must contain exactly the install package tree. Their
-    // parent records the source revision; nested tags retain the provenance file.
-    const tree = subdirectory
-      ? git(["write-tree"], { env: { GIT_INDEX_FILE: indexPath } })
-      : packageTree;
+    // Root-shaped tags use the install package unchanged; only nested tags
+    // need a repository tree and a separate provenance file.
+    let tree = packageTree;
+    if (subdirectory) {
+      git(["read-tree", sourceRevision], { env: { GIT_INDEX_FILE: indexPath } });
+      const paths = git(["ls-files", "-z", "--", plugin.source], {
+        env: { GIT_INDEX_FILE: indexPath },
+      });
+      git(["update-index", "--force-remove", "-z", "--stdin"], {
+        env: { GIT_INDEX_FILE: indexPath }, input: paths,
+      });
+      git(["read-tree", `--prefix=${plugin.source}/`, packageTree], {
+        env: { GIT_INDEX_FILE: indexPath },
+      });
+      const readJson = async (path) => JSON.parse(await readFile(resolve(root, path), "utf8"));
+      const provenance = {
+        sourceCommit: sourceRevision,
+        plugin: slug,
+        version,
+        packageTree,
+        lockfileSha256: createHash("sha256")
+          .update(await readFile(resolve(root, "package-lock.json"))).digest("hex"),
+        sdk: await readJson("tooling/vendor/sdk-provenance.json"),
+        builder: await readJson("tooling/vendor/plugin-build-provenance.json"),
+      };
+      addBlob(indexPath, "plugin-release.json", `${JSON.stringify(provenance, null, 2)}\n`);
+      tree = git(["write-tree"], { env: { GIT_INDEX_FILE: indexPath } });
+    }
     const sourceDate = git(["show", "-s", "--format=%cI", sourceRevision]);
     const commit = git([
       "commit-tree", tree, "-p", sourceRevision,
