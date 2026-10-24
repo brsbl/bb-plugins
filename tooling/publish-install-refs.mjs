@@ -26,7 +26,7 @@ const productionDependencyFields = [
   "peerDependencies",
 ];
 // Opt in per plugin so existing release histories are never rewritten.
-const versionTaggedPlugins = new Set(["thread-organizer", "context-katamari", "ambient", "server-switcher", "improve-prompt", "desktop", "file-pins"]);
+const versionTaggedPlugins = new Set(["thread-organizer", "context-katamari", "ambient", "server-switcher", "improve-prompt", "desktop", "file-pins", "thread-hover-cards"]);
 // Preserve the published prefix when a workspace directory differs from its stable ID.
 const versionTagPrefixes = { "improve-prompt": "prompt-shaper" };
 // File Pins was published at the repository root, with no marketplace subdirectory.

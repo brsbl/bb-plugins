@@ -33,6 +33,7 @@ merge after CI passes.
 The existing publish job creates `<slug>/v<version>` from the same bundles as
 `plugin/<slug>`. The tag retains `plugins/<slug>`, so marketplace URLs and
 version ranges stay valid. Do not tag the source commit manually.
+Thread Hover Cards uses the same nested layout under `thread-hover-cards/v<version>`.
 
 The generated release commit is parented by its source commit and records the
 package tree, lockfile digest, SDK archive, and builder provenance in
