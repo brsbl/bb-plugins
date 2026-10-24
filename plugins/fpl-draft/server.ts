@@ -369,7 +369,7 @@ function publishedNumber(value: string | null | undefined): number | null {
 function parseLeagueId(raw: string): number | null {
   const trimmed = raw.trim();
   if (trimmed.length === 0) return null;
-  // Accept a bare id or any league URL, e.g. …/league/4211/standings.
+  // Accept a bare id or any league URL, e.g. …/league/900001/standings.
   const fromUrl = /\/league\/(\d+)/.exec(trimmed)?.[1];
   const candidate = fromUrl ?? trimmed;
   return /^\d+$/.test(candidate) ? Number.parseInt(candidate, 10) : null;

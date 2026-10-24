@@ -32,7 +32,7 @@ Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/d
 
 Follow your Fantasy Premier League Draft league’s matches and standings, compare waiver options, and bring the current view into an agent conversation with a context pill.
 
-![FPL Draft waiver suggestion with expanded player comparison](https://github.com/user-attachments/assets/ea04832a-1a7f-4fdc-bcf7-66b85b951611)
+![FPL Draft waiver suggestion for a sample league, with the expanded player comparison and fallback](plugins/fpl-draft/docs/waivers.png)
 
 [Source](plugins/fpl-draft) · [README](plugins/fpl-draft/README.md)
 
