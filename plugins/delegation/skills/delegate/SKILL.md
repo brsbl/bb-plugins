@@ -1,6 +1,6 @@
 ---
 name: delegate
-description: Decide whether to hand a task to another bb thread, then launch and parent the worker with a self-contained prompt and the user's Delegation settings, or propose it first when the spawn policy requires. Use when the user says "launch an agent for this", "spin up a worker", "parent it", "have another thread do X", or when a separable task would block this thread. spawn owns machine capacity, and handoff owns transferring work already in progress; this skill owns the lead–worker contract.
+description: Decide whether to hand a task to another bb thread, then launch the worker under you with a self-contained prompt and the user's Delegation settings, or propose it first when the spawn policy requires. Use when the user says "launch an agent for this", "spin up a worker", "parent it", "have another thread do X", or when a separable task would block this thread. spawn owns machine capacity, and handoff owns transferring work already in progress; this skill owns the lead–worker contract.
 ---
 
 # Delegate
@@ -53,23 +53,23 @@ Pick the worker's role first; it decides the tier.
 | Role | Tier |
 | --- | --- |
 | Org lead | `leadProvider`, `leadModel`, `leadReasoningLevel` |
-| Parent: will have reports of its own | `parentProvider`, `parentModel`, `parentReasoningLevel` |
-| Leaf: one bounded job, no reports | `provider`, `model`, `reasoningLevel` |
+| Lead: will have threads under it | `parentProvider`, `parentModel`, `parentReasoningLevel` |
+| Leaf: one bounded job, no threads under it | `provider`, `model`, `reasoningLevel` |
 | QA or smoke test that only exercises the product | `qaProvider` (blank: the leaf provider), `qaModel` (blank: the leaf model; `cheapest`: the cheapest generally available model in `bb provider models <provider> --json`; if that fails, add `--machine <host>` with this thread's host from `bb status --json`), `qaReasoningLevel` |
 
 A blank tier field falls back to the leaf value, then to spawn's normal tier.
 Always pass `--provider`, `--model`, and `--reasoning-level` explicitly, with
 the resolved values; never let bb pick the project default. A thread's
-provider can't change later, so spawn a worker that will get reports at the
-parent tier from the start. If a leaf later gains reports, tell the user it
-needs a handoff to the parent tier.
+provider can't change later, so spawn a worker that will have threads under it
+at the lead tier from the start. If a leaf later gains threads under it, tell
+the user it needs a handoff to the lead tier.
 
 | Choice | Rule |
 | --- | --- |
 | Models to avoid | Never spawn a model listed in `avoidModels`. |
 | Machine | The one the user names, else `machine`. When blank, use the lead's machine unless spawn's capacity check offloads the job. |
 | Environment | `environment`: `worktree` → `--new-environment worktree`; `personal` → `--new-environment personal`; `lead` → `--environment "$BB_ENVIRONMENT_ID"`; blank → spawn's choice for the job. Review or QA of another thread's change attaches to that thread's environment. Personal workspaces only work in the personal project: elsewhere, `personal` fails, so give research-only workers the lead's environment and code workers a worktree, and say so in one line. |
-| Parent | When `parentWorkers` is true, pass `--parent-thread "$BB_THREAD_ID"` so bb tells the lead when the worker finishes. |
+| Your lead | When `parentWorkers` is true, pass `--parent-thread "$BB_THREAD_ID"` so bb tells the lead when the worker finishes. |
 | Section | When `section` is set, pass `--section <id>`. When blank, use the lead's section from `bb thread show "$BB_THREAD_ID" --json` (`.thread.sectionId`), and omit the flag when that is null. |
 | Permissions | spawn's defaults. |
 | Title | A short, human-facing name for the job, such as "Fix timeline scroll arrow cursor". No bracketed prefixes or suffixes, model names, or roles. |
@@ -88,9 +88,9 @@ shape, and nothing it doesn't:
 - <Decisions already made, quoting the user where their wording matters>
 
 ## Org
-- You report to <@thread:lead>. <Your reports, if any: @thread:…>
-- Message only your manager and your direct reports. Reach a peer through your
-  shared manager, and another org through its lead.
+- Your lead is <@thread:lead>. <Threads under you, if any: @thread:…>
+- Message only your lead and the threads under you. Reach a peer through your
+  shared lead, and another org through its lead.
 
 ## Constraints
 - Scope: <what to touch and what not to>. Build only what is approved here;

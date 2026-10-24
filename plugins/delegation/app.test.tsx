@@ -39,10 +39,10 @@ describe("Delegation settings form", () => {
   it("is one table: a row per role with when to create it, provider, model, and reasoning", async () => {
     const slot = await render();
     await slot.findByRole("table");
-    expect(slot.getAllByRole("rowheader").map((cell) => cell.textContent?.trim())).toEqual(["Lead", "Parent", "Worker", "QA"]);
+    expect(slot.getAllByRole("rowheader").map((cell) => cell.textContent?.trim())).toEqual(["Org lead", "Lead", "Worker", "QA"]);
     expect(slot.getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual(["Role", "When to create", "Provider", "Model", "Reasoning"]);
     const when = Object.fromEntries(slot.getAllByRole("rowheader").map((cell) => [cell.querySelector(".dl-role")!.textContent, cell.closest("tr")!.querySelector(".dl-when")!.textContent]));
-    expect(when).toMatchObject({ Lead: "Only when you ask", Parent: "When a worker will have its own reports", QA: "QA and smoke checks on approved work" });
+    expect(when).toMatchObject({ "Org lead": "Only when you ask", Lead: "When a worker will have threads under it", QA: "QA and smoke checks on approved work" });
     expect(slot.queryByRole("combobox", { name: "Machine" })).toBeNull();
     expect(slot.queryByRole("switch")).toBeNull();
   });
@@ -62,7 +62,7 @@ describe("Delegation settings form", () => {
 
   it("saves a change as an override and resets it from the row", async () => {
     const slot = await render();
-    const lead = await slot.findByRole("textbox", { name: "Lead model" });
+    const lead = await slot.findByRole("textbox", { name: "Org lead model" });
     fireEvent.change(lead, { target: { value: "claude-opus-5-5" } });
     fireEvent.blur(lead);
     fireEvent.change(slot.getByRole("combobox", { name: "When to create workers" }), { target: { value: "ask" } });
@@ -82,7 +82,7 @@ describe("Delegation settings form", () => {
 
   it("clears a role's model when its provider changes", async () => {
     const slot = await render({ parentProvider: "claude-code", parentModel: "claude-opus-5-5" });
-    const provider = await slot.findByRole("combobox", { name: "Parent provider" });
+    const provider = await slot.findByRole("combobox", { name: "Lead provider" });
     await waitFor(() => expect((provider as HTMLSelectElement).options).toHaveLength(3));
     fireEvent.change(provider, { target: { value: "codex" } });
     await waitFor(() => expect(saves(slot).at(-1)).toEqual({ values: { parentProvider: "codex" }, reset: ["parentModel"] }));
