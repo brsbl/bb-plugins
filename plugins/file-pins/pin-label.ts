@@ -2,8 +2,8 @@ import { isUrlPin, type Reference } from "./contract.js";
 import { urlLabel } from "./url-pin.js";
 
 /**
- * How long a pin's label may be on the strip and in the ⋯ list, in characters, by kind of pin.
- * The full name stays in the pin's tooltip and accessible label. Change a limit here; the strip measures the result.
+ * How long a pin's label may be on the strip, in characters, by kind of pin.
+ * The full name stays in the pin's tooltip and accessible label.
  *
  * - `file`: a file name. The middle of the name goes first; the extension always stays.
  * - `title`: a URL pin with its own title. The end goes first, at a word break when one is close.
