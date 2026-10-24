@@ -41,6 +41,17 @@ const publication = (messageIds: string[]) => ({
 });
 
 describe("digest store", () => {
+  it("upgrades persisted definitions with no read preference and retains the explicit opt-in", () => {
+    const { db, bb, store } = harness();
+    const { afterReading: _, ...legacy } = store.definitions.get("reading")!;
+    db.prepare("UPDATE digest_definitions SET data = ? WHERE id = ?").run(JSON.stringify(legacy), "reading");
+    const reopened = createStore(bb);
+    expect(reopened.definitions.get("reading")?.afterReading).toBe("mark-read");
+    expect(reopened.definitions.list()[0]?.afterReading).toBe("mark-read");
+    reopened.definitions.put({ ...legacy, afterReading: "keep-unread" });
+    expect(createStore(bb).definitions.get("reading")?.afterReading).toBe("keep-unread");
+  });
+
   it("reads definitions and briefs stored by a newer build with unknown keys stripped", () => {
     const { db, store } = harness();
     const definition = { ...store.definitions.get("reading")!, owns: ["newsletters"], futureOption: true };
