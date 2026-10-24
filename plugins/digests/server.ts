@@ -134,7 +134,7 @@ export default function plugin(bb: BbPluginApi) {
     execute: async ({ digestId }, ctx) => JSON.stringify(await service.begin(digestId, ctx.threadId)),
   });
   bb.agents.registerTool({
-    name: "digest_email_read", description: "Record each Gmail message's original unread state BEFORE opening it. Then record the verified unread/read result, or restore-failed. This journal survives interrupted runs and appears in the brief; it does not operate Gmail.",
+    name: "digest_email_read", description: "Journal each Gmail message BEFORE changing its read state. Pass wasUnread when known; it is required for keep-unread. Then record the verified result, or restore-failed. This journal survives interrupted runs and appears in the brief; it does not operate Gmail.",
     parameters: EmailReadInputSchema,
     execute: (input, ctx) => JSON.stringify(service.emailRead(ctx.threadId, input)),
   });
