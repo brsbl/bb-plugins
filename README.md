@@ -400,3 +400,15 @@ Run a team of bb threads from one lead: skills to delegate work, relay your deci
 [Source](plugins/delegation) · [README](plugins/delegation/README.md)
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/delegation --yes`
+
+### Agent Sign-in
+
+Lets agents sign in to your sites with usernames, passwords, and current authenticator codes from one 1Password vault, without ever seeing them. A fill types into the agent's browser page only when the page is on a website saved on that login. It answers with ok or an error code, and every attempt goes into an audit log with no values. It stays off until you turn it on.
+
+![Agent Sign-in settings with the kill switch off, the Agents vault, and the token file path](plugins/onepassword-fill/docs/settings.jpg)
+
+![A sign-in page after fills: email, password, and authenticator code are masked](plugins/onepassword-fill/docs/masked-fill.jpg)
+
+[Source](plugins/onepassword-fill) · [README](plugins/onepassword-fill/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/onepassword-fill --yes`
