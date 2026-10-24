@@ -128,7 +128,21 @@ npm ci
 npm run check --workspace=bb-plugin-playgrounds
 ```
 
-Playgrounds needs plugin SDK 0.6.37, newer than this repository's shared pin,
+Playgrounds needs plugin SDK 0.6.54, newer than this repository's shared pin,
 so it carries its own SDK archive and provenance in `vendor/`. Run checks in
 remote CI. For local interaction verification, install the plugin only into an
 isolated source dev app.
+
+### Anonymous usage counts
+
+After a successful publish, Playgrounds reports only the card kind (Anatomy,
+HTML or native) through bb's telemetry route. Saved-card republishing counts as
+another publish; opening a card, changing inputs, saving it and copying a thread
+do not. Clip exports report one event per saved MP4 or GIF, containing only kind,
+file format, shape and a duration bucket. Exporting both formats counts twice.
+Exports remain local; these counts do not mean a clip was posted publicly.
+
+Both events follow bb's telemetry setting. They send no prompts, titles, HTML,
+state, paths, identifiers, provider names or exact durations. Failed exports do
+not count. Telemetry is best effort and never blocks publication or export;
+older hosts without these allowlisted events do not record them.

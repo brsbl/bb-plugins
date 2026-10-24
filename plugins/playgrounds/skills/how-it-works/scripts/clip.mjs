@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 import { spawn, execFileSync } from "node:child_process";
 import { createServer } from "node:http";
-import { existsSync, readFileSync, writeFileSync, mkdirSync, mkdtempSync, rmSync, copyFileSync, constants } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { dirname, resolve, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 import { clipOptions, endFrame } from "./clip-record.mjs";
 import { clipBrowserPath } from "./clip-browser.mjs";
+import { saveClipOutputs } from "./clip-analytics.mjs";
 import { ffmpegPath } from "./clip-tools.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -87,7 +88,8 @@ async function main() {
     try {
       await new Promise((done, fail) => { child.once("error", fail); child.once("exit", code => code === 0 ? done() : fail(new Error(`Clip renderer exited ${code}.`))); });
     } finally { process.removeListener("SIGINT", stop); process.removeListener("SIGTERM", stop); }
-    for (const [from, to] of [[out, output], [out + ".json", output + ".json"], [out + ".end.png", output + ".end.png"], ...(gifOutput ? [[gif, gifOutput]] : [])]) copyFileSync(from, to, constants.COPYFILE_EXCL);
+    saveClipOutputs({ out, output, gif, gifOutput, anatomy: config.anatomy,
+      size: options.format ?? "square", seconds: config.seconds });
     console.log(`Saved ${output}${gifOutput ? ` and ${gifOutput}` : ""}`);
   } finally {
     if (server) { server.closeAllConnections(); await new Promise(done => server.close(done)); }
