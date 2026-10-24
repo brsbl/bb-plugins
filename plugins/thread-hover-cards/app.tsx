@@ -26,6 +26,7 @@ import type {
   ThreadTiming,
 } from "./server";
 import { HOVER_CARD_CSS, SECTION_CARD_CSS } from "./styles";
+import { renderHoverCard, relativeTime } from "./hover-card";
 import { markdownPreview } from "./markdown-preview";
 
 const CARD_ID = "bb-thread-hover-card";
@@ -816,15 +817,11 @@ function placeCardNear(card: HTMLElement, anchor: HTMLElement): void {
 }
 
 function renderLoading(card: HTMLElement, subject = "thread"): void {
-  card.replaceChildren(
-    element("p", "bb-thread-hover-card__loading", `Loading ${subject} summary…`),
-  );
+  renderHoverCard(card, { kind: subject === "section" ? "section" : "thread", title: card.dataset.subjectTitle ?? subject, state: { label: "Loading" }, content: [element("p", "bb-thread-hover-card__loading", `Loading ${subject} summary…`)] });
 }
 
 function renderError(card: HTMLElement): void {
-  card.replaceChildren(
-    element("p", "bb-thread-hover-card__loading", "Summary unavailable"),
-  );
+  renderHoverCard(card, { kind: card.dataset.bbCard === "section" ? "section" : "thread", title: card.dataset.subjectTitle ?? "Summary", state: { label: "Unavailable" }, content: [element("p", "bb-thread-hover-card__loading", "Summary unavailable")], notice: "Hover again to retry." });
 }
 
 type HoverCardRenderState = "complete" | "error" | "loading" | "summary";
@@ -972,7 +969,7 @@ function renderSummary(card: HTMLElement, summary: ThreadSummary): void {
   }
   if (times.childElementCount > 0) header.append(times);
 
-  const content: HTMLElement[] = [header];
+  const content: HTMLElement[] = [];
   const summaryMessage = summary.latestAssistantMessage;
 
   if (summaryMessage) {
@@ -1094,7 +1091,15 @@ function renderSummary(card: HTMLElement, summary: ThreadSummary): void {
     content.push(local);
   }
 
-  card.replaceChildren(...content);
+  renderHoverCard(card, {
+    kind: "thread",
+    title: summary.title ?? card.dataset.subjectTitle ?? "Thread",
+    identifier: summary.threadId,
+    state: { label: summary.hasPendingInteraction ? "Waiting for you" : runtimeStatus.label, tone: summary.hasPendingInteraction ? "muted" : runtimeStatus.tone },
+    facts: [summary.unread === undefined ? "Read state unavailable" : summary.unread ? "Unread update" : "Up to date"],
+    meta: [header, ...(summary.updatedAt === undefined ? [] : [relativeTime(summary.updatedAt)])],
+    content,
+  });
   refreshRunTime(card);
 }
 
@@ -1135,86 +1140,29 @@ function countCell(value: number, label: string): HTMLElement {
   return cell;
 }
 
-/**
- * Three bands: the projects this section spans, a headline that exists only
- * when something wants action, and counts in fixed positions. Every figure is
- * one that reading the whole section would be needed to learn — the titles and
- * the per-thread spinners the sidebar already gives are deliberately absent.
- */
+function sectionProjects(projects: string[]): HTMLElement {
+  const band = element("div", "bb-section-hover-card__band");
+  for (const project of projects.slice(0, SECTION_PROJECT_NAMES)) band.append(element("span", "bb-section-hover-card__project", project));
+  if (projects.length > SECTION_PROJECT_NAMES) band.append(element("span", "bb-section-hover-card__more", `+${projects.length - SECTION_PROJECT_NAMES}`));
+  return band;
+}
+
 export function renderSectionSummary(
   card: HTMLElement,
   summary: SectionSummary,
 ): void {
-  if (summary.total === 0) {
-    card.replaceChildren(
-      element("p", "bb-section-hover-card__empty", "No threads yet"),
-    );
-    return;
-  }
-
-  const content: HTMLElement[] = [];
-
-  if (summary.projects.length > 0) {
-    const band = element("div", "bb-section-hover-card__band");
-    band.append(
-      icon(
-        Folder01Icon,
-        "Folder01Icon",
-        "bb-thread-hover-card__icon bb-thread-hover-card__meta-icon",
-      ),
-    );
-    const named = summary.projects.slice(0, SECTION_PROJECT_NAMES);
-    named.forEach((project, index) => {
-      if (index > 0) {
-        band.append(element("span", "bb-section-hover-card__sep", "·"));
-      }
-      band.append(element("span", "bb-section-hover-card__project", project));
-    });
-    const remaining = summary.projects.length - named.length;
-    if (remaining > 0) {
-      band.append(
-        element("span", "bb-section-hover-card__more", `+${remaining}`),
-      );
-    }
-    content.push(band);
-  }
-
-  // Absent, not empty. A card with nothing in this position is itself the
-  // signal that nothing is waiting on the reader.
-  if (summary.questions > 0 || summary.failed > 0) {
-    const headline = element("div", "bb-section-hover-card__headline");
-    if (summary.questions > 0) {
-      headline.append(
-        attentionChip(
-          "bb-section-hover-card__chip--question",
-          HelpCircleIcon,
-          "HelpCircleIcon",
-          countLabel(summary.questions, "question"),
-        ),
-      );
-    }
-    if (summary.failed > 0) {
-      headline.append(
-        attentionChip(
-          "bb-section-hover-card__chip--failed",
-          CancelCircleIcon,
-          "CancelCircleIcon",
-          `${summary.failed} failed`,
-        ),
-      );
-    }
-    content.push(headline);
-  }
-
   const counts = element("div", "bb-section-hover-card__counts");
-  counts.append(
-    countCell(summary.total, "thread"),
-    countCell(summary.working, "working"),
-    countCell(summary.unread, "unread"),
-  );
-  content.push(counts);
-
-  card.replaceChildren(...content);
+  counts.append(countCell(summary.total, "thread"), countCell(summary.working, "working"), countCell(summary.unread, "unread"));
+  const attention: Node[] = [];
+  if (summary.questions) attention.push(attentionChip("bb-section-hover-card__chip--question", HelpCircleIcon, "HelpCircleIcon", countLabel(summary.questions, "question")));
+  if (summary.failed) attention.push(attentionChip("bb-section-hover-card__chip--failed", CancelCircleIcon, "CancelCircleIcon", `${summary.failed} failed`));
+  renderHoverCard(card, {
+    kind: "section", title: card.dataset.subjectTitle ?? "Section",
+    state: { label: summary.total === 0 ? "Empty" : summary.questions || summary.failed ? "Needs attention" : summary.working ? "Working" : "Idle", tone: summary.failed ? "danger" : "muted" },
+    facts: [counts, ...attention],
+    meta: summary.projects.length ? [sectionProjects(summary.projects)] : [],
+    content: summary.total === 0 ? [element("p", "bb-section-hover-card__empty", "No threads yet")] : [],
+  });
 }
 
 interface ThreadHoverCardOptions {
@@ -1804,6 +1752,7 @@ function installHoverCards({ onOpen }: ThreadHoverCardOptions): HoverCardControl
     const generation = requestGeneration;
     abortSupersededSummaryRequests(threadId);
     const hoverCard = ensureCard();
+    hoverCard.dataset.subjectTitle = trigger.textContent?.trim() || "Thread";
     setHoverCardRenderState(hoverCard, "loading");
     hoverCard.hidden = false;
     hoverCard.classList.remove("is-visible");
@@ -2357,6 +2306,7 @@ function installSectionHoverCards({
     generation += 1;
     const requestGeneration = generation;
     const hoverCard = ensureCard();
+    hoverCard.dataset.subjectTitle = target.name;
     setHoverCardRenderState(hoverCard, "loading");
     hoverCard.hidden = false;
     hoverCard.classList.remove("is-visible");
