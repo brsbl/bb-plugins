@@ -2,9 +2,7 @@
 
 Prism Frame adds a slowly moving WebGL sheen across bb's app frame, left navigation rail, and outer window title bar and colors mention pills from the active theme. It is a standalone plugin; no bb core changes or theme-file edits are required.
 
-![Light frame with normal and selected mention pills](https://github.com/user-attachments/assets/b9ac396f-a79e-49f5-9fd6-44b512067efb)
-
-![Dark frame with normal and selected mention pills](https://github.com/user-attachments/assets/961e1f3f-9831-412e-b344-0e1354a3509d)
+![Light frame with normal and selected mention pills](docs/overview.png)
 
 ## Install
 
