@@ -13,13 +13,13 @@ const rows = parseNotificationRows([
     reason: "author",
     unread: true,
     updated_at: "2026-08-12T12:00:00Z",
-    repository: { full_name: "get-bb/bb" },
+    repository: { full_name: "example-org/project-demo" },
     subject: {
       latest_comment_url:
-        "https://api.github.com/repos/get-bb/bb/issues/comments/101",
+        "https://api.github.com/repos/example-org/project-demo/issues/comments/101",
       title: "Scannable activity",
       type: "PullRequest",
-      url: "https://api.github.com/repos/get-bb/bb/pulls/42",
+      url: "https://api.github.com/repos/example-org/project-demo/pulls/42",
     },
   },
   {
@@ -27,13 +27,13 @@ const rows = parseNotificationRows([
     reason: "mention",
     unread: false,
     updated_at: "2026-08-11T12:00:00Z",
-    repository: { full_name: "brsbl/moss" },
+    repository: { full_name: "example-org/notes-demo" },
     subject: {
       latest_comment_url:
-        "https://api.github.com/repos/brsbl/moss/issues/comments/202",
+        "https://api.github.com/repos/example-org/notes-demo/issues/comments/202",
       title: "Keep links local",
       type: "Issue",
-      url: "https://api.github.com/repos/brsbl/moss/issues/7",
+      url: "https://api.github.com/repos/example-org/notes-demo/issues/7",
     },
   },
 ]);
@@ -62,17 +62,17 @@ describe("GitHub notification projection", () => {
       rows,
       lookups,
       data: {
-        viewer: { login: "brsbl" },
+        viewer: { login: "fixture-author" },
         notification0: {
           resource: {
-            author: { login: "brsbl" },
+            author: { login: "fixture-author" },
             number: 42,
             title: "Scannable activity",
-            url: "https://github.com/get-bb/bb/pull/42",
+            url: "https://github.com/example-org/project-demo/pull/42",
             comments: {
               nodes: [
                 {
-                  author: { login: "alice" },
+                  author: { login: "fixture-reviewer" },
                   bodyText: "nice",
                   createdAt: "2026-08-12T10:00:00Z",
                   databaseId: 101,
@@ -83,8 +83,8 @@ describe("GitHub notification projection", () => {
               nodes: [
                 {
                   author: {
-                    login: "bob",
-                    avatarUrl: "https://ghe.example.test/avatars/bob",
+                    login: "fixture-maintainer",
+                    avatarUrl: "https://ghe.example.test/avatars/fixture-maintainer",
                   },
                   state: "APPROVED",
                   submittedAt: "2026-08-12T11:00:00Z",
@@ -98,12 +98,12 @@ describe("GitHub notification projection", () => {
             author: { login: "someone-else" },
             number: 7,
             title: "Keep links local",
-            url: "https://github.com/brsbl/moss/issues/7",
+            url: "https://github.com/example-org/notes-demo/issues/7",
             comments: {
               nodes: [
                 {
-                  author: { login: "alice" },
-                  bodyText: "@brsbl look",
+                  author: { login: "fixture-reviewer" },
+                  bodyText: "@fixture-author look",
                   createdAt: "2026-08-11T11:00:00Z",
                 },
               ],
@@ -112,13 +112,13 @@ describe("GitHub notification projection", () => {
         },
       },
     });
-    expect(result.login).toBe("brsbl");
+    expect(result.login).toBe("fixture-author");
     expect(result.items).toEqual([
       expect.objectContaining({
         activity: "New comment",
         activityKind: "comment",
-        actor: "alice",
-        repo: "get-bb/bb",
+        actor: "fixture-reviewer",
+        repo: "example-org/project-demo",
         resourceKind: "pr",
       }),
     ]);
@@ -131,13 +131,13 @@ describe("GitHub notification projection", () => {
         reason: "author",
         unread: true,
         updated_at: "2026-08-12T12:00:00Z",
-        repository: { full_name: "get-bb/bb" },
+        repository: { full_name: "example-org/project-demo" },
         subject: {
           latest_comment_url:
-            "https://api.github.com/repos/get-bb/bb/pulls/42",
+            "https://api.github.com/repos/example-org/project-demo/pulls/42",
           title: "Review-only activity",
           type: "PullRequest",
-          url: "https://api.github.com/repos/get-bb/bb/pulls/42",
+          url: "https://api.github.com/repos/example-org/project-demo/pulls/42",
         },
       },
     ]);
@@ -152,13 +152,13 @@ describe("GitHub notification projection", () => {
         reason: "mention",
         unread: true,
         updated_at: "2026-08-12T12:00:00Z",
-        repository: { full_name: "get-bb/bb" },
+        repository: { full_name: "example-org/project-demo" },
         subject: {
           latest_comment_url:
-            "https://api.github.com/repos/get-bb/bb/pulls/42/reviews/9",
+            "https://api.github.com/repos/example-org/project-demo/pulls/42/reviews/9",
           title: "Old mention, new review",
           type: "PullRequest",
-          url: "https://api.github.com/repos/get-bb/bb/pulls/42",
+          url: "https://api.github.com/repos/example-org/project-demo/pulls/42",
         },
       },
     ]);
@@ -173,13 +173,13 @@ describe("GitHub notification projection", () => {
         reason: "mention",
         unread: true,
         updated_at: "2026-08-12T12:00:00Z",
-        repository: { full_name: "get-bb/bb" },
+        repository: { full_name: "example-org/project-demo" },
         subject: {
           latest_comment_url:
-            "https://api.github.com/repos/get-bb/bb/issues/comments/101",
+            "https://api.github.com/repos/example-org/project-demo/issues/comments/101",
           title: "Correct mention actor",
           type: "Issue",
-          url: "https://api.github.com/repos/get-bb/bb/issues/42",
+          url: "https://api.github.com/repos/example-org/project-demo/issues/42",
         },
       },
     ]);
@@ -188,23 +188,23 @@ describe("GitHub notification projection", () => {
       rows: mentionRows,
       lookups,
       data: {
-        viewer: { login: "brsbl" },
+        viewer: { login: "fixture-author" },
         notification0: {
           resource: {
-            author: { login: "brsbl" },
+            author: { login: "fixture-author" },
             number: 42,
             title: "Correct mention actor",
-            url: "https://github.com/get-bb/bb/issues/42",
+            url: "https://github.com/example-org/project-demo/issues/42",
             comments: {
               nodes: [
                 {
-                  author: { login: "alice" },
-                  bodyText: "@brsbl please take a look",
+                  author: { login: "fixture-reviewer" },
+                  bodyText: "@fixture-author please take a look",
                   createdAt: "2026-08-12T10:00:00Z",
                   databaseId: 101,
                 },
                 {
-                  author: { login: "bob" },
+                  author: { login: "fixture-maintainer" },
                   createdAt: "2026-08-12T11:00:00Z",
                   databaseId: 102,
                 },
@@ -218,7 +218,7 @@ describe("GitHub notification projection", () => {
     expect(result.items).toEqual([
       expect.objectContaining({
         activityKind: "mention",
-        actor: "alice",
+        actor: "fixture-reviewer",
         updatedAt: "2026-08-12T10:00:00Z",
       }),
     ]);
@@ -226,79 +226,79 @@ describe("GitHub notification projection", () => {
 
   it.each([
     {
-      body: "@brsbl, please take a look",
+      body: "@fixture-author, please take a look",
       expected: "mention",
       name: "a punctuation-delimited direct mention",
       reason: "author",
     },
     {
-      body: "cc @brsbl2 instead",
+      body: "cc @fixture-author2 instead",
       expected: "comment",
       name: "another username with the viewer as a prefix",
       reason: "author",
     },
     {
-      body: "Could @get-bb/reviewers check this?",
+      body: "Could @example-org/reviewers check this?",
       expected: "mention",
       name: "a team mention notification",
       reason: "team_mention",
     },
     {
-      body: "Could @get-bb/reviewers check this?",
+      body: "Could @example-org/reviewers check this?",
       expected: "comment",
       name: "an unrelated team reference",
       reason: "author",
     },
     {
-      body: "> @brsbl said this earlier",
+      body: "> @fixture-author said this earlier",
       expected: "comment",
       name: "a quoted direct mention",
       reason: "author",
     },
     {
-      body: "Use `@brsbl` in the example",
+      body: "Use `@fixture-author` in the example",
       expected: "comment",
       name: "an inline-code direct mention",
       reason: "author",
     },
     {
-      body: "Use `first line\n@brsbl\nlast line` in the example",
+      body: "Use `first line\n@fixture-author\nlast line` in the example",
       expected: "comment",
       name: "a multiline-code direct mention",
       reason: "author",
     },
     {
-      body: "```text\n@brsbl\n```",
+      body: "```text\n@fixture-author\n```",
       expected: "comment",
       name: "a fenced-code direct mention",
       reason: "author",
     },
     {
-      body: "    @brsbl in an indented example",
+      body: "    @fixture-author in an indented example",
       expected: "comment",
       name: "an indented-code direct mention",
       reason: "author",
     },
     {
-      body: "<code>@brsbl</code>",
+      body: "<code>@fixture-author</code>",
       expected: "comment",
       name: "an HTML-code direct mention",
       reason: "author",
     },
     {
-      body: "<!-- @brsbl -->",
+      body: "<!-- @fixture-author -->",
       expected: "comment",
       name: "an HTML-comment direct mention",
       reason: "author",
     },
     {
-      body: "> quoted paragraph\n@brsbl is still quoted lazily\n\nNew text",
+      body: "> quoted paragraph\n@fixture-author is still quoted lazily\n\nNew text",
       expected: "comment",
       name: "a lazy blockquote continuation mention",
       reason: "author",
     },
     {
-      body: "> quoted paragraph\n\n@brsbl is outside the quote",
+      body: "> quoted paragraph\n\n@fixture-author is outside the quote",
       expected: "mention",
       name: "a direct mention after a blockquote",
       reason: "author",
@@ -310,13 +310,13 @@ describe("GitHub notification projection", () => {
         reason,
         unread: true,
         updated_at: "2026-08-12T12:00:00Z",
-        repository: { full_name: "get-bb/bb" },
+        repository: { full_name: "example-org/project-demo" },
         subject: {
           latest_comment_url:
-            "https://api.github.com/repos/get-bb/bb/issues/comments/101",
+            "https://api.github.com/repos/example-org/project-demo/issues/comments/101",
           title: "Mention boundaries",
           type: "Issue",
-          url: "https://api.github.com/repos/get-bb/bb/issues/42",
+          url: "https://api.github.com/repos/example-org/project-demo/issues/42",
         },
       },
     ]);
@@ -326,17 +326,17 @@ describe("GitHub notification projection", () => {
       rows: mentionRows,
       lookups,
       data: {
-        viewer: { login: "brsbl" },
+        viewer: { login: "fixture-author" },
         notification0: {
           resource: {
-            author: { login: "brsbl" },
+            author: { login: "fixture-author" },
             number: 42,
             title: "Mention boundaries",
-            url: "https://github.com/get-bb/bb/issues/42",
+            url: "https://github.com/example-org/project-demo/issues/42",
             comments: {
               nodes: [
                 {
-                  author: { login: "alice" },
+                  author: { login: "fixture-reviewer" },
                   bodyText: body,
                   createdAt: "2026-08-12T11:00:00Z",
                   databaseId: 101,
@@ -358,13 +358,13 @@ describe("GitHub notification projection", () => {
         reason: "mention",
         unread: true,
         updated_at: "2026-08-12T12:00:00Z",
-        repository: { full_name: "get-bb/bb" },
+        repository: { full_name: "example-org/project-demo" },
         subject: {
           latest_comment_url:
-            "https://api.github.com/repos/get-bb/bb/issues/comments/102",
+            "https://api.github.com/repos/example-org/project-demo/issues/comments/102",
           title: "Persistent reason",
           type: "Issue",
-          url: "https://api.github.com/repos/get-bb/bb/issues/42",
+          url: "https://api.github.com/repos/example-org/project-demo/issues/42",
         },
       },
     ]);
@@ -373,17 +373,17 @@ describe("GitHub notification projection", () => {
       rows: mentionRows,
       lookups,
       data: {
-        viewer: { login: "brsbl" },
+        viewer: { login: "fixture-author" },
         notification0: {
           resource: {
-            author: { login: "brsbl" },
+            author: { login: "fixture-author" },
             number: 42,
             title: "Persistent reason",
-            url: "https://github.com/get-bb/bb/issues/42",
+            url: "https://github.com/example-org/project-demo/issues/42",
             comments: {
               nodes: [
                 {
-                  author: { login: "alice" },
+                  author: { login: "fixture-reviewer" },
                   bodyText: "ordinary follow-up",
                   createdAt: "2026-08-12T11:00:00Z",
                   databaseId: 102,
@@ -398,7 +398,7 @@ describe("GitHub notification projection", () => {
     expect(result.items).toEqual([
       expect.objectContaining({
         activityKind: "comment",
-        actor: "alice",
+        actor: "fixture-reviewer",
       }),
     ]);
   });
@@ -410,13 +410,13 @@ describe("GitHub notification projection", () => {
         reason: "comment",
         unread: true,
         updated_at: "2026-08-12T12:00:00Z",
-        repository: { full_name: "get-bb/bb" },
+        repository: { full_name: "example-org/project-demo" },
         subject: {
           latest_comment_url:
-            "https://api.github.com/repos/get-bb/bb/pulls/comments/501",
+            "https://api.github.com/repos/example-org/project-demo/pulls/comments/501",
           title: "Inline feedback",
           type: "PullRequest",
-          url: "https://api.github.com/repos/get-bb/bb/pulls/42",
+          url: "https://api.github.com/repos/example-org/project-demo/pulls/42",
         },
       },
     ]);
@@ -426,13 +426,13 @@ describe("GitHub notification projection", () => {
       rows: inlineRows,
       lookups,
       data: {
-        viewer: { login: "brsbl" },
+        viewer: { login: "fixture-author" },
         notification0: {
           resource: {
-            author: { login: "brsbl" },
+            author: { login: "fixture-author" },
             number: 42,
             title: "Inline feedback",
-            url: "https://github.com/get-bb/bb/pull/42",
+            url: "https://github.com/example-org/project-demo/pull/42",
             comments: { nodes: [] },
             reviews: { nodes: [] },
             reviewThreads: {
