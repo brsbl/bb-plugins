@@ -30,8 +30,13 @@ export function LinkPreviewCard({ threadId, pin }: { threadId: string; pin: UrlP
   const key = previewKey(threadId, pin.id, pin.url);
   const subscribe = useCallback((listener: () => void) => previewClient.subscribe(key, listener), [key]);
   const { answer, failed } = useSyncExternalStore(subscribe, () => previewClient.state(key));
+  // An open card shows its cached preview at once; when the server says a reload runs behind it, the card waits
+  // for that reload and updates in place.
   useEffect(() => {
-    void previewClient.load(key, () => rpc.call("preview", { threadId, pinId: pin.id }));
+    let open = true;
+    const ask = (wait: boolean) => rpc.call("preview", { threadId, pinId: pin.id, ...(wait ? { wait } : {}) });
+    void previewClient.load(key, () => ask(false)).then(() => { if (open) void previewClient.revalidate(key, () => ask(true)); });
+    return () => { open = false; };
   }, [rpc, key, threadId, pin.id]);
   const preview = answer?.preview ?? null;
   const [failedImage, setFailedImage] = useState<string | null>(null);
