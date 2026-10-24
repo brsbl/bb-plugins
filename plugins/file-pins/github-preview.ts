@@ -11,14 +11,11 @@ export const githubPreviewSchema = z.object({
 });
 export type GitHubPreview = z.infer<typeof githubPreviewSchema>;
 export function githubReference(href: string) {
-  let input: URL;
-  try { input = new URL(href); } catch { return null; }
-  if (input.username || input.password) return null;
-  const pr = githubPullRequest(href);
-  if (pr) return { ...pr, kind: "pull-request" as const };
   let url: URL;
   try { url = new URL(href); } catch { return null; }
   if (url.username || url.password) return null;
+  const pr = githubPullRequest(href);
+  if (pr) return { ...pr, kind: "pull-request" as const };
   const match = /^\/([^/]+)\/([^/]+)\/issues\/([1-9]\d{0,9})(?:\/|$)/.exec(url.pathname);
   if (!match) return null;
   const ref = githubPullRequest(`${url.origin}/${match[1]}/${match[2]}/pull/${match[3]}`);

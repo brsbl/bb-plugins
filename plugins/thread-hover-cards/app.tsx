@@ -969,7 +969,7 @@ function renderSummary(card: HTMLElement, summary: ThreadSummary): void {
   }
   if (times.childElementCount > 0) header.append(times);
 
-  const content: HTMLElement[] = [header];
+  const content: HTMLElement[] = [];
   const summaryMessage = summary.latestAssistantMessage;
 
   if (summaryMessage) {
@@ -1098,7 +1098,7 @@ function renderSummary(card: HTMLElement, summary: ThreadSummary): void {
     state: { label: summary.hasPendingInteraction ? "Waiting for you" : runtimeStatus.label, tone: summary.hasPendingInteraction ? "muted" : runtimeStatus.tone },
     facts: [summary.unread === undefined ? "Read state unavailable" : summary.unread ? "Unread update" : "Up to date"],
     meta: [header, ...(summary.updatedAt === undefined ? [] : [relativeTime(summary.updatedAt)])],
-    content: content.slice(1),
+    content,
   });
   refreshRunTime(card);
 }
@@ -1147,12 +1147,6 @@ function sectionProjects(projects: string[]): HTMLElement {
   return band;
 }
 
-/**
- * Three bands: the projects this section spans, a headline that exists only
- * when something wants action, and counts in fixed positions. Every figure is
- * one that reading the whole section would be needed to learn — the titles and
- * the per-thread spinners the sidebar already gives are deliberately absent.
- */
 export function renderSectionSummary(
   card: HTMLElement,
   summary: SectionSummary,
