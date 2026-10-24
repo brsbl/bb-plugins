@@ -79,7 +79,7 @@ If your plugin already has a sidebar footer panel (`experimental_sidebarFooter` 
 
 ## Contract
 
-- Desktop publishes `window.bbDesktopApps` with `version: 1` and dispatches a `bb-desktop-apps:ready` event when it loads or reloads. The helper waits for that event, so load order does not matter.
+- Desktop publishes `window.bbDesktopApps` with `version: 1` and dispatches a `bb-desktop-apps:ready` event when it loads, reloads, or turns off (when it turns off, `window.bbDesktopApps` is gone). The helper re-reads the registry on that event, so load order does not matter and a plugin lets go when Desktop turns off.
 - `registerApp` returns an unregister function; the helper calls it on unmount. Registering the same `pluginId`/`id` again replaces the earlier registration.
 - Invalid registrations are ignored with a console warning.
 - The registry lives in the browser tab. There is no CLI for it, because the apps exist only while their plugins are loaded in a bb window.
