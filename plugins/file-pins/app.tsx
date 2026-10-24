@@ -26,12 +26,9 @@ const pinClass = cn(linkClass, "rounded-md border border-border-seam bg-surface-
 const unpinClass = "absolute inset-y-px left-px flex w-6 items-center justify-center rounded-l-[5px] bg-surface-raised-solid text-muted-foreground opacity-0 hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring group-hover/pin:opacity-100 group-has-[:focus-visible]/pin:opacity-100 pointer-coarse:hidden";
 const noMotion = { animation: "none", transition: "none" };
 const menuClass = "min-w-40 p-1";
-type PinAction = { label: string; hint?: string; disabled?: boolean; run(): void };
+type PinAction = { label: string; disabled?: boolean; run(): void };
 async function copyText(text: string, copied: string, failed: string) {
   try { await navigator.clipboard.writeText(text); toast.success(copied); } catch { toast.error(failed); }
-}
-function ActionLabel({ action }: { action: PinAction }) {
-  return action.hint ? <span className="min-w-0"><span className="block">{action.label}</span><span className="mt-0.5 block text-xs leading-snug text-muted-foreground">{action.hint}</span></span> : <>{action.label}</>;
 }
 function plainClick(event: MouseEvent<HTMLAnchorElement>) {
   return !event.defaultPrevented && event.button === 0 && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey;
@@ -229,7 +226,7 @@ function PinStrip({ threadId }: { threadId: string }) {
     return <ContextMenuContent style={noMotion} className={menuClass}>
       {menuGroups(pin).map((group, index) => <Fragment key={index}>
         {index > 0 && <ContextMenuSeparator />}
-        {group.map((action) => <ContextMenuItem key={action.label} disabled={action.disabled} onSelect={action.run}><ActionLabel action={action} /></ContextMenuItem>)}
+        {group.map((action) => <ContextMenuItem key={action.label} disabled={action.disabled} onSelect={action.run}>{action.label}</ContextMenuItem>)}
       </Fragment>)}
     </ContextMenuContent>;
   }

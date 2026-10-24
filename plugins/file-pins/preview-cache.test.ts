@@ -59,7 +59,9 @@ it("returns a stale preview at once and refreshes it once in the background", as
   expect(stale.refreshing).toBe(true);
   expect((await previews.getResult(PAGE)).refreshing).toBe(true);
   // A waiting card gets the reload already running, without starting another.
+  const forced = previews.getResult(PAGE, true);
   const settled = await previews.settled(PAGE);
+  expect(await forced).toEqual(settled);
   expect(settled.preview?.title).toBe("New");
   expect(settled.refreshing).toBeUndefined();
   expect((await previews.getResult(PAGE)).preview?.title).toBe("New");
@@ -100,7 +102,7 @@ it("keeps useful text and an earlier image through a transient failure, then ret
   expect((await previews.getResult(PAGE)).preview?.title).toBe("Post again");
 });
 
-it("distinguishes blocked pages and cools them down, even for a waiting card", async () => {
+it("distinguishes blocked pages, keeps waiting cards in cooldown and debounces manual refresh", async () => {
   serve({ [PAGE]: httpError(403) });
   expect(await previews.getResult(PAGE)).toEqual({ preview: null, status: "blocked" });
   vi.setSystemTime(Date.now() + PREVIEW_LIMITS.cooldownMs - 1);
@@ -108,9 +110,12 @@ it("distinguishes blocked pages and cools them down, even for a waiting card", a
   expect((await previews.getResult(PAGE)).status).toBe("blocked");
   expect((await previews.settled(PAGE)).status).toBe("blocked");
   expect(read).toHaveBeenCalledTimes(1);
-  vi.setSystemTime(Date.now() + 1);
-  expect((await previews.getResult(PAGE)).status).toBe("no-image");
+  expect((await previews.getResult(PAGE, true)).status).toBe("no-image");
+  expect((await previews.getResult(PAGE, true)).status).toBe("no-image");
   expect(read).toHaveBeenCalledTimes(2);
+  vi.setSystemTime(Date.now() + PREVIEW_LIMITS.refreshDebounceMs);
+  await previews.getResult(PAGE, true);
+  expect(read).toHaveBeenCalledTimes(3);
   serve({ "https://example.com/gone": httpError(404) });
   expect((await previews.getResult("https://example.com/gone")).status).toBe("not-found");
 });
@@ -122,6 +127,7 @@ it("never refreshes through a server-directed rate limit", async () => {
   vi.setSystemTime(retryAt - 1);
   expect((await previews.getResult(PAGE)).status).toBe("rate-limited");
   expect((await previews.settled(PAGE)).status).toBe("rate-limited");
+  expect((await previews.getResult(PAGE, true)).status).toBe("rate-limited");
   expect(read).toHaveBeenCalledTimes(1);
 });
 
@@ -264,5 +270,6 @@ it("keeps text when an image is rate-limited, skips that origin and honors the p
   vi.setSystemTime(retryAt - 1);
   expect((await previews.getResult(PAGE)).retryAt).toBe(retryAt);
   expect((await previews.settled(PAGE)).retryAt).toBe(retryAt);
+  expect((await previews.getResult(PAGE, true)).retryAt).toBe(retryAt);
   expect(read).toHaveBeenCalledTimes(2);
 });

@@ -225,12 +225,17 @@ export default function plugin(bb: BbPluginApi): void {
       const pinned = (await list(threadId)).pins.find((pin) => pin.id === pinId);
       return { dataUrl: pinned && isUrlPin(pinned) ? await icons.get(new URL(pinned.url).origin) : null };
     },
-    // `wait` lets an open card receive a reload that is already running; it never starts one or skips a cooldown.
+    // `wait` joins a reload when the ordinary lookup starts or finds one; it never skips freshness or cooldown limits.
     preview: async ({ threadId, pinId, wait }) => {
       const pinned = (await list(threadId)).pins.find((pin) => pin.id === pinId);
       if (!pinned || !isUrlPin(pinned)) return { preview: null };
       const result = await previews.getResult(pinned.url);
       return previewOf(wait && result.refreshing ? await previews.settled(pinned.url) : result);
+    },
+    refreshPreview: async ({ threadId, pinId }) => {
+      const pinned = (await list(threadId)).pins.find((pin) => pin.id === pinId);
+      if (!pinned || !isUrlPin(pinned)) throw new Error("This link is no longer pinned.");
+      return previewOf(await previews.getResult(pinned.url, true));
     },
     prState: async ({ threadId, pinId }) => {
       const pinned = (await list(threadId)).pins.find((pin) => pin.id === pinId);

@@ -96,6 +96,11 @@ export const rpcContract = defineRpcContract({
     input: z.object({ threadId: id, pinId: id, wait: z.boolean().optional() }).strict(),
     output: previewOutput,
   },
+  // Kept for installed clients that still offer manual refresh; only the pin's own address can be reloaded.
+  refreshPreview: {
+    input: z.object({ threadId: id, pinId: id }).strict(),
+    output: previewOutput,
+  },
   // A GitHub PR pin's state (open, draft, merged or closed), or null for other pins and PRs GitHub won't show without a login.
   prState: {
     input: z.object({ threadId: id, pinId: id }).strict(),
