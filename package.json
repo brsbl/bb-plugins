@@ -1,31 +1,34 @@
 {
-  "name": "bb-plugins",
-  "version": "0.0.0",
-  "private": true,
+  "name": "bb-plugin-file-pins",
+  "version": "0.1.10",
+  "description": "Keep local files and web links within reach in each bb thread.",
   "type": "module",
-  "engines": {
-    "node": ">=22.12.0"
-  },
-  "workspaces": [
-    "plugins/*",
-    "packages/*"
+  "files": [
+    "assets",
+    "dist",
+    "docs",
+    "README.md",
+    "PLUGIN_OVERVIEW.md",
+    "skills"
   ],
-  "scripts": {
-    "artifacts": "node tooling/validate-plugin-artifacts.mjs",
-    "build": "npm run build --workspaces --if-present",
-    "check": "npm run hygiene && npm run typecheck && npm run build && npm test && npm run test:built && npm run artifacts",
-    "hygiene": "node tooling/check-private-data.mjs && node --test tooling/check-private-data.test.mjs && node tooling/check-repository.mjs && node tooling/check-icons.mjs",
-    "new:plugin": "node tooling/create-plugin.mjs",
-    "scaffold:smoke": "node tooling/scaffold-smoke.mjs",
-    "test": "npm run test --workspaces --if-present && npm run scaffold:smoke",
-    "test:built": "npm run test:built --workspaces --if-present",
-    "typecheck": "npm run typecheck --workspaces --if-present"
+  "engines": {
+    "bb": ">=0.43.4",
+    "bbPluginSdk": ">=0.5.9"
   },
-  "devDependencies": {
-    "@get-bb/plugin-sdk": "file:tooling/vendor/get-bb-plugin-sdk-0.5.9.tgz",
-    "@tailwindcss/node": "4.3.0",
-    "@tailwindcss/oxide": "4.3.0",
-    "esbuild": "0.28.1",
-    "tailwindcss": "4.3.0"
+  "bb": {
+    "name": "Pinned Files & Links",
+    "description": "Pin local files and web links to a thread and open them from a persistent strip above the chat composer.",
+    "branding": {
+      "icon": "./assets/file-pins.svg",
+      "logo": {
+        "light": "./assets/file-pins.svg"
+      }
+    },
+    "server": "./dist/install-server.mjs",
+    "app": "./dist/install-app.mjs",
+    "host": "./dist/install-host.mjs",
+    "skills": [
+      "skills"
+    ]
   }
 }
