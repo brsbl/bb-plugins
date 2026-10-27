@@ -2,6 +2,8 @@
 
 Plan company priorities, objectives and ranked portfolios beside the agent, then start one investment at a time per team.
 
+![Objective portfolio ranked by lift with one investment In progress](docs/portfolio.png)
+
 ## Install
 
 ```bash

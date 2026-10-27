@@ -248,6 +248,7 @@ async function orgsFor(bb: BbPluginApi, assigneeIds: string[]) {
 }
 
 const MENTION_LIMIT = 20;
+const SEARCH_LIMIT_PER_GROUP = 50;
 const RESEARCH_TITLE = /^Plan (research [AB]|reconciliation|edit assessment) · .* \(rr_[A-Za-z0-9_-]+\)$/;
 
 interface MentionThread { id: string; title: string | null; titleFallback: string | null; deletedAt: number | null; originPluginId: string | null; visibility: "visible" | "hidden" }
@@ -262,7 +263,7 @@ async function searchThreads(bb: BbPluginApi, query: string): Promise<ThreadOpti
     const threads = await bb.sdk.threads.list({ limit: MENTION_LIMIT * 3 });
     return threads.filter(mentionCandidate).slice(0, MENTION_LIMIT).map((thread) => ({ id: thread.id, name: threadName(thread) }));
   }
-  const found = await bb.sdk.threads.search({ query: text, limitPerGroup: String(MENTION_LIMIT * 3) });
+  const found = await bb.sdk.threads.search({ query: text, limitPerGroup: String(SEARCH_LIMIT_PER_GROUP) });
   return found.active.results
     .filter((result) => mentionCandidate(result.thread) && result.matches.some((match) => match.sourceKind === "title" || match.sourceKind === "title_fallback"))
     .slice(0, MENTION_LIMIT)

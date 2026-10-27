@@ -32,7 +32,8 @@ function setup() {
           return thread;
         },
         list: async () => MENTIONABLE,
-        search: async ({ query }) => {
+        search: async ({ query, limitPerGroup }) => {
+          if (Number(limitPerGroup) > 50) throw new Error("HTTP 400: limitPerGroup must be at most 50");
           searched.push(query);
           return { active: { results: MENTIONABLE.map((thread) => ({ thread, matches: [{ sourceKind: "title" }] })) }, archived: { results: [] } } as never;
         },

@@ -403,7 +403,17 @@ Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/d
 
 ### Plan
 
-Plan company priorities, their objectives and each objective's portfolio of investments in shared records that you and the agent beside you both edit, through the `bb plan` CLI and a native agent tool.
+Plan company priorities, their objectives and each objective's portfolio of investments in shared records that you and the agent beside you both edit, through the `bb plan` CLI and a native agent tool. Independent research ranks each portfolio by estimated lift, and Start sends one investment's brief at a time to the team that owns it.
+
+![Plan panel beside a thread, listing company priorities with progress toward their targets and each objective's org and team](plugins/plan/docs/plan.png)
+
+![Objective portfolio ranked by lift with ranges, one investment In progress, Start buttons for the rest and an unsized item without lift](plugins/plan/docs/portfolio.png)
+
+![Investment page showing its lift, likely range, evidence, sources, links to both research submissions, cost and measurement](plugins/plan/docs/investment.png)
+
+![Orgs and teams page listing the org threads and their team threads that own objectives](plugins/plan/docs/orgs-and-teams.png)
+
+![The same ranked portfolio in a 360px-wide panel](plugins/plan/docs/portfolio-narrow.png)
 
 [Source](plugins/plan) · [README](plugins/plan/README.md)
 
