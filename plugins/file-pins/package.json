@@ -56,12 +56,10 @@
     "playwright": "^1.61.1",
     "typescript": "^5.7.0",
     "vitest": "^4.1.8",
-    "@radix-ui/react-popover": "^1.1.23",
     "sonner": "^1.7.4",
     "@radix-ui/react-context-menu": "^2.3.3",
     "@types/react-dom": "^19.0.0",
     "react-dom": "^19.0.0",
-    "@radix-ui/react-dropdown-menu": "^2.1.19",
     "@radix-ui/react-tooltip": "^1.2.12"
   }
 }
