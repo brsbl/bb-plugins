@@ -51,14 +51,15 @@ function editKeys(finish: (keep: boolean) => void) {
 
 export function InlineText({ value, label, onSave, onCancel }: { value: string; label: string; onSave: (next: string) => Promise<unknown>; onCancel: () => void }) {
   const ref = useRef<HTMLInputElement>(null);
+  const initial = useRef({ value, onSave }).current;
   const settle = useSettle();
   const [busy, setBusy] = useState(false);
   useEffect(() => focusOnMount(ref.current), []);
   const finish = (keep: boolean) => settle(() => {
     const next = ref.current?.value.trim() ?? "";
-    if (!keep || !next || next === value) { onCancel(); return; }
+    if (!keep || !next || next === initial.value) { onCancel(); return; }
     setBusy(true);
-    void onSave(next);
+    void initial.onSave(next);
   });
   return <input ref={ref} className="pl-ie" defaultValue={value} placeholder={label} aria-label={label} readOnly={busy}
     onClick={(event) => event.stopPropagation()} onKeyDown={editKeys(finish)} onBlur={() => finish(true)} />;
@@ -70,6 +71,7 @@ export function MetricEditor({ priority, onSave, onInvalid, onCancel }: {
   onInvalid: (message: string) => void;
   onCancel: () => void;
 }) {
+  const initial = useRef({ priority, onSave }).current;
   const box = useRef<HTMLDivElement>(null);
   const now = useRef<HTMLInputElement>(null);
   const target = useRef<HTMLInputElement>(null);
@@ -80,7 +82,7 @@ export function MetricEditor({ priority, onSave, onInvalid, onCancel }: {
   useEffect(() => focusOnMount(now.current), []);
   const finish = (keep: boolean) => settle(() => {
     if (!keep) { onCancel(); return; }
-    const patch = metricPatch(priority, {
+    const patch = metricPatch(initial.priority, {
       now: now.current?.value ?? "",
       target: target.current?.value ?? "",
       by: by.current?.value ?? "",
@@ -89,7 +91,7 @@ export function MetricEditor({ priority, onSave, onInvalid, onCancel }: {
     if (typeof patch === "string") { onInvalid(patch); onCancel(); return; }
     if (!Object.keys(patch).length) { onCancel(); return; }
     setBusy(true);
-    void onSave(patch);
+    void initial.onSave(patch);
   });
   return <div ref={box} className="pl-metric pl-mi" onKeyDown={editKeys(finish)}
     onBlur={(event) => { if (!box.current?.contains(event.relatedTarget as Node | null)) finish(true); }}>
@@ -107,6 +109,7 @@ export function TeamPicker({ objective, rpc, onPick, onCancel }: {
   onPick: (threadId: string | null) => Promise<unknown>;
   onCancel: () => void;
 }) {
+  const initial = useRef({ objective, onPick }).current;
   const listId = useId();
   const ref = useRef<HTMLInputElement>(null);
   const settle = useSettle();
@@ -135,8 +138,8 @@ export function TeamPicker({ objective, rpc, onPick, onCancel }: {
         const fresh = await rpc.call("searchThreads", { query: threadQuery(text) }).catch(() => ({ threads: [] }));
         choice = chooseThread(text, fresh.threads);
       }
-      if (!choice || choice.id === objective.assigneeThreadId) { onCancel(); return; }
-      await onPick(choice.id);
+      if (!choice || choice.id === initial.objective.assigneeThreadId) { onCancel(); return; }
+      await initial.onPick(choice.id);
     })();
   });
   return <>
