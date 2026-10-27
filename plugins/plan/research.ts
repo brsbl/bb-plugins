@@ -541,18 +541,17 @@ export function createResearchService(deps: ResearchDeps) {
   const priorityInput = (id: string): InputRecord | null => {
     const priority = store.priority(id);
     if (!priority) return null;
-    const { name, metric, baseline, now, target, by, constraints } = priority;
-    return { kind: "priority", id, revision: priority.revision, content: JSON.stringify({ name, metric, baseline, now, target, by, constraints }) };
+    const { metric, baseline, target, by } = priority;
+    return { kind: "priority", id, revision: priority.revision, content: JSON.stringify({ metric, baseline, target, by }) };
   };
   const objectiveInput = (id: string): InputRecord | null => {
     const objective = store.objective(id);
-    return objective ? { kind: "objective", id, revision: objective.revision, content: JSON.stringify({ name: objective.name, priorityId: objective.priorityId }) } : null;
+    return objective ? { kind: "objective", id, revision: objective.revision, content: JSON.stringify({ priorityId: objective.priorityId }) } : null;
   };
   const investmentInput = (id: string): InputRecord | null => {
     const investment = store.investment(id);
     if (!investment) return null;
-    const brief = Object.fromEntries(BRIEF_FIELDS.map((field) => [field, investment.brief[field] ?? null]));
-    return { kind: "investment", id, revision: investment.revision, content: JSON.stringify({ name: investment.name, existing: investment.existing, brief }) };
+    return { kind: "investment", id, revision: investment.revision, content: JSON.stringify({ existing: investment.existing, scope: investment.brief.scope ?? null }) };
   };
   const currentInput = (record: InputRecord) => record.kind === "priority" ? priorityInput(record.id) : record.kind === "objective" ? objectiveInput(record.id) : investmentInput(record.id);
 
@@ -698,7 +697,7 @@ export function createResearchService(deps: ResearchDeps) {
   };
 
   const gate = (request: ResearchRequest): string | null => {
-    if (request.kind === "assess_edit" && request.detail?.lastEditAt) {
+    if (request.kind === "assess_edit" && request.detail?.lastEditAt && !request.detail.hold) {
       const wait = Date.parse(request.detail.lastEditAt) + ASSESS_QUIET_MS - deps.now().getTime();
       if (wait > 0) return `Waiting for edits to settle; the assessment starts ${Math.ceil(wait / 1000)}s after the last edit and covers every edit until then.`;
     }
@@ -1077,6 +1076,7 @@ export function createResearchService(deps: ResearchDeps) {
       requirePhase(request, ["assessing"], "rerun research");
       requireCaller(request, "assess", callerThreadId);
       const at = stamp();
+      const held = store.heldBy(request.id);
       const created = store.transaction(() => {
         requirePhase(request, ["assessing"], "rerun research");
         const ids = unique(value.objectiveIds).map((objectiveId) => {
@@ -1085,9 +1085,10 @@ export function createResearchService(deps: ResearchDeps) {
           return invalidateResearch(store, objective, null, { key: `rerun:${request.id}`, investmentId: null, reason: value.reason }, at);
         });
         setJob(request.id, "closed", null, `Research rerun: ${value.reason}`);
+        store.releaseHolds(request.id);
         return ids;
       });
-      for (const objectiveId of unique(value.objectiveIds)) deps.publish({ kind: "objective", id: objectiveId });
+      for (const objectiveId of unique([...value.objectiveIds, ...held])) deps.publish({ kind: "objective", id: objectiveId });
       kick();
       return { requestId: request.id, outcome: "rerun", refreshRequests: created };
     },
@@ -1098,7 +1099,13 @@ export function createResearchService(deps: ResearchDeps) {
       if (request.kind !== "assess_edit") throw new PlanError("wrong_phase", `Research request ${request.id} isn't an edit assessment; it closes by publishing a reconciliation.`);
       requirePhase(request, ["assessing"], "close");
       requireCaller(request, "assess", callerThreadId);
-      setJob(request.id, "closed", null, `No research impact: ${value.reason}`);
+      const released = store.transaction(() => {
+        const held = store.heldBy(request.id);
+        store.releaseHolds(request.id);
+        setJob(request.id, "closed", null, `No research impact: ${value.reason}`);
+        return held;
+      });
+      for (const objectiveId of released) deps.publish({ kind: "objective", id: objectiveId });
       kick();
       return { requestId: request.id, outcome: "no_research_impact" };
     },

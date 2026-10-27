@@ -31,6 +31,7 @@ export type MetricFormat = (typeof METRIC_FORMATS)[number];
 export const BRIEF_FIELDS = ["deliverable", "scope", "acceptanceCriteria", "measurement", "sources"] as const;
 export type BriefField = (typeof BRIEF_FIELDS)[number];
 export const NO_PROJECT = "No project for research threads. Set the Plan plugin's researchProjectId setting, create the priority or objective from a thread in the project research should use, or assign an objective to a team thread so research can use its project.";
+export const HOLD_REASON = "Checking whether this edit changes the research";
 export const NO_PROJECT_SHORT = "Research can't start: no project for its threads. Set Plan's Research project setting.";
 
 export function acceptanceCriteria(criteria: string): string[] {
@@ -160,6 +161,7 @@ export interface ResearchDetail {
   group?: string;
   records?: EditedRecord[];
   lastEditAt?: string;
+  hold?: boolean;
 }
 
 export interface ResearchRequest {
@@ -183,7 +185,9 @@ export interface Assignee {
   parent: { threadId: string; name: string | null } | null;
 }
 
-export type ObjectiveView = Objective & { assignee: Assignee | null; investments: Investment[]; researchActive: boolean; researchBlocked: string | null };
+export type ObjectiveView = Objective & {
+  assignee: Assignee | null; investments: Investment[]; researchActive: boolean; researchBlocked: string | null; researchHold: string | null;
+};
 export type PriorityView = Priority & { objectives: ObjectiveView[]; researchBlocked: string | null };
 export interface Overview { priorities: PriorityView[] }
 

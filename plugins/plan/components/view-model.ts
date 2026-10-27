@@ -135,6 +135,7 @@ export function startBlockedReason(objectives: ObjectiveView[], objective: Objec
   if (!objective.approved) return "Approve the objective first";
   if (!objective.assigneeThreadId || !objective.assignee) return "Assign a team first";
   if (!objective.assignee.available) return "The assigned team thread no longer exists";
+  if (objective.researchHold) return objective.researchHold;
   if (investment && briefIssues(investment.brief).length) return "Complete the brief first: deliverable, scope, acceptance criteria, measurement and sources";
   const busy = busyFor(objectives, objective.assigneeThreadId, starts);
   if (!busy || (investment && busy.investment.id === investment.id)) return null;

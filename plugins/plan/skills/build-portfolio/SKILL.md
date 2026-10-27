@@ -61,7 +61,7 @@ Plan computes the ranking from base lift. Don't submit ranks.
   the reason recorded. If one can't share the basis, say why in
   `limitations`.
 - Work from the brief in your prompt. It is frozen when the request starts,
-  and the other agent and the reconciliation get the same one. If a record
+  and the other agent and the reconciliation get the same one. If a lift-relevant input
   changes meanwhile, Plan supersedes this request and queues a fresh run; a
   `submit` that returns `accepted: false` with "Superseded" means stop.
 

@@ -37,7 +37,7 @@ const INSTRUCTIONS = [
   "Objectives you propose are added with proposed=true and stay unapproved until the user adopts them. Assign an objective only to an existing org or team thread ID, never a typed name.",
   "Lift and investment state are not editable here. Adding or assigning records sends nothing to any thread.",
   "investment_start sends the investment's saved brief to its objective's team thread and marks it In progress; it needs checked, ranked lift, an approved objective with a team, a complete brief (deliverable, scope, acceptance criteria, measurement and sources), and a team with nothing In progress. Start only when the user asks.",
-  "investment_mark_in_progress sets an investment marked existing to In progress without sending a brief, for activity that is already running. Only the objective's team thread or one of its workers can call it; the user can also do it from the panel or `bb plan investment mark-in-progress`. It obeys the one-per-team rule.",
+  "investment_mark_in_progress sets an investment marked existing to In progress without sending a brief, for activity that is already running; use it when the user tells you the work is already underway. It obeys the one-per-team rule.",
   "investment_deliver marks it Done and frees the team. Call it only from the team thread the brief was sent to or one of its workers, once the deliverable passes every acceptance criterion, with output: one { criterion, evidence } entry per criterion.",
   "Research runs on its own and is batched: one portfolio run per objective at a time, with later changes folded into one follow-up run, and edits debounced into one assessment. Plan creates two independent hidden research threads per request, then one reconciliation thread, and publishes only a valid reconciliation. research_submit, research_reconcile, research_rerun and research_close are for those research threads only, following the Plan plugin's research skills.",
 ].join(" ");
@@ -60,7 +60,7 @@ const ACTIONS: Record<ToolAction, (services: Services, input: Record<string, unk
   investment_edit: ({ plan }, input) => plan.editInvestment(input),
   investment_show: ({ plan }, input) => plan.showInvestment(input),
   investment_start: ({ starts }, input) => starts.start(input),
-  investment_mark_in_progress: ({ starts }, input, threadId) => starts.markInProgress(input, { kind: "thread", threadId }),
+  investment_mark_in_progress: ({ starts }, input) => starts.markInProgress(input),
   investment_deliver: ({ starts }, input, threadId) => starts.deliver(input, threadId),
   research_list: ({ research }, input) => research.list(input),
   research_show: ({ research }, input) => research.show(input),
@@ -71,7 +71,7 @@ const ACTIONS: Record<ToolAction, (services: Services, input: Record<string, unk
 };
 
 const toolParameters = z.object({
-  action: z.enum(TOOL_ACTIONS).describe("show: the whole plan, plus openInPanel: the record open in this thread's Plan panel ({ kind, id } or null). <record>_add, <record>_edit, <record>_show, priority_list, objective_approve, objective_assign, investment_start (sends the brief to the team), investment_mark_in_progress (existing activity already running; team thread only), investment_deliver (team thread only). research_list, research_show; research threads only: research_submit, research_reconcile, research_rerun, research_close."),
+  action: z.enum(TOOL_ACTIONS).describe("show: the whole plan, plus openInPanel: the record open in this thread's Plan panel ({ kind, id } or null). <record>_add, <record>_edit, <record>_show, priority_list, objective_approve, objective_assign, investment_start (sends the brief to the team), investment_mark_in_progress (existing activity already running; sends nothing), investment_deliver (team thread only). research_list, research_show; research threads only: research_submit, research_reconcile, research_rerun, research_close."),
   id: z.string().optional().describe("Record ID for _edit, _show, objective_approve, objective_assign, investment_start, investment_mark_in_progress and investment_deliver"),
   expectedRevision: z.number().int().optional().describe("The revision you last read; required for _edit, objective_approve and objective_assign"),
   name: z.string().optional().describe("Record name"),
@@ -416,7 +416,7 @@ export default function plugin(bb: BbPluginApi): void {
     addInvestment: (input) => outcome(() => service.addInvestment(input)),
     editInvestment: (input) => outcome(() => service.editInvestment(input)),
     startInvestment: (input) => outcome(() => starts.start(input)),
-    markInProgress: (input) => outcome(() => starts.markInProgress(input, { kind: "user" })),
+    markInProgress: (input) => outcome(() => starts.markInProgress(input)),
     searchThreads: async ({ query }) => ({ threads: await searchThreads(bb, query) }),
     openRecord: (input) => service.setOpenRecord(input),
   });
@@ -660,10 +660,10 @@ export default function plugin(bb: BbPluginApi): void {
         }),
       }),
       "investment mark-in-progress": cliCommand({
-        summary: "Set an existing investment that is already running to In progress without sending a brief; from the user or the team thread; one per team at a time",
+        summary: "Set an existing investment that is already running to In progress without sending a brief; one per team at a time",
         options: { id: { type: "string", required: true, placeholder: "INVESTMENT_ID", description: "The existing investment" }, json },
-        run: ({ options }, ctx) => guard(async () => {
-          const investment = await starts.markInProgress({ id: options.id }, ctx.threadId ? { kind: "thread", threadId: ctx.threadId } : { kind: "user" });
+        run: ({ options }) => guard(async () => {
+          const investment = await starts.markInProgress({ id: options.id });
           return output(options.json, investment, () => investmentLine(investment));
         }),
       }),

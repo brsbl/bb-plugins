@@ -125,6 +125,13 @@ export const MIGRATIONS = [
   "ALTER TABLE plan_investments ADD COLUMN brief_manual TEXT NOT NULL DEFAULT '[]'",
   "UPDATE plan_investments SET brief_manual = (SELECT json_group_array(key) FROM json_each(plan_investments.brief))",
   "ALTER TABLE research_jobs ADD COLUMN inputs TEXT",
+  `CREATE TABLE research_holds (
+    objective_id TEXT PRIMARY KEY REFERENCES plan_objectives (id),
+    request_id TEXT NOT NULL REFERENCES research_requests (id),
+    reason TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  )`,
+  "CREATE INDEX research_holds_request ON research_holds (request_id)",
 ];
 
 interface PriorityRow {
@@ -301,6 +308,12 @@ export function createStore(db: Db, migrate: Migrate) {
     WHERE ${portfolioKinds} AND (r.status = 'pending' OR j.phase IN ('researching', 'reconciling'))`);
   const blockedJobs = db.prepare(`SELECT r.subject_kind, r.subject_id, j.detail FROM research_requests r JOIN research_jobs j ON j.request_id = r.id
     WHERE r.status = 'pending' AND j.phase = 'blocked' AND j.detail = ?`);
+  const upsertHold = db.prepare(`INSERT INTO research_holds (objective_id, request_id, reason, created_at) VALUES (@objective_id, @request_id, @reason, @at)
+    ON CONFLICT (objective_id) DO UPDATE SET request_id = excluded.request_id, reason = excluded.reason`);
+  const holdsByRequest = db.prepare("SELECT objective_id FROM research_holds WHERE request_id = ?");
+  const releaseHolds = db.prepare("DELETE FROM research_holds WHERE request_id = ?");
+  const holdFor = db.prepare("SELECT reason FROM research_holds WHERE objective_id = ?");
+  const allHolds = db.prepare("SELECT objective_id, reason FROM research_holds");
   const pendingAssess = db.prepare(`SELECT r.* FROM research_requests r WHERE r.kind = 'assess_edit' AND r.status = 'pending' AND json_extract(r.detail, '$.group') = ?
     ORDER BY r.created_at, r.rowid`);
 
@@ -428,6 +441,21 @@ export function createStore(db: Db, migrate: Migrate) {
     },
     researchBlockedBy(detail: string): Set<string> {
       return new Set((blockedJobs.all(detail) as Array<{ subject_kind: RecordKind; subject_id: string }>).map((row) => `${row.subject_kind}:${row.subject_id}`));
+    },
+    holdObjective(objectiveId: string, requestId: string, reason: string, at: string): void {
+      upsertHold.run({ objective_id: objectiveId, request_id: requestId, reason, at });
+    },
+    heldBy(requestId: string): string[] {
+      return (holdsByRequest.all(requestId) as Array<{ objective_id: string }>).map((row) => row.objective_id);
+    },
+    releaseHolds(requestId: string): void {
+      releaseHolds.run(requestId);
+    },
+    hold(objectiveId: string): string | null {
+      return (holdFor.get(objectiveId) as { reason: string } | undefined)?.reason ?? null;
+    },
+    holds(): Map<string, string> {
+      return new Map((allHolds.all() as Array<{ objective_id: string; reason: string }>).map((row) => [row.objective_id, row.reason]));
     },
     pendingAssessFor(group: string): ResearchRequest[] {
       return (pendingAssess.all(group) as ResearchRow[]).map(toResearch);

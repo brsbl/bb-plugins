@@ -108,7 +108,7 @@ describe("portfolio view model", () => {
   });
 
   it("blocks Start on every objective of a team with work in progress, but not on other teams", async () => {
-    const { service, setLift, objectives, objective } = setup();
+    const { db, service, setLift, objectives, objective } = setup();
     const priority = await service.addPriority({ name: "Grow weekly active users" });
     const first = await service.addObjective({ priorityId: priority.id, name: "Lift activation", assigneeThreadId: "thr_conversion" });
     const second = await service.addObjective({ priorityId: priority.id, name: "Shorten install", assigneeThreadId: "thr_conversion" });
@@ -138,6 +138,10 @@ describe("portfolio view model", () => {
 
     setLift(running.id, 35, "done");
     expect(startBlockedReason(await objectives(), await objective(second.id), [])).toBeNull();
+    const assess = await service.editObjective({ id: second.id, expectedRevision: second.revision, name: "Shorten install flow" });
+    const [request] = await service.listResearchRequests({ kind: "assess_edit" });
+    db.prepare("INSERT INTO research_holds (objective_id, request_id, reason, created_at) VALUES (?, ?, 'Checking whether this edit changes the research', 'x')").run(assess.id, request!.id);
+    expect(startBlockedReason(await objectives(), await objective(second.id), [])).toBe("Checking whether this edit changes the research");
   });
 
   it("blocks Start when the assigned thread no longer exists", async () => {

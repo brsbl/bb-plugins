@@ -78,8 +78,8 @@ describe("optimistic concurrency", () => {
     const error = await rejects(service.editPriority({ id: priority.id, expectedRevision: 1, target: 1800 }), "stale_revision");
     expect(error.message).toContain("revision 2");
     expect((await service.showPriority({ id: priority.id })).target).toBe(2200);
-    expect(await requests("assess_edit")).toEqual([]);
-    expect((await requests("refresh_portfolio")).map((request) => request.detail?.reasons)).toEqual([["Company priority target changed"]]);
+    expect((await requests("assess_edit")).map((request) => request.detail?.hold)).toEqual([true]);
+    expect(await requests("refresh_portfolio")).toEqual([]);
 
     await service.editObjective({ id: objective.id, expectedRevision: 1, name: "Activation" });
     await rejects(service.approveObjective({ id: objective.id, expectedRevision: 1 }), "stale_revision");
@@ -151,10 +151,9 @@ describe("research triggers", () => {
     const renamed = await service.editInvestment({ id: investment.id, expectedRevision: 1, name: "Install-page test" });
     await service.editInvestment({ id: investment.id, expectedRevision: renamed.revision, brief: { scope: "Copy only" } });
     expect((await requests("assess_edit")).map((request) => request.detail)).toEqual([{
-      group: `objective:${objective.id}`, lastEditAt: "2026-10-27T12:00:00.000Z",
-      records: [{ kind: "investment", id: investment.id, revision: 2, fields: ["name"] }],
+      group: `objective:${objective.id}`, lastEditAt: "2026-10-27T12:00:00.000Z", hold: true,
+      records: [{ kind: "investment", id: investment.id, revision: 3, fields: ["name", "brief.scope"] }],
     }]);
-    expect((await requests("refresh_portfolio"))[0]!.detail?.reasons).toEqual(["Install-page test: brief.scope changed"]);
 
     expect((await requests()).length).toBe(3);
   });
@@ -185,39 +184,38 @@ describe("material edits", () => {
     id,
   );
 
-  it("clears the edited investment's lift and rank at once, renumbers the rest, and queues fresh research; a rename keeps the evidence", async () => {
+  it("puts the objective on hold for a lift-relevant edit, keeping lift and rank, and asks the assessment without waiting; a rename sets no hold", async () => {
     const { db, service, requests } = setup();
     const { objective } = await seed(service);
     const first = await service.addInvestment({ objectiveId: objective.id, name: "Checklist" });
     const second = await service.addInvestment({ objectiveId: objective.id, name: "Email" });
-    const third = await service.addInvestment({ objectiveId: objective.id, name: "Gallery" });
-    [first, second, third].forEach((entry, index) => checked(db, entry.id, index + 1));
+    [first, second].forEach((entry, index) => checked(db, entry.id, index + 1));
     db.prepare("UPDATE research_requests SET status = 'claimed'").run();
 
     const renamed = await service.editInvestment({ id: first.id, expectedRevision: 1, name: "Checklist v2" });
     expect(renamed).toMatchObject({ rank: 1, lift: { base: 10 } });
-    expect(await requests("refresh_portfolio")).toMatchObject([{ status: "claimed" }]);
+    expect((await service.showObjective({ id: objective.id })).researchHold).toBeNull();
+    expect((await requests("assess_edit"))[0]!.detail?.hold).toBeUndefined();
 
     const scoped = await service.editInvestment({ id: first.id, expectedRevision: 2, brief: { scope: "Only teams" } });
-    expect(scoped).toMatchObject({ rank: null, lift: null, research: null, briefSetByHand: ["scope"] });
-    const portfolio = (await service.showObjective({ id: objective.id })).investments;
-    expect(portfolio.map((entry) => [entry.name, entry.rank])).toEqual([["Checklist v2", null], ["Email", 1], ["Gallery", 2]]);
-    const pending = (await requests("refresh_portfolio")).filter((request) => request.status === "pending");
-    expect(pending).toMatchObject([{ detail: { investmentIds: [first.id], reasons: ["Checklist v2: brief.scope changed"] } }]);
+    expect(scoped).toMatchObject({ rank: 1, lift: { base: 10 }, briefSetByHand: ["scope"] });
+    const view = await service.showObjective({ id: objective.id });
+    expect(view.researchHold).toBe("Checking whether this edit changes the research");
+    expect(view.investments.map((entry) => entry.rank)).toEqual([1, 2]);
+    const [assess] = await requests("assess_edit");
+    expect(assess!.detail).toMatchObject({ hold: true, records: [{ id: first.id, fields: ["name", "brief.scope"] }] });
+    expect((await requests("refresh_portfolio")).filter((request) => request.status === "pending")).toEqual([]);
   });
 
-  it("clears every portfolio under a priority when its target changes", async () => {
-    const { db, service } = setup();
+  it("holds every objective under a priority when its target changes, but not when only now changes", async () => {
+    const { service } = setup();
     const { priority, objective } = await seed(service);
     const other = await service.addObjective({ priorityId: priority.id, name: "Paid", assigneeThreadId: "thr_paidacq" });
-    const a = await service.addInvestment({ objectiveId: objective.id, name: "A" });
-    const b = await service.addInvestment({ objectiveId: other.id, name: "B" });
-    checked(db, a.id, 1);
-    checked(db, b.id, 1);
     await service.editPriority({ id: priority.id, expectedRevision: 1, now: 1500 });
-    expect((await service.showInvestment({ id: a.id })).rank).toBe(1);
+    expect((await service.overview()).priorities[0]!.objectives.map((entry) => entry.researchHold)).toEqual([null, null]);
     await service.editPriority({ id: priority.id, expectedRevision: 2, target: 2400 });
-    expect([(await service.showInvestment({ id: a.id })).rank, (await service.showInvestment({ id: b.id })).lift]).toEqual([null, null]);
+    const held = (await service.overview()).priorities[0]!.objectives;
+    expect(held.map((entry) => [entry.id, entry.researchHold !== null])).toEqual([[objective.id, true], [other.id, true]]);
   });
 
   it("tracks which brief fields were set by hand", async () => {

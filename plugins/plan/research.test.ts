@@ -5,6 +5,7 @@ import { NO_PROJECT_SHORT } from "./model.js";
 import { ASSESS_QUIET_MS, createResearchService, liftDifferences, NO_PROJECT, rankByLift, traceIssues, type ResearchHost, type SpawnRequest } from "./research.js";
 import plugin from "./server.js";
 import { createPlanService, PlanError, type ThreadInfo } from "./service.js";
+import { createStartService, type StartHost } from "./start.js";
 import type { Migrate } from "./store.js";
 
 const migrate: Migrate = (db, statements) => {
@@ -442,7 +443,7 @@ describe("research tied to its inputs", () => {
   it("supersedes a reconciliation whose inputs changed since the request started: nothing publishes and a fresh run is queued", async () => {
     const context = await bothSubmitted();
     expect(briefOf(context.spawned.find((entry) => entry.id === context.reconciler)!.prompt)).toBe(briefOf(context.spawned.find((entry) => entry.id === threadFor(context.spawned, context.build.id, "a"))!.prompt));
-    await context.plan.editPriority({ id: context.priority.id, expectedRevision: 1, now: 1500 });
+    await context.plan.editPriority({ id: context.priority.id, expectedRevision: 1, target: 2400 });
     const result = await context.research.reconcile({ requestId: context.build.id, reconciliation: validReconciliation(context) }, context.reconciler);
     expect(result).toMatchObject({ published: [], superseded: true });
     expect(result.summary).toContain(`priority ${context.priority.id} (revision 1 → 2)`);
@@ -453,10 +454,20 @@ describe("research tied to its inputs", () => {
     expect(followUps[0]!.detail?.reasons?.[0]).toContain("Inputs changed while research");
   });
 
+  it("publishes despite a rename, a new now value or new constraints, which go to the edit assessment instead", async () => {
+    const context = await bothSubmitted();
+    await context.plan.editPriority({ id: context.priority.id, expectedRevision: 1, now: 1500, constraints: "No paid ads", name: "Grow WAU" });
+    await context.plan.editObjective({ id: context.objective.id, expectedRevision: context.objective.revision, name: "Lift week-1 activation" });
+    await context.plan.editInvestment({ id: context.existing.id, expectedRevision: 1, name: "Checklist v2", brief: { deliverable: "Reworded" } });
+    const result = await context.research.reconcile({ requestId: context.build.id, reconciliation: validReconciliation(context) }, context.reconciler);
+    expect(result).toMatchObject({ superseded: false });
+    expect(result.published).toHaveLength(4);
+  });
+
   it("supersedes a submission whose inputs changed, instead of saving work on stale inputs", async () => {
     const context = await portfolioSetup();
     await context.research.tick();
-    await context.plan.editObjective({ id: context.objective.id, expectedRevision: context.objective.revision, name: "Renamed meanwhile" });
+    await context.plan.editInvestment({ id: context.existing.id, expectedRevision: 1, brief: { scope: "Teams only" } });
     const result = await context.research.submit({ requestId: context.build.id, slot: "a", submission: {
       coverage, investments: [investment("check", "Onboarding checklist", { investmentId: context.existing.id, existing: true, unsized: { missing: "None yet" } })], limitations: "None",
     } }, threadFor(context.spawned, context.build.id, "a"));
@@ -476,6 +487,61 @@ describe("research tied to its inputs", () => {
     await context.research.rerun({ requestId: assess!.request.id, objectiveIds: [context.objective.id], reason: "Population changed to teams" }, threadFor(context.spawned, assess!.request.id, "assess"));
     const portfolio = (await context.plan.showObjective({ id: context.objective.id })).investments;
     expect(portfolio.map((entry) => [entry.rank, entry.lift])).toEqual(portfolio.map(() => [null, null]));
+  });
+});
+
+describe("holds on lift-relevant edits", () => {
+  async function held() {
+    const context = await bothSubmitted();
+    await context.research.reconcile({ requestId: context.build.id, reconciliation: validReconciliation(context) }, context.reconciler);
+    const sent: string[] = [];
+    const host: StartHost = {
+      thread: async (threadId) => THREADS[threadId] ?? null,
+      send: async (_threadId, text) => { sent.push(text); },
+      wasSent: async () => false,
+    };
+    const startsFor = () => createStartService({ db: context.db, migrate, host, publish: () => {}, now: () => new Date("2026-10-27T12:00:00Z") });
+    const email = (await context.plan.showObjective({ id: context.objective.id })).investments.find((entry) => entry.name === "Day-2 email")!;
+    await context.plan.editInvestment({ id: email.id, expectedRevision: email.revision, brief: { scope: "Existing teams only" } });
+    await context.research.tick();
+    const [assess] = await context.research.list({ kind: "assess_edit" });
+    return { ...context, sent, startsFor, email, assess: assess!, assessor: () => threadFor(context.spawned, assess!.request.id, "assess") };
+  }
+
+  it("keeps lift visible but blocks Start, and starts the assessment without the quiet window", async () => {
+    const context = await held();
+    expect(context.assess.phase).toBe("assessing");
+    const view = await context.plan.showObjective({ id: context.objective.id });
+    expect(view.researchHold).toBe("Checking whether this edit changes the research");
+    expect(view.investments.find((entry) => entry.id === context.email.id)).toMatchObject({ rank: 3, lift: { base: 10 } });
+    const gallery = view.investments.find((entry) => entry.name === "Template gallery")!;
+    const error = await rejects(context.startsFor().start({ id: gallery.id }), "not_ready");
+    expect(error.message).toContain("Checking whether this edit changes the research");
+    expect(context.sent).toEqual([]);
+  });
+
+  it("survives a restart, and close releases it with lift and rank kept", async () => {
+    const context = await held();
+    const restarted = createPlanService({ db: context.db, migrate, findThread: async (id) => THREADS[id] ?? null, publish: () => {}, now: () => new Date() });
+    expect((await restarted.showObjective({ id: context.objective.id })).researchHold).not.toBeNull();
+    const gallery = (await restarted.showObjective({ id: context.objective.id })).investments.find((entry) => entry.name === "Template gallery")!;
+    await rejects(context.startsFor().start({ id: gallery.id }), "not_ready");
+    await context.restart().close({ requestId: context.assess.request.id, reason: "Scope wording only" }, context.assessor());
+    const view = await restarted.showObjective({ id: context.objective.id });
+    expect(view.researchHold).toBeNull();
+    expect(view.investments.find((entry) => entry.id === context.email.id)).toMatchObject({ rank: 3, lift: { base: 10 } });
+    expect((await context.startsFor().start({ id: gallery.id })).state).toBe("in_progress");
+    expect(context.sent).toHaveLength(1);
+  });
+
+  it("rerun releases the hold, clears lift and rank, and queues the refresh", async () => {
+    const context = await held();
+    const result = await context.research.rerun({ requestId: context.assess.request.id, objectiveIds: [context.objective.id], reason: "Population changed" }, context.assessor());
+    const view = await context.plan.showObjective({ id: context.objective.id });
+    expect(view.researchHold).toBeNull();
+    expect(view.investments.every((entry) => entry.rank === null && entry.lift === null)).toBe(true);
+    expect(result.refreshRequests).toHaveLength(1);
+    expect((await context.plan.listResearchRequests({ kind: "refresh_portfolio" })).map((request) => request.id)).toContain(result.refreshRequests[0]);
   });
 });
 

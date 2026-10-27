@@ -176,6 +176,8 @@ export function createStartService(deps: StartDeps) {
     if (!objective) throw new PlanError("not_found", `No objective ${investment.objectiveId}.`);
     const issues: string[] = [];
     if (investment.rank === null) issues.push("Its lift isn't checked and reconciled yet");
+    const hold = store.hold(objective.id);
+    if (hold) issues.push(`${hold}; Start is available again once the edit assessment decides`);
     if (!objective.approved) issues.push("Approve its objective first");
     if (!objective.assigneeThreadId) issues.push("Assign a team first");
     issues.push(...briefIssues(investment.brief));
@@ -315,7 +317,7 @@ export function createStartService(deps: StartDeps) {
       return send(row);
     },
 
-    async markInProgress(input: unknown, caller: { kind: "user" } | { kind: "thread"; threadId: string }): Promise<Investment> {
+    async markInProgress(input: unknown): Promise<Investment> {
       const { id } = parse(showInput, input);
       const investment = requireInvestment(id);
       if (!investment.existing) {
@@ -326,9 +328,6 @@ export function createStartService(deps: StartDeps) {
       if (!objective) throw new PlanError("not_found", `No objective ${investment.objectiveId}.`);
       const assigneeThreadId = objective.assigneeThreadId;
       if (!assigneeThreadId) throw new PlanError("not_ready", `Can't mark ${investment.name} In progress:\n- Assign a team first`);
-      if (caller.kind === "thread" && !(await isTeamOrWorker(caller.threadId, assigneeThreadId))) {
-        throw new PlanError("not_assignee", `Only the user or the team thread ${assigneeThreadId} (or one of its workers) can mark ${investment.name} In progress.`);
-      }
       const thread = await deps.host.thread(assigneeThreadId).catch(() => null);
       store.transaction(() => {
         const latest = requireInvestment(id);

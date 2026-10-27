@@ -105,15 +105,16 @@ describe("bb plan CLI and plan tool", () => {
     expect(edited.brief.sources).toBeUndefined();
   });
 
-  it("marks existing running activity In progress from the user's CLI, and rejects the tool from a thread that isn't the team's", async () => {
+  it("marks existing running activity In progress from the planning agent's tool or the CLI, one per team", async () => {
     const { cli, tool, harness } = setup();
     const priority = (await cli(["priority", "add", "Grow weekly active users", "--json"])).body;
     const objective = (await cli(["objective", "add", priority.id, "Lift activation", "--assign", "thr_growthconv", "--json"])).body;
     const running = (await cli(["investment", "add", objective.id, "Install-page copy test", "--existing", "--json"])).body;
+    const second = (await cli(["investment", "add", objective.id, "Search campaign", "--existing", "--json"])).body;
     const viaTool = await tool({ action: "investment_mark_in_progress", id: running.id });
-    expect(viaTool).toMatchObject({ isError: true, body: { error: { code: "not_assignee" } } });
-    const marked = await cli(["investment", "mark-in-progress", "--id", running.id, "--json"]);
-    expect(marked.body).toMatchObject({ id: running.id, state: "in_progress" });
+    expect(viaTool).toMatchObject({ isError: false, body: { id: running.id, state: "in_progress" } });
+    const busy = await cli(["investment", "mark-in-progress", "--id", second.id, "--json"]);
+    expect(busy.body).toMatchObject({ ok: false, error: { code: "team_busy" } });
     expect(harness.inspection.sdk.callsTo("threads.send")).toHaveLength(0);
   });
 

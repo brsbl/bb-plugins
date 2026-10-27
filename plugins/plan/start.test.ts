@@ -139,26 +139,24 @@ describe("Start preconditions", () => {
 });
 
 describe("existing activity already running", () => {
-  it("sets an existing investment In progress without sending, only for the user or the team thread, and obeys one per team", async () => {
+  it("sets an existing investment In progress without sending, from the user or any agent thread, and obeys one per team", async () => {
     const { plan, starts, fake, objective, sibling, state } = await setup();
     const running = await plan.addInvestment({ objectiveId: objective.id, name: "Install-page copy test", existing: true });
     const fresh = await plan.addInvestment({ objectiveId: objective.id, name: "Brand new", brief: BRIEF });
     const other = await plan.addInvestment({ objectiveId: sibling.id, name: "Also running", existing: true });
 
-    await rejects(starts.markInProgress({ id: fresh.id }, { kind: "user" }), "wrong_state");
-    await rejects(starts.markInProgress({ id: running.id }, { kind: "thread", threadId: "thr_planner" }), "not_assignee");
-    await rejects(starts.markInProgress({ id: running.id }, { kind: "thread", threadId: "thr_paid" }), "not_assignee");
-    expect(await starts.markInProgress({ id: running.id }, { kind: "thread", threadId: "thr_worker" })).toMatchObject({ state: "in_progress" });
+    await rejects(starts.markInProgress({ id: fresh.id }), "wrong_state");
+    expect(await starts.markInProgress({ id: running.id })).toMatchObject({ state: "in_progress" });
     expect(fake.state.sendAttempts).toBe(0);
     expect(fake.delivered).toEqual([]);
-    expect((await rejects(starts.markInProgress({ id: other.id }, { kind: "user" }), "team_busy")).message).toContain("Install-page copy test");
-    await rejects(starts.markInProgress({ id: running.id }, { kind: "user" }), "wrong_state");
+    expect((await rejects(starts.markInProgress({ id: other.id }), "team_busy")).message).toContain("Install-page copy test");
+    await rejects(starts.markInProgress({ id: running.id }), "wrong_state");
 
     const done = await starts.deliver({ id: running.id, output: {
       deliverable: "Copy test concluded: https://notes.example/result", criteria: [{ criterion: "Test reached significance", evidence: "Readout: https://analytics.example/r/1" }],
     } }, "thr_conversion");
     expect(done.state).toBe("done");
-    expect(await starts.markInProgress({ id: other.id }, { kind: "user" })).toMatchObject({ state: "in_progress" });
+    expect(await starts.markInProgress({ id: other.id })).toMatchObject({ state: "in_progress" });
     expect(state(other.id)).toBe("in_progress");
   });
 });

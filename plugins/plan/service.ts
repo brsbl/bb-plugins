@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import type { z } from "zod";
 import {
-  BRIEF_FIELDS, briefSchema, emptyInput, inferMetricFormat, NO_PROJECT, NO_PROJECT_SHORT, investmentAddInput, investmentEditInput, objectiveAddInput, objectiveApproveInput, objectiveAssignInput,
+  BRIEF_FIELDS, briefSchema, emptyInput, HOLD_REASON, inferMetricFormat, NO_PROJECT, NO_PROJECT_SHORT, investmentAddInput, investmentEditInput, objectiveAddInput, objectiveApproveInput, objectiveAssignInput,
   objectiveEditInput, openRecordInput, priorityAddInput, priorityEditInput, researchClaimInput, researchListInput, showInput,
   type Assignee, type Brief, type BriefField, type EditedRecord, type Investment, type Objective, type ObjectiveView, type OpenRecord, type Overview, type Priority, type PriorityView,
   type RecordKind, type ResearchDetail, type ResearchKind, type ResearchRequest,
@@ -105,7 +105,7 @@ export function queuePortfolioRefresh(store: Store, objective: Objective, cause:
   return store.researchByKey(idempotencyKey)!.id;
 }
 
-export const MATERIAL_PRIORITY_FIELDS = ["metric", "baseline", "target", "by", "constraints"] as const;
+export const MATERIAL_PRIORITY_FIELDS = ["metric", "baseline", "target", "by"] as const;
 export const MATERIAL_INVESTMENT_FIELDS = ["existing", "brief.scope"] as const;
 
 function renumberRanks(store: Store, objectiveId: string): void {
@@ -150,14 +150,21 @@ export function createPlanService(deps: PlanDeps) {
     }
   };
 
-  const assessEdit = (record: EditedRecord, group: { kind: "objective" | "priority"; id: string; revision: number }, at: string) => {
+  const assessEdit = (record: EditedRecord, group: { kind: "objective" | "priority"; id: string; revision: number }, hold: Objective[], at: string) => {
     const key = `${group.kind}:${group.id}`;
     const [pending] = store.pendingAssessFor(key);
+    let requestId: string;
     if (pending) {
-      store.setResearchDetail(pending.id, { ...pending.detail, group: key, records: withRecord(pending.detail?.records ?? [], record), lastEditAt: at });
-      return;
+      store.setResearchDetail(pending.id, {
+        ...pending.detail, group: key, records: withRecord(pending.detail?.records ?? [], record), lastEditAt: at, ...(hold.length ? { hold: true } : {}),
+      });
+      requestId = pending.id;
+    } else {
+      const idempotencyKey = `assess_edit:${record.kind}:${record.id}:${record.revision}`;
+      trigger("assess_edit", idempotencyKey, group.kind, group.id, group.revision, { group: key, records: [record], lastEditAt: at, ...(hold.length ? { hold: true } : {}) }, at);
+      requestId = store.researchByKey(idempotencyKey)!.id;
     }
-    trigger("assess_edit", `assess_edit:${record.kind}:${record.id}:${record.revision}`, group.kind, group.id, group.revision, { group: key, records: [record], lastEditAt: at }, at);
+    for (const objective of hold) store.holdObjective(objective.id, requestId, HOLD_REASON, at);
   };
 
   const requireThread = async (threadId: string): Promise<ThreadInfo> => {
@@ -186,9 +193,10 @@ export function createPlanService(deps: PlanDeps) {
     const assignee = await assigneeLookup(objectives);
     const active = store.activePortfolioObjectiveIds();
     const blocked = store.researchBlockedBy(NO_PROJECT);
+    const holds = store.holds();
     return objectives.map((objective) => ({
       ...objective, assignee: assignee(objective.assigneeThreadId), investments: investmentsOf(objective.id), researchActive: active.has(objective.id),
-      researchBlocked: blocked.has(`objective:${objective.id}`) ? NO_PROJECT_SHORT : null,
+      researchBlocked: blocked.has(`objective:${objective.id}`) ? NO_PROJECT_SHORT : null, researchHold: holds.get(objective.id) ?? null,
     }));
   };
 
@@ -245,14 +253,10 @@ export function createPlanService(deps: PlanDeps) {
         const at = stamp();
         const saved = { ...next, revision: base.revision + 1, updatedAt: at };
         if (!store.updatePriority(saved, expectedRevision)) throw stale("priority", id, expectedRevision, store.priority(id)?.revision ?? expectedRevision);
-        const material = fields.filter((field) => (MATERIAL_PRIORITY_FIELDS as readonly string[]).includes(field));
+        const material = fields.some((field) => (MATERIAL_PRIORITY_FIELDS as readonly string[]).includes(field));
         const assessed = fields.filter((field) => field !== "metricFormat");
-        if (material.length) {
-          for (const objective of store.objectivesFor(id)) {
-            invalidateResearch(store, objective, null, { key: `edit:priority:${id}:${saved.revision}`, investmentId: null, reason: `Company priority ${material.join(", ")} changed` }, at);
-          }
-        } else if (assessed.length) {
-          assessEdit({ kind: "priority", id, revision: saved.revision, fields: assessed }, { kind: "priority", id, revision: saved.revision }, at);
+        if (assessed.length) {
+          assessEdit({ kind: "priority", id, revision: saved.revision, fields: assessed }, { kind: "priority", id, revision: saved.revision }, material ? store.objectivesFor(id) : [], at);
         }
         return { record: saved, changed: true };
       });
@@ -316,7 +320,7 @@ export function createPlanService(deps: PlanDeps) {
         const at = stamp();
         const saved = { ...next, revision: base.revision + 1, updatedAt: at };
         if (!store.updateObjective(saved, expectedRevision)) throw stale("objective", id, expectedRevision, store.objective(id)?.revision ?? expectedRevision);
-        assessEdit({ kind: "objective", id, revision: saved.revision, fields }, { kind: "objective", id, revision: saved.revision }, at);
+        assessEdit({ kind: "objective", id, revision: saved.revision, fields }, { kind: "objective", id, revision: saved.revision }, [], at);
         return { record: saved, changed: true };
       });
       if (result.changed) changed("objective", id);
@@ -413,12 +417,8 @@ export function createPlanService(deps: PlanDeps) {
         const saved = { ...next, revision: base.revision + 1, updatedAt: at };
         if (!store.updateInvestment(saved, expectedRevision)) throw stale("investment", id, expectedRevision, store.investment(id)?.revision ?? expectedRevision);
         const objective = store.objective(saved.objectiveId)!;
-        const material = fields.filter((field) => (MATERIAL_INVESTMENT_FIELDS as readonly string[]).includes(field));
-        if (material.length) {
-          invalidateResearch(store, objective, [id], { key: `edit:investment:${id}:${saved.revision}`, investmentId: id, reason: `${saved.name}: ${material.join(", ")} changed` }, at);
-        } else {
-          assessEdit({ kind: "investment", id, revision: saved.revision, fields }, { kind: "objective", id: objective.id, revision: objective.revision }, at);
-        }
+        const material = fields.some((field) => (MATERIAL_INVESTMENT_FIELDS as readonly string[]).includes(field));
+        assessEdit({ kind: "investment", id, revision: saved.revision, fields }, { kind: "objective", id: objective.id, revision: objective.revision }, material ? [objective] : [], at);
         return { record: store.investment(id)!, changed: true };
       });
       if (result.changed) changed("investment", id);
