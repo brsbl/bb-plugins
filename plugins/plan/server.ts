@@ -165,10 +165,11 @@ function objectiveLine(objective: Objective | ObjectiveView): string {
 
 const STATE_LABEL: Record<Investment["state"], string> = { not_started: "Not started", in_progress: "In progress", done: "Done" };
 
-function investmentLine(investment: Investment): string {
+function investmentLine(investment: Investment, objective?: Objective): string {
+  const awaiting = objective && !(objective.approved && objective.assigneeThreadId);
   const lift = investment.lift
     ? `+${investment.lift.base} ${investment.lift.unit} (${investment.lift.low}–${investment.lift.high})${investment.rank ? ` · #${investment.rank}` : ""}`
-    : investment.research?.missing ? `Unsized: ${investment.research.missing}` : "Researching";
+    : investment.research?.missing ? `Unsized: ${investment.research.missing}` : awaiting ? "Not researched yet" : "Researching";
   return `${investment.id}  r${investment.revision}  ${investment.name} · ${lift} · ${STATE_LABEL[investment.state]}`;
 }
 
@@ -211,7 +212,7 @@ function investmentDetail(investment: Investment): string {
 }
 
 function objectiveDetail(objective: ObjectiveView, indent = ""): string {
-  return [`${indent}${objectiveLine(objective)}`, ...objective.investments.map((investment) => `${indent}  ${investmentLine(investment)}`)].join("\n");
+  return [`${indent}${objectiveLine(objective)}`, ...objective.investments.map((investment) => `${indent}  ${investmentLine(investment, objective)}`)].join("\n");
 }
 
 function priorityDetail(priority: PriorityView): string {

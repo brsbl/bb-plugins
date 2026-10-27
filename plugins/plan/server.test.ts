@@ -136,6 +136,9 @@ describe("bb plan CLI and plan tool", () => {
     const text = await harness.behavior.runCli(["show"]);
     expect(text.stdout).toContain("Lift activation · @Growth / Conversion");
     expect(text.stdout).toContain("Install-page copy test · Researching · Not started");
-    expect(harness.inspection.realtimeSignals.map((signal) => signal.channel)).toEqual(["changed", "changed", "changed"]);
+    const proposed = (await cli(["objective", "add", priority.id, "Answer faster", "--proposed", "--assign", "thr_growthconv", "--json"])).body;
+    await cli(["investment", "add", proposed.id, "FAQ page", "--json"]);
+    expect((await harness.behavior.runCli(["show"])).stdout).toContain("FAQ page · Not researched yet · Not started");
+    expect(harness.inspection.realtimeSignals.map((signal) => signal.channel)).toEqual(["changed", "changed", "changed", "changed", "changed"]);
   });
 });
