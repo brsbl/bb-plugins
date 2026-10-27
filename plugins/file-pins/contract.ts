@@ -33,11 +33,13 @@ export const referenceSchema = z.union([fileReferenceSchema, urlPinSchema]);
 export type Reference = z.infer<typeof referenceSchema>;
 
 export const PREVIEW_STATUSES = ["ready", "no-image", "blocked", "not-found", "timeout", "rate-limited", "unsupported", "invalid-image", "network", "busy"] as const;
-// `status` and `retryAt` were added beside `preview`; older apps ignore them and older servers omit them.
+// `status`, `retryAt` and `refreshing` were added beside `preview`; older apps ignore them and older servers omit them.
+// `refreshing` marks a cached preview answered while its reload runs.
 const previewOutput = z.object({
   preview: z.object({ title: z.string(), description: z.string(), site: z.string(), image: z.string().nullable() }).nullable(),
   status: z.enum(PREVIEW_STATUSES).optional(),
   retryAt: z.number().optional(),
+  refreshing: z.boolean().optional(),
 });
 
 export const hostContract = defineRpcContract({
@@ -89,11 +91,12 @@ export const rpcContract = defineRpcContract({
     input: z.object({ threadId: id, pinId: id }).strict(),
     output: z.object({ dataUrl: z.string().max(128 * 1024).nullable() }),
   },
+  // A URL pin's own preview; it takes a pin, never an address to fetch. `wait` returns a running reload's answer.
   preview: {
-    input: z.object({ threadId: id, pinId: id }).strict(),
+    input: z.object({ threadId: id, pinId: id, wait: z.boolean().optional() }).strict(),
     output: previewOutput,
   },
-  // Reloads a URL pin's own preview; like `preview`, it takes a pin, never an address to fetch.
+  // Kept for installed clients that still offer manual refresh; only the pin's own address can be reloaded.
   refreshPreview: {
     input: z.object({ threadId: id, pinId: id }).strict(),
     output: previewOutput,
