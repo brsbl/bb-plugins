@@ -1,7 +1,7 @@
 import Database from "better-sqlite3";
 import { createFakePluginHost, makeThreadResponse } from "@get-bb/plugin-sdk/testing";
 import { afterEach, describe, expect, it } from "vitest";
-import { createResearchService, NO_PROJECT, rankByLift, type ResearchHost, type SpawnRequest } from "./research.js";
+import { ASSESS_QUIET_MS, createResearchService, NO_PROJECT, rankByLift, type ResearchHost, type SpawnRequest } from "./research.js";
 import plugin from "./server.js";
 import { createPlanService, PlanError, type ThreadInfo } from "./service.js";
 import type { Migrate } from "./store.js";
@@ -16,8 +16,8 @@ const migrate: Migrate = (db, statements) => {
 };
 
 const THREADS: Record<string, ThreadInfo> = {
-  thr_growthconv: { id: "thr_growthconv", name: "Growth / Conversion" },
-  thr_paidacq: { id: "thr_paidacq", name: "Growth / Paid acquisition" },
+  thr_growthconv: { id: "thr_growthconv", name: "Growth / Conversion", parentThreadId: null },
+  thr_paidacq: { id: "thr_paidacq", name: "Growth / Paid acquisition", parentThreadId: null },
 };
 
 interface FakeOptions { projectId?: string | null; concurrency?: number; threadProjects?: Record<string, string> }
@@ -47,10 +47,12 @@ function setup(options: FakeOptions = {}) {
   const db = new Database(":memory:");
   const fake = fakeHost(options);
   const findThread = async (threadId: string) => THREADS[threadId] ?? null;
-  const now = () => new Date("2026-10-27T12:00:00Z");
+  const clock = { at: Date.parse("2026-10-27T12:00:00Z") };
+  const now = () => new Date(clock.at);
+  const advance = (ms: number) => { clock.at += ms; };
   const plan = createPlanService({ db, migrate, findThread, publish: () => {}, now });
   const make = () => createResearchService({ db, migrate, host: fake.host, findThread, publish: () => {}, now });
-  return { db, plan, research: make(), restart: make, ...fake };
+  return { db, plan, research: make(), restart: make, advance, ...fake };
 }
 
 async function rejects(run: Promise<unknown>, code: string) {
@@ -409,6 +411,7 @@ describe("edit assessment", () => {
   async function assessing() {
     const context = await portfolioSetup({ concurrency: 10 });
     const renamed = await context.plan.editObjective({ id: context.objective.id, expectedRevision: context.objective.revision, name: "Lift week-1 activation" });
+    context.advance(ASSESS_QUIET_MS);
     await context.research.tick();
     const [assess] = await context.research.list({ kind: "assess_edit" });
     const thread = threadFor(context.spawned, assess!.request.id, "assess");
@@ -435,7 +438,138 @@ describe("edit assessment", () => {
     const reruns = (await context.plan.listResearchRequests({ kind: "refresh_portfolio" })).filter((request) => request.subjectKind === "objective");
     expect(reruns).toHaveLength(1);
     expect(result.refreshRequests).toEqual([reruns[0]!.id]);
-    expect(reruns[0]).toMatchObject({ subjectId: context.objective.id, subjectRevision: context.renamed.revision, detail: { objectiveId: context.objective.id, reason: "Scope changed" } });
+    expect(reruns[0]).toMatchObject({ subjectId: context.objective.id, subjectRevision: context.renamed.revision, detail: { objectiveId: context.objective.id, reasons: ["Scope changed"] } });
+  });
+});
+
+describe("batched research", () => {
+  const unsizedSubmission = (existingId: string, extra: Array<{ id: string; name: string }> = []) => ({
+    coverage,
+    investments: [
+      investment("check", "Onboarding checklist", { investmentId: existingId, existing: true, unsized: { missing: "No cohort data yet" } }),
+      ...extra.map((entry, index) => investment(`extra${index}`, entry.name, { investmentId: entry.id, unsized: { missing: "No data yet" } })),
+    ],
+    limitations: "None",
+  });
+  const reconcileUnsized = (submission: ReturnType<typeof unsizedSubmission>) => ({
+    coverage,
+    investments: submission.investments.map((entry) => ({ ...entry, from: [{ slot: "a", key: entry.key }, { slot: "b", key: entry.key }] })),
+    disagreements: [],
+    excluded: [],
+    limitations: "None",
+  });
+  const portfolioRequests = async (plan: ReturnType<typeof setup>["plan"]) =>
+    (await plan.listResearchRequests({})).filter((request) => request.kind === "build_portfolio" || request.kind === "refresh_portfolio");
+
+  it("folds investment adds into the pending portfolio run, so a whole batch gets one pair of research threads", async () => {
+    const { plan, research, objective, existing, build, spawned } = await portfolioSetup({ concurrency: 5 });
+    const more = [];
+    for (const name of ["Day-2 email", "Template gallery", "Discord welcome bot"]) more.push(await plan.addInvestment({ objectiveId: objective.id, name }));
+    const queued = await portfolioRequests(plan);
+    expect(queued.map((request) => request.id)).toEqual([build.id]);
+    expect(queued[0]!.detail).toMatchObject({ objectiveId: objective.id, investmentIds: [existing.id, ...more.map((entry) => entry.id)] });
+    await research.tick();
+    await research.tick();
+    const forBuild = spawned.filter((entry) => entry.metadata.researchRequestId === build.id);
+    expect(spawned.filter((entry) => entry.prompt.includes("an objective's portfolio"))).toHaveLength(2);
+    expect(forBuild.map((entry) => entry.metadata.role).sort()).toEqual(["a", "b"]);
+    for (const entry of [existing, ...more]) expect(forBuild[0]!.prompt).toContain(entry.id);
+  });
+
+  it("runs one portfolio research at a time per objective and coalesces triggers during a run into one follow-up", async () => {
+    const context = await portfolioSetup({ concurrency: 5 });
+    const { plan, research, objective, existing, build, spawned } = context;
+    await research.tick();
+    context.advance(1000);
+    const more = [];
+    for (const name of ["Day-2 email", "Template gallery", "Discord welcome bot"]) more.push(await plan.addInvestment({ objectiveId: objective.id, name }));
+    const followUps = (await portfolioRequests(plan)).filter((request) => request.id !== build.id);
+    expect(followUps).toHaveLength(1);
+    const followUp = followUps[0]!;
+    expect(followUp).toMatchObject({ kind: "refresh_portfolio", status: "pending", detail: { investmentIds: more.map((entry) => entry.id) } });
+
+    await research.tick();
+    await research.tick();
+    const portfolioThreads = () => spawned.filter((entry) => entry.metadata.researchRequestId === build.id || entry.metadata.researchRequestId === followUp.id);
+    expect(portfolioThreads()).toHaveLength(2);
+    expect(await research.show({ requestId: followUp.id })).toMatchObject({ phase: "blocked", detail: expect.stringContaining(`Waiting for portfolio research ${build.id}`) });
+    expect((await plan.showObjective({ id: objective.id })).researchActive).toBe(true);
+
+    const submission = unsizedSubmission(existing.id);
+    for (const slot of ["a", "b"] as const) await research.submit({ requestId: build.id, slot, submission }, threadFor(spawned, build.id, slot));
+    await research.tick();
+    await plan.addInvestment({ objectiveId: objective.id, name: "Arrives during reconciliation" });
+    expect((await portfolioRequests(plan)).map((request) => request.id)).toEqual([build.id, followUp.id]);
+    await research.reconcile({ requestId: build.id, reconciliation: reconcileUnsized(submission) }, threadFor(spawned, build.id, "reconcile"));
+    await research.tick();
+    await research.tick();
+    const followUpThreads = spawned.filter((entry) => entry.metadata.researchRequestId === followUp.id);
+    expect(followUpThreads.map((entry) => entry.metadata.role).sort()).toEqual(["a", "b"]);
+    expect(portfolioThreads().filter((entry) => entry.metadata.role !== "reconcile")).toHaveLength(4);
+    expect((await research.show({ requestId: followUp.id })).request.detail?.investmentIds).toHaveLength(4);
+  });
+
+  it("folds a refresh queued before approval into the build, so approving starts one run", async () => {
+    const context = setup({ projectId: "prj_research" });
+    const priority = await context.plan.addPriority({ name: "Grow weekly active users" });
+    const proposed = await context.plan.addObjective({ priorityId: priority.id, name: "Proposed one", proposed: true });
+    const early = await context.plan.addInvestment({ objectiveId: proposed.id, name: "Day-2 email" });
+    const approved = await context.plan.approveObjective({ id: proposed.id, expectedRevision: 1 });
+    await context.plan.assignObjective({ id: proposed.id, expectedRevision: approved.revision, assigneeThreadId: "thr_growthconv" });
+    const queued = await portfolioRequests(context.plan);
+    expect(queued.map((request) => request.kind)).toEqual(["refresh_portfolio", "build_portfolio"]);
+    await context.research.tick();
+    await context.research.tick();
+    const forObjective = context.spawned.filter((entry) => queued.some((request) => request.id === entry.metadata.researchRequestId));
+    expect(forObjective).toHaveLength(2);
+    const [refresh, build] = await Promise.all(queued.map((request) => context.research.show({ requestId: request.id })));
+    expect(refresh).toMatchObject({ phase: "researching", request: { detail: { investmentIds: [early.id], coalesced: [build!.request.id] } } });
+    expect(build).toMatchObject({ phase: "closed", detail: `Covered by research ${refresh!.request.id}.`, request: { status: "claimed" } });
+  });
+
+  it("debounces edits under one objective into one assessment covering every changed record and field", async () => {
+    const context = await portfolioSetup({ concurrency: 10 });
+    const { plan, research, objective, existing, spawned } = context;
+    await research.tick();
+    const second = await plan.addInvestment({ objectiveId: objective.id, name: "Day-2 email" });
+    const renamed = await plan.editObjective({ id: objective.id, expectedRevision: objective.revision, name: "Lift week-1 activation" });
+    const edited = await plan.editInvestment({ id: existing.id, expectedRevision: existing.revision, name: "Checklist v2" });
+    context.advance(60_000);
+    await plan.editInvestment({ id: edited.id, expectedRevision: edited.revision, brief: { scope: "First thread only" } });
+    await plan.editInvestment({ id: second.id, expectedRevision: second.revision, brief: { measurement: "WAU" } });
+    const assessments = await plan.listResearchRequests({ kind: "assess_edit" });
+    expect(assessments).toHaveLength(1);
+    expect(assessments[0]).toMatchObject({ subjectKind: "objective", subjectId: objective.id, detail: { group: `objective:${objective.id}`, records: [
+      { kind: "objective", id: objective.id, revision: renamed.revision, fields: ["name"] },
+      { kind: "investment", id: existing.id, revision: 3, fields: ["name", "brief"] },
+      { kind: "investment", id: second.id, revision: 2, fields: ["brief"] },
+    ] } });
+
+    context.advance(ASSESS_QUIET_MS - 1000);
+    await research.tick();
+    expect(spawned.filter((entry) => entry.metadata.role === "assess")).toHaveLength(0);
+    expect((await research.show({ requestId: assessments[0]!.id })).detail).toContain("Waiting for edits to settle");
+    context.advance(1000);
+    await research.tick();
+    await research.tick();
+    const assess = spawned.filter((entry) => entry.metadata.role === "assess");
+    expect(assess).toHaveLength(1);
+    expect(assess[0]!.prompt).toContain("3 Plan records were edited");
+    expect(assess[0]!.prompt).toContain(second.id);
+
+    const latest = await plan.showInvestment({ id: second.id });
+    await plan.editInvestment({ id: second.id, expectedRevision: latest.revision, name: "Day-2 email v2" });
+    expect(await plan.listResearchRequests({ kind: "assess_edit" })).toHaveLength(2);
+  });
+
+  it("debounces priority edits separately from objective edits", async () => {
+    const context = await portfolioSetup();
+    const first = await context.plan.editPriority({ id: context.priority.id, expectedRevision: 1, target: 2100 });
+    await context.plan.editPriority({ id: context.priority.id, expectedRevision: first.revision, by: "2027-03-31" });
+    await context.plan.editObjective({ id: context.objective.id, expectedRevision: context.objective.revision, name: "Activation" });
+    const assessments = await context.plan.listResearchRequests({ kind: "assess_edit" });
+    expect(assessments.map((request) => request.detail?.group)).toEqual([`priority:${context.priority.id}`, `objective:${context.objective.id}`]);
+    expect(assessments[0]!.detail?.records).toEqual([{ kind: "priority", id: context.priority.id, revision: 3, fields: ["target", "by"] }]);
   });
 });
 
@@ -470,7 +604,8 @@ describe("plugin wiring", () => {
     await run.done;
     const spawns = harness.inspection.sdk.callsTo("threads.spawn").map((call) => call[0] as Record<string, unknown>);
     expect(spawns).toHaveLength(2);
-    expect(spawns[0]).toMatchObject({ projectId: "prj_research", environment: { type: "project-default" }, visibility: "visible", pluginMetadata: { role: "a" } });
+    expect(spawns.map((spawn) => spawn.visibility)).toEqual(["hidden", "hidden"]);
+    expect(spawns[0]).toMatchObject({ projectId: "prj_research", environment: { type: "project-default" }, pluginMetadata: { role: "a" } });
     const listed = JSON.parse((await harness.behavior.runCli(["research", "list", "--json"])).stdout);
     const requestId = listed.requests[0].request.id as string;
     const submission = JSON.stringify({ candidates: [{

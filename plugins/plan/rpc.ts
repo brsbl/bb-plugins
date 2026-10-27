@@ -6,12 +6,13 @@ import {
   type Investment, type Objective, type OpenRecord, type Overview, type Priority,
 } from "./model.js";
 import type { OrgGroup } from "./components/view-model.js";
+import type { ActiveStart } from "./start.js";
 
 export const CHANGED = "changed";
 
 export type Outcome<T> = { ok: true; value: T } | { ok: false; code: string; message: string };
 
-export interface Snapshot extends Overview { orgs: OrgGroup[] }
+export interface Snapshot extends Overview { orgs: OrgGroup[]; starts: ActiveStart[] }
 export interface ThreadOption { id: string; name: string }
 
 const outcome = <T>() => z.custom<Outcome<T>>();

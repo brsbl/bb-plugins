@@ -11,7 +11,17 @@ const THREADS = {
   thr_community: makeThreadResponse({ id: "thr_community", title: "Community", parentThreadId: null }),
 };
 
+const MENTIONABLE = [
+  makeThreadResponse({ id: "thr_research", title: "Plan research A · Lift activation (rr_1234)", originPluginId: "plan", visibility: "visible" }),
+  makeThreadResponse({ id: "thr_assess", title: "Plan edit assessment · Lift activation (rr_5678)", originPluginId: null, visibility: "visible" }),
+  makeThreadResponse({ id: "thr_helper", title: "Growth helper", originPluginId: "other-plugin", visibility: "visible" }),
+  makeThreadResponse({ id: "thr_hidden", title: "Growth hidden", originPluginId: null, visibility: "hidden" }),
+  makeThreadResponse({ id: "thr_growth", title: "Growth", originPluginId: null, visibility: "visible" }),
+  makeThreadResponse({ id: "thr_gone", title: "Growth old", originPluginId: null, visibility: "visible", deletedAt: 1 }),
+];
+
 function setup() {
+  const searched: string[] = [];
   const { bb, harness } = createFakePluginHost({
     pluginId: "plan",
     sdk: {
@@ -21,13 +31,18 @@ function setup() {
           if (!thread) throw new Error("thread not found");
           return thread;
         },
+        list: async () => MENTIONABLE,
+        search: async ({ query }) => {
+          searched.push(query);
+          return { active: { results: MENTIONABLE.map((thread) => ({ thread, matches: [{ sourceKind: "title" }] })) }, archived: { results: [] } } as never;
+        },
       },
     },
   });
   plugin(bb);
   disposers.push(() => harness.lifecycle.dispose());
   const rpc = (method: string, input: unknown) => harness.behavior.callRpc(method, input);
-  return { harness, rpc };
+  return { harness, rpc, searched };
 }
 
 describe("Plan panel RPC", () => {
@@ -44,6 +59,26 @@ describe("Plan panel RPC", () => {
       { threadId: "thr_growth", name: "Growth", teams: [{ threadId: "thr_conversion", name: "Conversion" }] },
       { threadId: "thr_community", name: "Community", teams: [] },
     ]);
+  });
+
+  it("labels a team with its live parent org", async () => {
+    const { rpc } = setup();
+    const priority = await rpc("addPriority", { name: "Grow weekly active users" }) as { value: { id: string } };
+    await rpc("addObjective", { priorityId: priority.value.id, name: "Lift activation", assigneeThreadId: "thr_conversion" });
+    await rpc("addObjective", { priorityId: priority.value.id, name: "Answer faster", assigneeThreadId: "thr_community" });
+    const snapshot = await rpc("snapshot", {}) as { priorities: Array<{ objectives: Array<{ assignee: unknown }> }> };
+    expect(snapshot.priorities[0]!.objectives.map((objective) => objective.assignee)).toEqual([
+      { threadId: "thr_conversion", name: "Conversion", available: true, parent: { threadId: "thr_growth", name: "Growth" } },
+      { threadId: "thr_community", name: "Community", available: true, parent: null },
+    ]);
+  });
+
+  it("suggests only user threads for a team @mention, never plugin-made, hidden or Plan research threads, and ignores extra @s", async () => {
+    const { rpc, searched } = setup();
+    expect(await rpc("searchThreads", { query: "@@Gro" })).toEqual({ threads: [{ id: "thr_growth", name: "Growth" }] });
+    expect(searched).toEqual(["Gro"]);
+    expect(await rpc("searchThreads", { query: "@" })).toEqual({ threads: [{ id: "thr_growth", name: "Growth" }] });
+    expect(searched).toEqual(["Gro"]);
   });
 
   it("returns a stale edit as a stale_revision outcome without applying it", async () => {

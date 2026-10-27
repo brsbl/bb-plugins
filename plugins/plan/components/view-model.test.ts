@@ -5,8 +5,9 @@ import { createPlanService, type ThreadInfo } from "../service.js";
 import type { Migrate } from "../store.js";
 import {
   allObjectives, busyFor, canShowStart, chooseThread, emptyPortfolioText, groupOrgs, liftText, metricPatch, objectiveMeta, originLabel,
-  ownerObjectives, portfolioRows, researchFinishedUnsized, startBlockedReason, unknownLiftText,
+  mentionText, ownerObjectives, portfolioRows, researchFinishedUnsized, startBlockedReason, startRetryHint, teamLabel, threadQuery, unknownLiftText,
 } from "./view-model.js";
+import type { ActiveStart } from "../start.js";
 
 const migrate: Migrate = (db, statements) => {
   db.exec("CREATE TABLE IF NOT EXISTS test_migrations (id INTEGER PRIMARY KEY)");
@@ -18,8 +19,8 @@ const migrate: Migrate = (db, statements) => {
 };
 
 const THREADS: Record<string, ThreadInfo> = {
-  thr_conversion: { id: "thr_conversion", name: "Growth / Conversion" },
-  thr_paid: { id: "thr_paid", name: "Growth / Paid acquisition" },
+  thr_conversion: { id: "thr_conversion", name: "Growth / Conversion", parentThreadId: null },
+  thr_paid: { id: "thr_paid", name: "Growth / Paid acquisition", parentThreadId: null },
 };
 
 function setup() {
@@ -41,14 +42,19 @@ function setup() {
     };
     db.prepare("UPDATE plan_investments SET lift = NULL, rank = NULL, research = ? WHERE id = ?").run(JSON.stringify(research), id);
   };
+  const finishResearch = (phase = "published") => {
+    db.prepare("UPDATE research_requests SET status = 'claimed', claimed_at = created_at").run();
+    db.prepare(`INSERT INTO research_jobs (request_id, phase, project_id, detail, updated_at) SELECT id, ?, 'prj', NULL, created_at FROM research_requests WHERE true
+      ON CONFLICT (request_id) DO UPDATE SET phase = excluded.phase`).run(phase);
+  };
   const objectives = async () => allObjectives((await service.overview()).priorities);
   const objective = async (id: string) => (await objectives()).find((entry) => entry.id === id)!;
-  return { service, setLift, setMissing, objectives, objective };
+  return { db, service, setLift, setMissing, finishResearch, objectives, objective };
 }
 
 describe("portfolio view model", () => {
   it("orders by the stored computed rank, not raw base lift, and lists unranked items after them", async () => {
-    const { service, setLift, setMissing, objective } = setup();
+    const { service, setLift, setMissing, finishResearch, objective } = setup();
     const priority = await service.addPriority({ name: "Grow weekly active users" });
     const target = await service.addObjective({ priorityId: priority.id, name: "Lift activation", assigneeThreadId: "thr_conversion" });
     const names = ["Day-2 email nudge", "Discord welcome bot", "Onboarding checklist", "Template gallery", "Other-basis estimate"];
@@ -65,16 +71,18 @@ describe("portfolio view model", () => {
     expect(unranked.map(canShowStart)).toEqual([false, false]);
 
     setMissing(added[1]!.id, "No data on Discord joins per signup");
+    finishResearch();
     const view = await objective(target.id);
     const discord = view.investments.find((entry) => entry.id === added[1]!.id)!;
     expect(researchFinishedUnsized(discord)).toBe(true);
     expect(liftText(view, discord)).toBe("—");
     expect(canShowStart(discord)).toBe(false);
     const researching = await service.addInvestment({ objectiveId: target.id, name: "Still researching" });
-    const fresh = (await objective(target.id)).investments.find((entry) => entry.id === researching.id)!;
+    const next = await objective(target.id);
+    const fresh = next.investments.find((entry) => entry.id === researching.id)!;
     expect(researchFinishedUnsized(fresh)).toBe(false);
-    expect(liftText(view, fresh)).toBe("Researching");
-    expect(liftText(view, view.investments.find((entry) => entry.id === added[0]!.id)!)).toBeNull();
+    expect(liftText(next, fresh)).toBe("Researching");
+    expect(liftText(next, next.investments.find((entry) => entry.id === added[0]!.id)!)).toBeNull();
   });
 
   it("shows Researching only while an approved objective has a team, otherwise — or the waiting copy", async () => {
@@ -103,25 +111,25 @@ describe("portfolio view model", () => {
     const unassigned = await service.addObjective({ priorityId: priority.id, name: "Answer faster" });
     const running = await service.addInvestment({ objectiveId: first.id, name: "Install-page copy test" });
 
-    expect(startBlockedReason(await objectives(), await objective(second.id))).toBeNull();
+    expect(startBlockedReason(await objectives(), await objective(second.id), [])).toBeNull();
     setLift(running.id, 35, "in_progress");
 
     const all = await objectives();
-    expect(startBlockedReason(all, await objective(first.id))).toBe("Conversion is working on Install-page copy test");
-    expect(startBlockedReason(all, await objective(second.id))).toBe("Conversion is working on Install-page copy test");
-    expect(busyFor(all, second.assigneeThreadId)).toMatchObject({ objective: { id: first.id }, investment: { id: running.id } });
-    expect(startBlockedReason(all, await objective(other.id))).toBeNull();
-    expect(startBlockedReason(all, await objective(unassigned.id))).toBe("Assign a team first");
+    expect(startBlockedReason(all, await objective(first.id), [])).toBe("Conversion is working on Install-page copy test");
+    expect(startBlockedReason(all, await objective(second.id), [])).toBe("Conversion is working on Install-page copy test");
+    expect(busyFor(all, second.assigneeThreadId, [])).toMatchObject({ objective: { id: first.id }, investment: { id: running.id } });
+    expect(startBlockedReason(all, await objective(other.id), [])).toBeNull();
+    expect(startBlockedReason(all, await objective(unassigned.id), [])).toBe("Assign a team first");
     const proposed = await service.addObjective({ priorityId: priority.id, name: "Proposed", proposed: true, assigneeThreadId: "thr_paid" });
-    expect(startBlockedReason(await objectives(), await objective(proposed.id))).toBe("Approve the objective first");
+    expect(startBlockedReason(await objectives(), await objective(proposed.id), [])).toBe("Approve the objective first");
     const bare = await service.addInvestment({ objectiveId: other.id, name: "No brief yet" });
     const otherView = await objective(other.id);
-    expect(startBlockedReason(all, otherView, otherView.investments.find((entry) => entry.id === bare.id))).toBe("Add a deliverable and acceptance criteria to the brief first");
+    expect(startBlockedReason(all, otherView, [], otherView.investments.find((entry) => entry.id === bare.id))).toBe("Add a deliverable and acceptance criteria to the brief first");
     expect(objectiveMeta(await objective(first.id))).toBe("Growth / Conversion · In progress: Install-page copy test");
     expect(objectiveMeta(await objective(unassigned.id))).toBe("Unassigned");
 
     setLift(running.id, 35, "done");
-    expect(startBlockedReason(await objectives(), await objective(second.id))).toBeNull();
+    expect(startBlockedReason(await objectives(), await objective(second.id), [])).toBeNull();
   });
 
   it("blocks Start when the assigned thread no longer exists", async () => {
@@ -131,10 +139,91 @@ describe("portfolio view model", () => {
     const saved = THREADS.thr_conversion!;
     delete THREADS.thr_conversion;
     try {
-      expect(startBlockedReason(await objectives(), await objective(target.id))).toBe("The assigned team thread no longer exists");
+      expect(startBlockedReason(await objectives(), await objective(target.id), [])).toBe("The assigned team thread no longer exists");
     } finally {
       THREADS.thr_conversion = saved;
     }
+  });
+});
+
+describe("lift while research is active", () => {
+  it("shows Researching for every unsized investment while its objective's portfolio research is pending or in flight, and — once none is", async () => {
+    const { service, setLift, setMissing, finishResearch, objective } = setup();
+    const priority = await service.addPriority({ name: "Grow weekly active users" });
+    const target = await service.addObjective({ priorityId: priority.id, name: "Lift activation", assigneeThreadId: "thr_conversion" });
+    const unsized = await service.addInvestment({ objectiveId: target.id, name: "Discord welcome bot" });
+    const sized = await service.addInvestment({ objectiveId: target.id, name: "Onboarding checklist" });
+    setMissing(unsized.id, "No data on Discord joins per signup");
+    setLift(sized.id, 40, "not_started", 1);
+    const lift = async () => {
+      const view = await objective(target.id);
+      return view.investments.map((entry) => liftText(view, entry));
+    };
+
+    expect(await lift()).toEqual(["Researching", null]);
+    finishResearch("researching");
+    expect(await lift()).toEqual(["Researching", null]);
+    finishResearch("reconciling");
+    expect(await lift()).toEqual(["Researching", null]);
+    finishResearch("published");
+    expect((await objective(target.id)).researchActive).toBe(false);
+    expect(await lift()).toEqual(["—", null]);
+
+    const proposed = await service.addObjective({ priorityId: priority.id, name: "Proposed", proposed: true, assigneeThreadId: "thr_paid" });
+    await service.addInvestment({ objectiveId: proposed.id, name: "Waiting" });
+    const waiting = await objective(proposed.id);
+    expect(waiting.researchActive).toBe(true);
+    expect(liftText(waiting, waiting.investments[0]!)).toBe("—");
+  });
+});
+
+describe("team labels", () => {
+  it("shows the live parent org before the team, and only the team when there's no live parent", async () => {
+    const { service, objective } = setup();
+    THREADS.thr_growth = { id: "thr_growth", name: "Growth", parentThreadId: null };
+    THREADS.thr_team = { id: "thr_team", name: "Conversion", parentThreadId: "thr_growth" };
+    try {
+      const priority = await service.addPriority({ name: "Grow weekly active users" });
+      const target = await service.addObjective({ priorityId: priority.id, name: "Lift activation", assigneeThreadId: "thr_team" });
+      const view = await objective(target.id);
+      expect(view.assignee).toEqual({ threadId: "thr_team", name: "Conversion", available: true, parent: { threadId: "thr_growth", name: "Growth" } });
+      expect(teamLabel(view.assignee!)).toBe("Growth / Conversion");
+      expect(objectiveMeta(view)).toBe("Growth / Conversion");
+      delete THREADS.thr_growth;
+      const orphan = await objective(target.id);
+      expect(orphan.assignee?.parent).toBeNull();
+      expect(teamLabel(orphan.assignee!)).toBe("Conversion");
+    } finally {
+      delete THREADS.thr_growth;
+      delete THREADS.thr_team;
+    }
+  });
+});
+
+describe("unconfirmed Starts", () => {
+  it("counts an uncertain Start as the team's work, blocking its other Starts but leaving the uncertain one as the retry", async () => {
+    const { service, setLift, objectives, objective } = setup();
+    const priority = await service.addPriority({ name: "Grow weekly active users" });
+    const first = await service.addObjective({ priorityId: priority.id, name: "Lift activation", assigneeThreadId: "thr_conversion" });
+    const second = await service.addObjective({ priorityId: priority.id, name: "Shorten install", assigneeThreadId: "thr_conversion" });
+    const brief = { deliverable: "A checklist", acceptanceCriteria: "Ships" };
+    const pending = await service.addInvestment({ objectiveId: first.id, name: "Onboarding checklist", brief });
+    const rival = await service.addInvestment({ objectiveId: second.id, name: "Install-page copy test", brief });
+    setLift(pending.id, 40, "not_started", 1);
+    setLift(rival.id, 20, "not_started", 1);
+    const starts: ActiveStart[] = [{ id: "st_1", investmentId: pending.id, assigneeThreadId: "thr_conversion", status: "uncertain" }];
+    const all = await objectives();
+    const firstView = await objective(first.id);
+    const secondView = await objective(second.id);
+    const mine = firstView.investments.find((entry) => entry.id === pending.id)!;
+    const theirs = secondView.investments.find((entry) => entry.id === rival.id)!;
+
+    expect(busyFor(all, "thr_conversion", starts)).toMatchObject({ investment: { id: pending.id }, start: { status: "uncertain" } });
+    expect(startBlockedReason(all, secondView, starts, theirs)).toBe("Conversion is working on Onboarding checklist");
+    expect(startBlockedReason(all, firstView, starts, mine)).toBeNull();
+    expect(startRetryHint(starts, mine)).toContain("won't send twice");
+    expect(startRetryHint(starts, theirs)).toBeNull();
+    expect(startBlockedReason(all, secondView, [], theirs)).toBeNull();
   });
 });
 
@@ -188,5 +277,10 @@ describe("inline edit helpers", () => {
     expect(chooseThread("@thr_paid", options)).toEqual({ id: "thr_paid" });
     expect(chooseThread("@", options)).toEqual({ id: null });
     expect(chooseThread("@Growth", options)).toBeNull();
+    expect(chooseThread("@@Growth / Conversion", options)).toEqual({ id: "thr_conversion" });
+    expect(mentionText("@@Gro")).toBe("@Gro");
+    expect(mentionText("@Gro")).toBe("@Gro");
+    expect(mentionText("Gro")).toBe("Gro");
+    expect(threadQuery("@@Gro")).toBe("Gro");
   });
 });

@@ -110,6 +110,25 @@ export interface Investment {
   updatedAt: string;
 }
 
+export interface EditedRecord {
+  kind: RecordKind;
+  id: string;
+  revision: number;
+  fields: string[];
+}
+
+export interface ResearchDetail {
+  fields?: string[];
+  objectiveId?: string;
+  reason?: string;
+  investmentIds?: string[];
+  reasons?: string[];
+  coalesced?: string[];
+  group?: string;
+  records?: EditedRecord[];
+  lastEditAt?: string;
+}
+
 export interface ResearchRequest {
   id: string;
   kind: ResearchKind;
@@ -117,7 +136,7 @@ export interface ResearchRequest {
   subjectKind: RecordKind;
   subjectId: string;
   subjectRevision: number;
-  detail: { fields?: string[]; objectiveId?: string; reason?: string } | null;
+  detail: ResearchDetail | null;
   status: ResearchStatus;
   createdAt: string;
   claimedAt: string | null;
@@ -128,9 +147,10 @@ export interface Assignee {
   threadId: string;
   name: string | null;
   available: boolean;
+  parent: { threadId: string; name: string | null } | null;
 }
 
-export type ObjectiveView = Objective & { assignee: Assignee | null; investments: Investment[] };
+export type ObjectiveView = Objective & { assignee: Assignee | null; investments: Investment[]; researchActive: boolean };
 export type PriorityView = Priority & { objectives: ObjectiveView[] };
 export interface Overview { priorities: PriorityView[] }
 

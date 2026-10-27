@@ -6,7 +6,8 @@ import type { Rpc } from "./data.js";
 import { Editable, Icon, InlineText, MetricEditor, Pencil, TeamPicker } from "./inline.js";
 import {
   allObjectives, busyFor, canShowStart, emptyPortfolioText, formatAmount, formatBy, liftBar, liftDomain, metricProgress, objectiveMeta,
-  liftText, originLabel, researchFinishedUnsized, ownerObjectives, portfolioRows, startBlockedReason, threadLabel, unknownLiftText, type Origin, type Owner,
+  liftText, originLabel, researchFinishedUnsized, ownerObjectives, portfolioRows, startBlockedReason, startRetryHint, teamLabel, threadLabel, unknownLiftText,
+  type Origin, type Owner,
 } from "./view-model.js";
 
 export type Screen =
@@ -158,7 +159,7 @@ function TeamField({ panel, objective }: { panel: Panel; objective: ObjectiveVie
       onPick={async (assigneeThreadId) => { await panel.save(() => panel.rpc.call("assignObjective", { id: objective.id, expectedRevision: objective.revision, assigneeThreadId })); panel.edit(null); }} />;
   }
   return <Editable label={`team for ${objective.name}`} onEdit={() => panel.edit({ k: "owner", id: objective.id })}>
-    {objective.assignee ? `@${threadLabel(objective.assignee)}` : "Unassigned"}
+    {objective.assignee ? `@${teamLabel(objective.assignee)}` : "Unassigned"}
   </Editable>;
 }
 
@@ -172,7 +173,8 @@ export function PortfolioScreen({ panel, objectiveId, origin }: { panel: Panel; 
   const up: Screen = origin.kind === "plan" ? { kind: "plan" } : { kind: "owner", owner: origin.owner };
   if (!objective) return <Missing panel={panel} back={up} label={originLabel(origin)} />;
   const objectives = allObjectives(panel.snapshot.priorities);
-  const busy = busyFor(objectives, objective.assigneeThreadId);
+  const starts = panel.snapshot.starts;
+  const busy = busyFor(objectives, objective.assigneeThreadId, starts);
   const { ranked, unranked } = portfolioRows(objective);
   const domain = liftDomain(objective.investments.flatMap((investment) => (investment.lift ? [investment.lift] : [])));
   const adding = panel.editing?.k === "newInv" && panel.editing.objectiveId === objective.id;
@@ -181,9 +183,10 @@ export function PortfolioScreen({ panel, objectiveId, origin }: { panel: Panel; 
     const lift = investment.lift
       ? <span className="pl-lift"><LiftBar investment={{ ...investment, lift: investment.lift }} domain={domain} /><b>{signed(investment.lift.base)}</b> ({amount(investment.lift.low)}–{amount(investment.lift.high)})</span>
       : <span className="pl-lift">{liftText(objective, investment)}</span>;
-    const why = startBlockedReason(objectives, objective, investment);
+    const why = startBlockedReason(objectives, objective, starts, investment);
+    const hint = why ?? startRetryHint(starts, investment);
     const action = investment.state !== "not_started" ? <StateTag state={investment.state} />
-      : canShowStart(investment) ? <button type="button" className="pl-btn" aria-label={`Start ${investment.name}`} disabled={why !== null} title={why ?? undefined}
+      : canShowStart(investment) ? <button type="button" className="pl-btn" aria-label={`Start ${investment.name}`} disabled={why !== null} title={hint ?? undefined}
         onClick={() => { void panel.save(() => panel.rpc.call("startInvestment", { id: investment.id })); }}>Start</button>
         : null;
     return <div key={investment.id} className="pl-inv">
@@ -241,6 +244,7 @@ export function InvestmentScreen({ panel, objectiveId, investmentId, origin }: {
   if (!objective || !investment) return <Missing panel={panel} back={{ kind: "plan" }} label="Plan" />;
   const lift = investment.lift;
   const unsized = researchFinishedUnsized(investment);
+  const pending = liftText(objective, investment) ?? "—";
   const sources = [...new Set([...(lift?.sources ?? []), ...(investment.brief.sources ?? [])])];
   return <>
     <Top><button type="button" className="pl-back" onClick={() => panel.go({ kind: "portfolio", objectiveId, origin })}>‹ {objective.name}</button></Top>
@@ -256,11 +260,11 @@ export function InvestmentScreen({ panel, objectiveId, investmentId, origin }: {
         {lift ? <>
           <p className="pl-big">{signed(lift.base)} <small>{lift.unit}</small></p>
           <p className="pl-hintbox pl-range">Likely range {amount(lift.low)} to {amount(lift.high)}</p>
-        </> : <p className="pl-big">{unsized ? "—" : "Researching"}</p>}
+        </> : <p className="pl-big">{pending}</p>}
       </div>
       <div className="pl-gh">Evidence</div>
       <dl className="pl-sum">
-        <div><dt>How estimated</dt><dd>{lift?.method ?? (unsized ? "—" : "Researching")}</dd></div>
+        <div><dt>How estimated</dt><dd>{lift?.method ?? pending}</dd></div>
         {unsized ? <div><dt>Missing evidence</dt><dd>{investment.research?.missing}</dd></div> : null}
         <div><dt>Sources</dt><dd><Sources sources={sources} /></dd></div>
         {investment.research && investment.research.submissionThreadIds.length === 2 ? <div><dt>Research</dt><dd>

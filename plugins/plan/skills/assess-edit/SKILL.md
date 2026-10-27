@@ -5,7 +5,10 @@ description: Decide whether an edit to a Plan record can change researched lift,
 
 # Assess an edit
 
-The brief shows the edited record, its revision and the changed fields.
+The brief lists every record edited in this batch (`edits`), each with its
+revision, its changed fields and its current values. Judge the batch as a
+whole: close it if none of the edits can change lift, otherwise rerun once for
+the objectives any of them affect.
 Don't message any other thread or change Plan records.
 
 | Edit | Decision |
@@ -24,5 +27,6 @@ bb plan research close --request <rr_id> --reason "Rename only; evidence unchang
 bb plan research rerun --request <rr_id> --objective <obj_id> --reason "Target moved from 2,000 to 2,400 WAU"
 ```
 
-Repeat `--objective` for each affected objective. Each rerun creates one
-refresh request per objective revision; repeating it creates nothing new.
+Repeat `--objective` for each affected objective. A rerun joins the
+objective's queued refresh when there is one, so an objective never runs two
+portfolio refreshes at once; repeating it creates nothing new.

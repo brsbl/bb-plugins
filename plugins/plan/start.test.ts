@@ -213,6 +213,46 @@ describe("send failures", () => {
     expect(fake.delivered.map((entry) => entry.text.includes(rival.id))).toEqual([true]);
   });
 
+  it("lists an uncertain Start as active and keeps the team busy until it is confirmed", async () => {
+    const { starts, fake, objective, sibling, ready } = await setup();
+    const first = await ready(objective.id, "Onboarding checklist");
+    const rival = await ready(sibling.id, "Install-page copy test");
+    fake.state.modes = ["timeout"];
+    await rejects(starts.start({ id: first.id }), "send_uncertain");
+    expect(starts.active()).toEqual([expect.objectContaining({ investmentId: first.id, assigneeThreadId: "thr_conversion", status: "uncertain" })]);
+    expect((await rejects(starts.start({ id: rival.id }), "team_busy")).message).toBe("Conversion is working on Onboarding checklist.");
+  });
+
+  it("confirms an uncertain Start in the background once the brief shows up, without ever sending", async () => {
+    const { starts, fake, objective, ready, state } = await setup();
+    const first = await ready(objective.id, "Onboarding checklist");
+    fake.state.modes = ["lost"];
+    await rejects(starts.start({ id: first.id }), "send_uncertain");
+    fake.state.checkFails = true;
+    expect(await starts.reconcile()).toBe(0);
+    expect(starts.active()).toMatchObject([{ status: "uncertain" }]);
+    fake.state.checkFails = false;
+    expect(await starts.reconcile()).toBe(1);
+    expect(state(first.id)).toBe("in_progress");
+    expect(starts.active()).toMatchObject([{ status: "sent" }]);
+    expect(await starts.reconcile()).toBe(0);
+    expect(fake.state.sendAttempts).toBe(1);
+  });
+
+  it("leaves an undelivered uncertain Start for the user's retry instead of resending it in the background", async () => {
+    const { starts, fake, objective, ready, state } = await setup();
+    const first = await ready(objective.id, "Onboarding checklist");
+    fake.state.modes = ["timeout"];
+    await rejects(starts.start({ id: first.id }), "send_uncertain");
+    expect(await starts.reconcile()).toBe(0);
+    expect(await starts.reconcile()).toBe(0);
+    expect(fake.state.sendAttempts).toBe(1);
+    expect(state(first.id)).toBe("not_started");
+    expect(starts.active()).toMatchObject([{ status: "uncertain" }]);
+    expect((await starts.start({ id: first.id })).state).toBe("in_progress");
+    expect(fake.delivered).toHaveLength(1);
+  });
+
   it("treats 4xx responses as definite and timeouts, 5xx and lost connections as uncertain", () => {
     expect(classifySendError(Object.assign(new Error("bad"), { status: 404 })).definite).toBe(true);
     expect(classifySendError(Object.assign(new Error("timeout"), { status: 408 })).definite).toBe(false);
@@ -281,7 +321,7 @@ describe("plugin wiring", () => {
   const disposers: Array<() => Promise<void>> = [];
   afterEach(async () => { for (const dispose of disposers.splice(0)) await dispose(); });
 
-  it("starts from the panel RPC through bb.sdk.threads.send, reconciles a lost reply from the thread's messages, and delivers from the CLI", async () => {
+  it("starts from the panel RPC through bb.sdk.threads.send, reconciles a lost reply from the thread's messages in the background, and delivers from the CLI", async () => {
     const THREADS = {
       thr_conversion: makeThreadResponse({ id: "thr_conversion", title: "Conversion", parentThreadId: "thr_growth" }),
       thr_growth: makeThreadResponse({ id: "thr_growth", title: "Growth", parentThreadId: null }),
@@ -324,6 +364,14 @@ describe("plugin wiring", () => {
       .run(JSON.stringify({ low: 30, base: 60, high: 95, unit: "users", method: "Forecast", cost: "2 weeks", dependencies: "None", sources: [] }), investment.value!.id);
 
     expect(await rpc("startInvestment", { id: investment.value!.id })).toMatchObject({ ok: false, code: "send_uncertain" });
+    const uncertain = await harness.behavior.callRpc("snapshot", {}) as { starts: unknown[] };
+    expect(uncertain.starts).toEqual([expect.objectContaining({ investmentId: investment.value!.id, status: "uncertain" })]);
+    const run = harness.behavior.runService("research-runner");
+    await new Promise((done) => setTimeout(done, 20));
+    run.controller.abort();
+    await run.done;
+    const confirmed = await harness.behavior.callRpc("snapshot", {}) as { starts: unknown[] };
+    expect(confirmed.starts).toEqual([expect.objectContaining({ investmentId: investment.value!.id, status: "sent" })]);
     expect(await rpc("startInvestment", { id: investment.value!.id })).toMatchObject({ ok: true, value: { state: "in_progress" } });
     const sends = harness.inspection.sdk.callsTo("threads.send").map((call) => call[0] as Record<string, unknown>);
     expect(sends).toHaveLength(1);

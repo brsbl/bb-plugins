@@ -1,5 +1,7 @@
 import type Database from "better-sqlite3";
-import type { Brief, Investment, InvestmentState, Lift, Objective, Priority, RecordKind, ResearchEvidence, ResearchKind, ResearchRequest, ResearchStatus } from "./model.js";
+import type {
+  Brief, Investment, InvestmentState, Lift, Objective, Priority, RecordKind, ResearchDetail, ResearchEvidence, ResearchKind, ResearchRequest, ResearchStatus,
+} from "./model.js";
 
 export type Db = Database.Database;
 export type Migrate = (db: Db, statements: string[]) => void;
@@ -222,7 +224,7 @@ const toResearch = (row: ResearchRow): ResearchRequest => ({
   subjectKind: row.subject_kind,
   subjectId: row.subject_id,
   subjectRevision: row.subject_revision,
-  detail: row.detail ? (JSON.parse(row.detail) as ResearchRequest["detail"]) : null,
+  detail: row.detail ? (JSON.parse(row.detail) as ResearchDetail) : null,
   status: row.status,
   createdAt: row.created_at,
   claimedAt: row.claimed_at,
@@ -266,6 +268,18 @@ export function createStore(db: Db, migrate: Migrate) {
   const researchList = db.prepare(`SELECT * FROM research_requests WHERE (@status IS NULL OR status = @status) AND (@kind IS NULL OR kind = @kind)
     ORDER BY created_at, rowid`);
   const claimResearch = db.prepare("UPDATE research_requests SET status = 'claimed', claimed_at = @at, claimed_by = @by WHERE id = @id AND status = 'pending'");
+  const researchByKey = db.prepare("SELECT * FROM research_requests WHERE idempotency_key = ?");
+  const setResearchDetail = db.prepare("UPDATE research_requests SET detail = @detail WHERE id = @id");
+  const portfolioObjective = "COALESCE(json_extract(r.detail, '$.objectiveId'), CASE WHEN r.subject_kind = 'objective' THEN r.subject_id END)";
+  const portfolioKinds = "r.kind IN ('build_portfolio', 'refresh_portfolio')";
+  const pendingPortfolio = db.prepare(`SELECT r.* FROM research_requests r WHERE ${portfolioKinds} AND r.status = 'pending' AND ${portfolioObjective} = ?
+    ORDER BY r.created_at, r.rowid`);
+  const inFlightPortfolio = db.prepare(`SELECT r.* FROM research_requests r JOIN research_jobs j ON j.request_id = r.id
+    WHERE ${portfolioKinds} AND j.phase IN ('researching', 'reconciling') AND ${portfolioObjective} = ? ORDER BY r.created_at, r.rowid`);
+  const activePortfolio = db.prepare(`SELECT DISTINCT ${portfolioObjective} AS objective_id FROM research_requests r LEFT JOIN research_jobs j ON j.request_id = r.id
+    WHERE ${portfolioKinds} AND (r.status = 'pending' OR j.phase IN ('researching', 'reconciling'))`);
+  const pendingAssess = db.prepare(`SELECT r.* FROM research_requests r WHERE r.kind = 'assess_edit' AND r.status = 'pending' AND json_extract(r.detail, '$.group') = ?
+    ORDER BY r.created_at, r.rowid`);
 
   return {
     transaction<T>(run: () => T): T {
@@ -361,6 +375,25 @@ export function createStore(db: Db, migrate: Migrate) {
     },
     claimResearch(id: string, by: string, at: string): boolean {
       return claimResearch.run({ id, by, at }).changes === 1;
+    },
+    researchByKey(key: string): ResearchRequest | null {
+      const row = researchByKey.get(key) as ResearchRow | undefined;
+      return row ? toResearch(row) : null;
+    },
+    setResearchDetail(id: string, detail: ResearchDetail): void {
+      setResearchDetail.run({ id, detail: JSON.stringify(detail) });
+    },
+    pendingPortfolioFor(objectiveId: string): ResearchRequest[] {
+      return (pendingPortfolio.all(objectiveId) as ResearchRow[]).map(toResearch);
+    },
+    inFlightPortfolioFor(objectiveId: string): ResearchRequest[] {
+      return (inFlightPortfolio.all(objectiveId) as ResearchRow[]).map(toResearch);
+    },
+    activePortfolioObjectiveIds(): Set<string> {
+      return new Set((activePortfolio.all() as Array<{ objective_id: string | null }>).map((row) => row.objective_id).filter((id): id is string => id !== null));
+    },
+    pendingAssessFor(group: string): ResearchRequest[] {
+      return (pendingAssess.all(group) as ResearchRow[]).map(toResearch);
     },
   };
 }

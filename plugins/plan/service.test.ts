@@ -13,8 +13,8 @@ const migrate: Migrate = (db, statements) => {
 };
 
 const THREADS: Record<string, ThreadInfo> = {
-  thr_growthconv: { id: "thr_growthconv", name: "Growth / Conversion" },
-  thr_paidacq: { id: "thr_paidacq", name: "Growth / Paid acquisition" },
+  thr_growthconv: { id: "thr_growthconv", name: "Growth / Conversion", parentThreadId: null },
+  thr_paidacq: { id: "thr_paidacq", name: "Growth / Paid acquisition", parentThreadId: null },
 };
 
 function setup() {
@@ -141,7 +141,7 @@ describe("research triggers", () => {
     expect(approvedAgain.revision).toBe(1);
 
     const investment = await service.addInvestment({ objectiveId: objective.id, name: "Install-page copy test", existing: true });
-    expect((await requests("refresh_portfolio"))).toMatchObject([{ subjectId: investment.id, detail: { objectiveId: objective.id } }]);
+    expect((await requests("refresh_portfolio"))).toMatchObject([{ subjectKind: "objective", subjectId: objective.id, detail: { objectiveId: objective.id, investmentIds: [investment.id] } }]);
 
     const unchanged = await service.editInvestment({ id: investment.id, expectedRevision: 1, name: "Install-page copy test" });
     expect(unchanged.revision).toBe(1);
@@ -149,9 +149,12 @@ describe("research triggers", () => {
 
     const renamed = await service.editInvestment({ id: investment.id, expectedRevision: 1, name: "Install-page test" });
     await service.editInvestment({ id: investment.id, expectedRevision: renamed.revision, brief: { scope: "Copy only" } });
-    expect((await requests("assess_edit")).map((request) => request.detail)).toEqual([{ fields: ["name"] }, { fields: ["brief"] }]);
+    expect((await requests("assess_edit")).map((request) => request.detail)).toEqual([{
+      group: `objective:${objective.id}`, lastEditAt: "2026-10-27T12:00:00.000Z",
+      records: [{ kind: "investment", id: investment.id, revision: 3, fields: ["name", "brief"] }],
+    }]);
 
-    expect((await requests()).length).toBe(4);
+    expect((await requests()).length).toBe(3);
   });
 
   it("does not create assess_edit for assignment or approval", async () => {
@@ -202,10 +205,10 @@ describe("assignment", () => {
     const { service, threads } = setup();
     const { objective } = await seed(service);
     await service.assignObjective({ id: objective.id, expectedRevision: 1, assigneeThreadId: "thr_growthconv" });
-    expect((await service.showObjective({ id: objective.id })).assignee).toEqual({ threadId: "thr_growthconv", name: "Growth / Conversion", available: true });
-    threads.thr_growthconv = { id: "thr_growthconv", name: "Growth / Activation" };
+    expect((await service.showObjective({ id: objective.id })).assignee).toEqual({ threadId: "thr_growthconv", name: "Growth / Conversion", available: true, parent: null });
+    threads.thr_growthconv = { id: "thr_growthconv", name: "Growth / Activation", parentThreadId: null };
     expect((await service.showObjective({ id: objective.id })).assignee?.name).toBe("Growth / Activation");
     delete threads.thr_growthconv;
-    expect((await service.overview()).priorities[0]?.objectives[0]?.assignee).toEqual({ threadId: "thr_growthconv", name: null, available: false });
+    expect((await service.overview()).priorities[0]?.objectives[0]?.assignee).toEqual({ threadId: "thr_growthconv", name: null, available: false, parent: null });
   });
 });

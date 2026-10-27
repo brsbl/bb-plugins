@@ -3,8 +3,8 @@ import type { z } from "zod";
 import {
   briefSchema, emptyInput, investmentAddInput, investmentEditInput, objectiveAddInput, objectiveApproveInput, objectiveAssignInput,
   objectiveEditInput, openRecordInput, priorityAddInput, priorityEditInput, researchClaimInput, researchListInput, showInput,
-  type Assignee, type Brief, type Investment, type Objective, type ObjectiveView, type OpenRecord, type Overview, type Priority, type PriorityView,
-  type RecordKind, type ResearchKind, type ResearchRequest,
+  type Assignee, type Brief, type EditedRecord, type Investment, type Objective, type ObjectiveView, type OpenRecord, type Overview, type Priority, type PriorityView,
+  type RecordKind, type ResearchDetail, type ResearchKind, type ResearchRequest,
 } from "./model.js";
 import { createStore, type Db, type Migrate, type Store } from "./store.js";
 
@@ -21,6 +21,7 @@ export class PlanError extends Error {
 export interface ThreadInfo {
   id: string;
   name: string | null;
+  parentThreadId: string | null;
 }
 
 export interface PlanDeps {
@@ -77,6 +78,41 @@ function applyPatch(base: Brief, patch: Record<string, unknown>): Record<string,
   return next;
 }
 
+export const mergeList = (values: readonly string[] | undefined, more: readonly string[]): string[] => [...new Set([...(values ?? []), ...more])];
+
+export interface PortfolioCause { key: string; investmentId: string | null; reason: string | null }
+
+export function coverCause(detail: ResearchDetail | null, objectiveId: string, cause: PortfolioCause): ResearchDetail {
+  return {
+    ...detail,
+    objectiveId,
+    investmentIds: mergeList(detail?.investmentIds, cause.investmentId ? [cause.investmentId] : []),
+    reasons: mergeList(detail?.reasons, cause.reason ? [cause.reason] : []),
+  };
+}
+
+export function queuePortfolioRefresh(store: Store, objective: Objective, cause: PortfolioCause, at: string): string {
+  const [pending] = store.pendingPortfolioFor(objective.id);
+  if (pending) {
+    store.setResearchDetail(pending.id, coverCause(pending.detail, objective.id, cause));
+    return pending.id;
+  }
+  const idempotencyKey = `refresh_portfolio:${objective.id}:${cause.key}`;
+  store.insertResearch({
+    id: newId("research"), kind: "refresh_portfolio", idempotencyKey, subjectKind: "objective", subjectId: objective.id,
+    subjectRevision: objective.revision, detail: coverCause(null, objective.id, cause), createdAt: at,
+  });
+  return store.researchByKey(idempotencyKey)!.id;
+}
+
+function withRecord(records: readonly EditedRecord[], record: EditedRecord): EditedRecord[] {
+  const index = records.findIndex((entry) => entry.kind === record.kind && entry.id === record.id);
+  if (index === -1) return [...records, record];
+  const current = records[index]!;
+  const merged = { ...current, revision: Math.max(current.revision, record.revision), fields: mergeList(current.fields, record.fields) };
+  return records.map((entry, at) => (at === index ? merged : entry));
+}
+
 export type PlanService = ReturnType<typeof createPlanService>;
 
 export function createPlanService(deps: PlanDeps) {
@@ -89,12 +125,18 @@ export function createPlanService(deps: PlanDeps) {
 
   const maybeBuildPortfolio = (objective: Objective, at: string) => {
     if (objective.approved && objective.assigneeThreadId) {
-      trigger("build_portfolio", `build_portfolio:${objective.id}`, "objective", objective.id, objective.revision, null, at);
+      trigger("build_portfolio", `build_portfolio:${objective.id}`, "objective", objective.id, objective.revision, { objectiveId: objective.id, investmentIds: [], reasons: [] }, at);
     }
   };
 
-  const assessEdit = (kind: RecordKind, id: string, revision: number, fields: string[], at: string) => {
-    trigger("assess_edit", `assess_edit:${kind}:${id}:${revision}`, kind, id, revision, { fields }, at);
+  const assessEdit = (record: EditedRecord, group: { kind: "objective" | "priority"; id: string; revision: number }, at: string) => {
+    const key = `${group.kind}:${group.id}`;
+    const [pending] = store.pendingAssessFor(key);
+    if (pending) {
+      store.setResearchDetail(pending.id, { ...pending.detail, group: key, records: withRecord(pending.detail?.records ?? [], record), lastEditAt: at });
+      return;
+    }
+    trigger("assess_edit", `assess_edit:${record.kind}:${record.id}:${record.revision}`, group.kind, group.id, group.revision, { group: key, records: [record], lastEditAt: at }, at);
   };
 
   const requireThread = async (threadId: string): Promise<ThreadInfo> => {
@@ -109,16 +151,22 @@ export function createPlanService(deps: PlanDeps) {
     const ids = [...new Set(objectives.map((objective) => objective.assigneeThreadId).filter((id): id is string => id !== null))];
     const found = new Map<string, ThreadInfo | null>();
     await Promise.all(ids.map(async (id) => { found.set(id, await deps.findThread(id).catch(() => null)); }));
+    const parentIds = [...new Set([...found.values()].map((thread) => thread?.parentThreadId ?? null).filter((id): id is string => id !== null && !found.has(id)))];
+    await Promise.all(parentIds.map(async (id) => { found.set(id, await deps.findThread(id).catch(() => null)); }));
     return (threadId: string | null): Assignee | null => {
       if (!threadId) return null;
       const thread = found.get(threadId) ?? null;
-      return { threadId, name: thread?.name ?? null, available: thread !== null };
+      const parent = thread?.parentThreadId ? found.get(thread.parentThreadId) ?? null : null;
+      return { threadId, name: thread?.name ?? null, available: thread !== null, parent: parent ? { threadId: parent.id, name: parent.name } : null };
     };
   };
 
   const objectiveViews = async (objectives: Objective[], investmentsOf: (objectiveId: string) => Investment[]): Promise<ObjectiveView[]> => {
     const assignee = await assigneeLookup(objectives);
-    return objectives.map((objective) => ({ ...objective, assignee: assignee(objective.assigneeThreadId), investments: investmentsOf(objective.id) }));
+    const active = store.activePortfolioObjectiveIds();
+    return objectives.map((objective) => ({
+      ...objective, assignee: assignee(objective.assigneeThreadId), investments: investmentsOf(objective.id), researchActive: active.has(objective.id),
+    }));
   };
 
   const changed = (kind: RecordKind, id: string) => deps.publish({ kind, id });
@@ -171,7 +219,7 @@ export function createPlanService(deps: PlanDeps) {
         const at = stamp();
         const saved = { ...next, revision: base.revision + 1, updatedAt: at };
         if (!store.updatePriority(saved, expectedRevision)) throw stale("priority", id, expectedRevision, store.priority(id)?.revision ?? expectedRevision);
-        assessEdit("priority", id, saved.revision, fields, at);
+        assessEdit({ kind: "priority", id, revision: saved.revision, fields }, { kind: "priority", id, revision: saved.revision }, at);
         return { record: saved, changed: true };
       });
       if (result.changed) changed("priority", id);
@@ -229,7 +277,7 @@ export function createPlanService(deps: PlanDeps) {
         const at = stamp();
         const saved = { ...next, revision: base.revision + 1, updatedAt: at };
         if (!store.updateObjective(saved, expectedRevision)) throw stale("objective", id, expectedRevision, store.objective(id)?.revision ?? expectedRevision);
-        assessEdit("objective", id, saved.revision, fields, at);
+        assessEdit({ kind: "objective", id, revision: saved.revision, fields }, { kind: "objective", id, revision: saved.revision }, at);
         return { record: saved, changed: true };
       });
       if (result.changed) changed("objective", id);
@@ -299,9 +347,10 @@ export function createPlanService(deps: PlanDeps) {
         updatedAt: at,
       };
       store.transaction(() => {
-        if (!store.objective(value.objectiveId)) throw missing("objective", value.objectiveId);
+        const objective = store.objective(value.objectiveId);
+        if (!objective) throw missing("objective", value.objectiveId);
         store.insertInvestment(investment);
-        trigger("refresh_portfolio", `refresh_portfolio:${investment.id}`, "investment", investment.id, 1, { objectiveId: investment.objectiveId }, at);
+        queuePortfolioRefresh(store, objective, { key: `add:${investment.id}`, investmentId: investment.id, reason: null }, at);
       });
       changed("investment", investment.id);
       return investment;
@@ -321,7 +370,8 @@ export function createPlanService(deps: PlanDeps) {
         const at = stamp();
         const saved = { ...next, revision: base.revision + 1, updatedAt: at };
         if (!store.updateInvestment(saved, expectedRevision)) throw stale("investment", id, expectedRevision, store.investment(id)?.revision ?? expectedRevision);
-        assessEdit("investment", id, saved.revision, fields, at);
+        const objective = store.objective(saved.objectiveId)!;
+        assessEdit({ kind: "investment", id, revision: saved.revision, fields }, { kind: "objective", id: objective.id, revision: objective.revision }, at);
         return { record: saved, changed: true };
       });
       if (result.changed) changed("investment", id);

@@ -1,4 +1,5 @@
-import type { Investment, Lift, ObjectiveView, PriorityView } from "../model.js";
+import type { Assignee, Investment, Lift, ObjectiveView, PriorityView } from "../model.js";
+import type { ActiveStart } from "../start.js";
 
 export interface ThreadRef { threadId: string; name: string | null }
 export interface OrgGroup extends ThreadRef { teams: ThreadRef[] }
@@ -37,12 +38,21 @@ export function inProgress(objective: ObjectiveView): Investment | undefined {
   return objective.investments.find((investment) => investment.state === "in_progress");
 }
 
-export function busyFor(objectives: ObjectiveView[], threadId: string | null): { objective: ObjectiveView; investment: Investment } | null {
+export interface Busy { objective: ObjectiveView; investment: Investment; start: ActiveStart | null }
+
+export function busyFor(objectives: ObjectiveView[], threadId: string | null, starts: readonly ActiveStart[]): Busy | null {
   if (!threadId) return null;
+  for (const start of starts) {
+    if (start.assigneeThreadId !== threadId) continue;
+    for (const objective of objectives) {
+      const investment = objective.investments.find((entry) => entry.id === start.investmentId);
+      if (investment) return { objective, investment, start };
+    }
+  }
   for (const objective of objectives) {
     if (objective.assigneeThreadId !== threadId) continue;
     const investment = inProgress(objective);
-    if (investment) return { objective, investment };
+    if (investment) return { objective, investment, start: null };
   }
   return null;
 }
@@ -51,8 +61,12 @@ export function threadLabel(ref: ThreadRef | null): string {
   return ref ? ref.name ?? ref.threadId : "";
 }
 
+export function teamLabel(assignee: Assignee): string {
+  return assignee.parent ? `${threadLabel(assignee.parent)} / ${threadLabel(assignee)}` : threadLabel(assignee);
+}
+
 export function assigneeLabel(objective: ObjectiveView): string | null {
-  return objective.assignee ? threadLabel(objective.assignee) : null;
+  return objective.assignee ? teamLabel(objective.assignee) : null;
 }
 
 export function objectiveMeta(objective: ObjectiveView): string {
@@ -86,22 +100,30 @@ export function researchFinishedUnsized(investment: Investment): boolean {
 
 export function liftText(objective: ObjectiveView, investment: Investment): string | null {
   if (investment.lift) return null;
-  return researchFinishedUnsized(investment) ? "—" : unknownLiftText(objective);
+  return researching(objective) && objective.researchActive ? "Researching" : "—";
 }
 
 export function canShowStart(investment: Investment): boolean {
   return investment.state === "not_started" && investment.rank !== null;
 }
 
-export function startBlockedReason(objectives: ObjectiveView[], objective: ObjectiveView, investment?: Investment): string | null {
+export function startBlockedReason(objectives: ObjectiveView[], objective: ObjectiveView, starts: readonly ActiveStart[], investment?: Investment): string | null {
   if (!objective.approved) return "Approve the objective first";
   if (!objective.assigneeThreadId || !objective.assignee) return "Assign a team first";
   if (!objective.assignee.available) return "The assigned team thread no longer exists";
   if (investment && (!investment.brief.deliverable || !investment.brief.acceptanceCriteria)) return "Add a deliverable and acceptance criteria to the brief first";
-  const busy = busyFor(objectives, objective.assigneeThreadId);
-  if (!busy) return null;
+  const busy = busyFor(objectives, objective.assigneeThreadId, starts);
+  if (!busy || (investment && busy.investment.id === investment.id)) return null;
   const team = (objective.assignee.name ?? "This team").split(" / ").pop() ?? "This team";
   return `${team} is working on ${busy.investment.name}`;
+}
+
+export function startRetryHint(starts: readonly ActiveStart[], investment: Investment): string | null {
+  const start = starts.find((entry) => entry.investmentId === investment.id);
+  if (!start || start.status === "sent") return null;
+  return start.status === "uncertain"
+    ? "Couldn't confirm the brief reached the team. Press Start to check; it won't send twice."
+    : "The brief is being sent to the team.";
 }
 
 export function originLabel(origin: Origin): string {
@@ -161,7 +183,11 @@ export function metricPatch(priority: PriorityView, fields: { now: string; targe
 }
 
 export function threadQuery(text: string): string {
-  return text.replace(/^@/, "").trim();
+  return text.trim().replace(/^@+/, "").trim();
+}
+
+export function mentionText(text: string): string {
+  return text.replace(/^\s*@+/, "@");
 }
 
 export function chooseThread(text: string, options: { id: string; name: string }[]): { id: string | null } | null {

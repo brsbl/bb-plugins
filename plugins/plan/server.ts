@@ -7,7 +7,7 @@ import { createResearchService, DEFAULT_CONCURRENCY, RESEARCH_PHASES, SLOTS, typ
 import { createPlanService, PlanError, type PlanService, type ThreadInfo } from "./service.js";
 import { classifySendError, createStartService, OUTPUT_SHAPE, SendFailure, type StartHost, type StartService } from "./start.js";
 import { CHANGED, rpcContract, type Outcome, type Snapshot, type ThreadOption } from "./rpc.js";
-import { groupOrgs, type AssigneeThread, type ThreadRef } from "./components/view-model.js";
+import { groupOrgs, teamLabel, type AssigneeThread, type ThreadRef } from "./components/view-model.js";
 
 export { CHANGED };
 const MAX_STDOUT = 900 * 1024;
@@ -38,7 +38,7 @@ const INSTRUCTIONS = [
   "Lift and investment state are not editable here. Adding or assigning records sends nothing to any thread.",
   "investment_start sends the investment's saved brief to its objective's team thread and marks it In progress; it needs checked lift, an approved objective with a team, a deliverable and acceptance criteria, and a team with nothing In progress. Start only when the user asks.",
   "investment_deliver marks it Done and frees the team. Call it only from the team thread the brief was sent to or one of its workers, once the deliverable passes every acceptance criterion, with output: one { criterion, evidence } entry per criterion.",
-  "Research runs on its own: Plan creates two independent research threads per request, then one reconciliation thread, and publishes only a valid reconciliation. research_submit, research_reconcile, research_rerun and research_close are for those research threads only, following the Plan plugin's research skills.",
+  "Research runs on its own and is batched: one portfolio run per objective at a time, with later changes folded into one follow-up run, and edits debounced into one assessment. Plan creates two independent hidden research threads per request, then one reconciliation thread, and publishes only a valid reconciliation. research_submit, research_reconcile, research_rerun and research_close are for those research threads only, following the Plan plugin's research skills.",
 ].join(" ");
 const RESEARCH_INTERVAL_MS = 30_000;
 
@@ -151,7 +151,7 @@ function priorityLine(priority: Priority): string {
 
 function objectiveLine(objective: Objective | ObjectiveView): string {
   const owner = "assignee" in objective && objective.assignee
-    ? objective.assignee.available ? `@${objective.assignee.name ?? objective.assignee.threadId}` : `${objective.assignee.threadId} (thread unavailable)`
+    ? objective.assignee.available ? `@${teamLabel(objective.assignee)}` : `${objective.assignee.threadId} (thread unavailable)`
     : objective.assigneeThreadId ?? "Unassigned";
   return `${objective.id}  r${objective.revision}  ${objective.name} · ${owner}${objective.approved ? "" : " · proposed"}`;
 }
@@ -216,7 +216,7 @@ function overviewText(overview: Overview): string {
 async function findThread(bb: BbPluginApi, threadId: string): Promise<ThreadInfo | null> {
   const thread = await bb.sdk.threads.get({ threadId }).catch(() => null);
   if (!thread || thread.deletedAt !== null) return null;
-  return { id: thread.id, name: thread.title ?? thread.titleFallback ?? null };
+  return { id: thread.id, name: thread.title ?? thread.titleFallback ?? null, parentThreadId: thread.parentThreadId };
 }
 
 async function outcome<T>(run: () => Promise<T>): Promise<Outcome<T>> {
@@ -247,15 +247,25 @@ async function orgsFor(bb: BbPluginApi, assigneeIds: string[]) {
   return groupOrgs(threads);
 }
 
+const MENTION_LIMIT = 20;
+const RESEARCH_TITLE = /^Plan (research [AB]|reconciliation|edit assessment) · .* \(rr_[A-Za-z0-9_-]+\)$/;
+
+interface MentionThread { id: string; title: string | null; titleFallback: string | null; deletedAt: number | null; originPluginId: string | null; visibility: "visible" | "hidden" }
+
+export function mentionCandidate(thread: MentionThread): boolean {
+  return thread.deletedAt === null && thread.originPluginId === null && thread.visibility !== "hidden" && !RESEARCH_TITLE.test(thread.title ?? "");
+}
+
 async function searchThreads(bb: BbPluginApi, query: string): Promise<ThreadOption[]> {
-  const text = query.trim();
+  const text = query.trim().replace(/^@+/, "").trim();
   if (!text) {
-    const threads = await bb.sdk.threads.list({ limit: 20 });
-    return threads.filter((thread) => thread.deletedAt === null).map((thread) => ({ id: thread.id, name: threadName(thread) }));
+    const threads = await bb.sdk.threads.list({ limit: MENTION_LIMIT * 3 });
+    return threads.filter(mentionCandidate).slice(0, MENTION_LIMIT).map((thread) => ({ id: thread.id, name: threadName(thread) }));
   }
-  const found = await bb.sdk.threads.search({ query: text, limitPerGroup: "20" });
+  const found = await bb.sdk.threads.search({ query: text, limitPerGroup: String(MENTION_LIMIT * 3) });
   return found.active.results
-    .filter((result) => result.thread.deletedAt === null && result.matches.some((match) => match.sourceKind === "title" || match.sourceKind === "title_fallback"))
+    .filter((result) => mentionCandidate(result.thread) && result.matches.some((match) => match.sourceKind === "title" || match.sourceKind === "title_fallback"))
+    .slice(0, MENTION_LIMIT)
     .map((result) => ({ id: result.thread.id, name: threadName(result.thread) }));
 }
 
@@ -318,7 +328,7 @@ function researchHost(bb: BbPluginApi): ResearchHost {
     },
     async spawnThread({ projectId, title, prompt, metadata }) {
       const thread = await bb.sdk.threads.spawn({
-        projectId, environment: { type: "project-default" }, title, prompt, visibility: "visible", pluginMetadata: { ...metadata },
+        projectId, environment: { type: "project-default" }, title, prompt, visibility: "hidden", pluginMetadata: { ...metadata },
       });
       return thread.id;
     },
@@ -359,6 +369,7 @@ export default function plugin(bb: BbPluginApi): void {
     async start(signal) {
       while (!signal.aborted) {
         await research.tick().catch((error: unknown) => bb.log.warn(`Research runner failed: ${error instanceof Error ? error.message : String(error)}`));
+        await starts.reconcile().catch((error: unknown) => bb.log.warn(`Checking unconfirmed Starts failed: ${error instanceof Error ? error.message : String(error)}`));
         await new Promise<void>((done) => {
           const timer = setTimeout(done, RESEARCH_INTERVAL_MS);
           signal.addEventListener("abort", () => { clearTimeout(timer); done(); }, { once: true });
@@ -371,7 +382,7 @@ export default function plugin(bb: BbPluginApi): void {
     snapshot: async (): Promise<Snapshot> => {
       const overview = await service.overview({});
       const ids = [...new Set(overview.priorities.flatMap((priority) => priority.objectives).map((objective) => objective.assigneeThreadId).filter((id): id is string => id !== null))];
-      return { ...overview, orgs: await orgsFor(bb, ids) };
+      return { ...overview, orgs: await orgsFor(bb, ids), starts: starts.active() };
     },
     addPriority: (input) => outcome(() => service.addPriority(input)),
     editPriority: (input) => outcome(() => service.editPriority(input)),

@@ -5,6 +5,8 @@ import { parse, PlanError } from "./service.js";
 import { createStore, type Db, type Migrate } from "./store.js";
 
 export type StartStatus = "sending" | "uncertain" | "sent" | "failed" | "done";
+export type ActiveStartStatus = Extract<StartStatus, "sending" | "uncertain" | "sent">;
+export interface ActiveStart { id: string; investmentId: string; assigneeThreadId: string; status: ActiveStartStatus }
 export const PENDING_SEND_MS = 60_000;
 const MAX_ANCESTRY = 32;
 
@@ -156,6 +158,8 @@ export function createStartService(deps: StartDeps) {
   const moveStart = db.prepare("UPDATE plan_starts SET status = @to, error = @error, updated_at = @at WHERE id = @id AND status = @from");
   const reclaimStale = db.prepare("UPDATE plan_starts SET updated_at = @at WHERE id = @id AND status = 'sending' AND updated_at = @seen");
   const startById = db.prepare("SELECT * FROM plan_starts WHERE id = ?");
+  const activeStarts = db.prepare("SELECT * FROM plan_starts WHERE status IN ('sending', 'uncertain', 'sent') ORDER BY created_at, rowid");
+  const unconfirmed = db.prepare("SELECT * FROM plan_starts WHERE status IN ('sending', 'uncertain') ORDER BY created_at, rowid");
   const setState = db.prepare("UPDATE plan_investments SET state = @to, updated_at = @at WHERE id = @id AND state = @from");
   const insertDelivery = db.prepare("INSERT INTO plan_deliveries (investment_id, start_id, thread_id, body, created_at) VALUES (@investment_id, @start_id, @thread_id, @body, @at)");
 
@@ -217,6 +221,7 @@ export function createStartService(deps: StartDeps) {
         throw new PlanError("send_failed", `Couldn't send the brief: ${failure.message}. Nothing was started.`);
       }
       moveStart.run({ id: row.id, from: "sending", to: "uncertain", error: failure.message, at: stamp() });
+      deps.publish({ kind: "investment", id: row.investment_id });
       throw new PlanError("send_uncertain", `Couldn't confirm the brief reached the team: ${failure.message}.`, "Press Start again to check; it won't send twice.");
     }
     return confirm(row);
@@ -245,7 +250,38 @@ export function createStartService(deps: StartDeps) {
     return delivered ? confirm(claimed) : send(claimed);
   };
 
+  const check = async (row: StartRow): Promise<boolean> => {
+    if (row.status === "sending") {
+      if (deps.now().getTime() - Date.parse(row.updated_at) < PENDING_SEND_MS) return false;
+      if (reclaimStale.run({ id: row.id, seen: row.updated_at, at: stamp() }).changes !== 1) return false;
+    } else if (moveStart.run({ id: row.id, from: "uncertain", to: "sending", error: row.error, at: stamp() }).changes !== 1) {
+      return false;
+    }
+    const claimed = reread(row.id);
+    const delivered = await deps.host.wasSent(claimed.assignee_thread_id, claimed.id).catch(() => false);
+    if (delivered) {
+      confirm(claimed);
+      return true;
+    }
+    moveStart.run({ id: claimed.id, from: "sending", to: "uncertain", error: claimed.error ?? "The brief hasn't been confirmed in the team's thread yet.", at: stamp() });
+    return false;
+  };
+
   return {
+    active(): ActiveStart[] {
+      return (activeStarts.all() as StartRow[]).flatMap((row) => row.status === "sending" || row.status === "uncertain" || row.status === "sent"
+        ? [{ id: row.id, investmentId: row.investment_id, assigneeThreadId: row.assignee_thread_id, status: row.status }]
+        : []);
+    },
+
+    async reconcile(): Promise<number> {
+      let confirmed = 0;
+      for (const row of unconfirmed.all() as StartRow[]) {
+        if (await check(row)) confirmed += 1;
+      }
+      return confirmed;
+    },
+
     async start(input: unknown): Promise<Investment> {
       const { id } = parse(showInput, input);
       const investment = requireInvestment(id);

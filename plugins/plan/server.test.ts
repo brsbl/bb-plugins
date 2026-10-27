@@ -72,7 +72,7 @@ describe("bb plan CLI and plan tool", () => {
     expect(requests("build_portfolio")).toEqual([{ subjectId: proposed.id }]);
 
     const shown = (await cli(["objective", "show", proposed.id, "--json"])).body;
-    expect(shown.assignee).toEqual({ threadId: "thr_growthconv", name: "Growth / Conversion", available: true });
+    expect(shown.assignee).toEqual({ threadId: "thr_growthconv", name: "Growth / Conversion", available: true, parent: null });
   });
 
   it("rejects unknown and deleted threads and sends nothing on assign", async () => {

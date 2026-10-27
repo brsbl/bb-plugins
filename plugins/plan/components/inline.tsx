@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode 
 import type { ObjectiveView, PriorityView } from "../model.js";
 import type { ThreadOption } from "../rpc.js";
 import type { Rpc } from "./data.js";
-import { chooseThread, metricPatch, threadLabel, threadQuery } from "./view-model.js";
+import { chooseThread, mentionText, metricPatch, threadLabel, threadQuery } from "./view-model.js";
 
 const PATHS = {
   pri: <><circle cx="8" cy="8" r="6" /><circle cx="8" cy="8" r="2.5" /></>,
@@ -140,7 +140,7 @@ export function TeamPicker({ objective, rpc, onPick, onCancel }: {
     })();
   });
   return <>
-    <input ref={ref} className="pl-ie" list={listId} value={text} onChange={(event) => setText(event.target.value)} readOnly={busy}
+    <input ref={ref} className="pl-ie" list={listId} value={text} onChange={(event) => setText(mentionText(event.target.value))} readOnly={busy}
       aria-label="Assign a team: @mention its thread" onKeyDown={editKeys(finish)} onBlur={() => finish(true)} />
     <datalist id={listId}>{options.map((option) => <option key={option.id} value={`@${option.name}`} />)}</datalist>
   </>;

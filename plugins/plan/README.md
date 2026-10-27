@@ -30,7 +30,7 @@ bb plan investment edit <investment-id> --scope "Copy only" --expected-revision 
 
 ## Research
 
-Adding a priority, approving and assigning an objective, adding an investment, or editing a record creates one research request. Plan runs each request itself: two independent research threads, then one reconciliation thread once both submissions are saved. Only a valid reconciliation reaches the records. Lift is written only by that publish step, and the rank is computed from base lift.
+Adding a priority, approving and assigning an objective, adding an investment, or editing a record queues research. Research is batched: each objective has at most one portfolio research run at a time, and investment adds or reruns that arrive while one is queued or running fold into a single follow-up run that covers all of them. Edits under the same objective (or to the same priority) within 120 seconds of each other produce one edit assessment covering every changed record and field. Plan runs each request itself: two independent research threads, then one reconciliation thread once both submissions are saved. Research, reconciliation and assessment threads are hidden from bb's thread list; open them from an investment's "Open both submissions" links or with `bb plan research show`. Only a valid reconciliation reaches the records. Lift is written only by that publish step, and the rank is computed from base lift.
 
 ```bash
 bb plan research list [--phase researching] [--json]

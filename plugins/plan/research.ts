@@ -1,9 +1,10 @@
 import { z } from "zod";
 import {
   LIMITS, liftSchema, RESEARCH_KINDS, RESEARCH_STATUSES,
-  type FunnelStep, type Investment, type Lift, type Objective, type RecordKind, type ResearchEvidence, type ResearchKind, type ResearchRequest,
+  type EditedRecord, type FunnelStep, type Investment, type Lift, type Objective, type RecordKind, type ResearchDetail, type ResearchEvidence, type ResearchKind,
+  type ResearchRequest,
 } from "./model.js";
-import { newId, parse, PlanError, type ThreadInfo } from "./service.js";
+import { mergeList, newId, parse, PlanError, queuePortfolioRefresh, type ThreadInfo } from "./service.js";
 import { createStore, type Db, type Migrate } from "./store.js";
 
 export const SLOTS = ["a", "b"] as const;
@@ -14,6 +15,8 @@ export type ResearchPhase = (typeof RESEARCH_PHASES)[number];
 const IN_FLIGHT: readonly ResearchPhase[] = ["researching", "reconciling", "assessing"];
 export const RUNNER = "plan-research-runner";
 export const DEFAULT_CONCURRENCY = 2;
+export const ASSESS_QUIET_MS = 120_000;
+const PORTFOLIO_KINDS: readonly ResearchKind[] = ["build_portfolio", "refresh_portfolio"];
 
 export const SKILLS = {
   discover: "discover-objectives",
@@ -413,7 +416,6 @@ export function createResearchService(deps: ResearchDeps) {
     VALUES (@request_id, @slot, @subject_revision, @thread_id, @body, @created_at)`);
   const reconciliationRow = db.prepare("SELECT * FROM research_reconciliations WHERE request_id = ?");
   const insertReconciliation = db.prepare("INSERT INTO research_reconciliations (request_id, thread_id, body, created_at) VALUES (@request_id, @thread_id, @body, @created_at)");
-  const requestByKey = db.prepare("SELECT id FROM research_requests WHERE idempotency_key = ?");
 
   const job = (requestId: string) => (jobById.get(requestId) as JobRow | undefined) ?? null;
   const setJob = (requestId: string, phase: ResearchPhase, projectId: string | null, detail: string | null) =>
@@ -456,7 +458,21 @@ export function createResearchService(deps: ResearchDeps) {
     return null;
   };
 
-  const portfolioAt = (objectiveId: string, at: string) => store.investmentsFor(objectiveId).filter((investment) => investment.createdAt <= at);
+  const portfolioAt = (objectiveId: string, request: ResearchRequest) => {
+    const at = request.claimedAt ?? stamp();
+    return store.investmentsFor(objectiveId).filter((investment) => investment.createdAt <= at);
+  };
+
+  const coveredReasons = (detail: ResearchDetail | null) => mergeList(detail?.reasons, detail?.reason ? [detail.reason] : []);
+
+  const editedRecords = (request: ResearchRequest): EditedRecord[] => request.detail?.records
+    ?? [{ kind: request.subjectKind, id: request.subjectId, revision: request.subjectRevision, fields: request.detail?.fields ?? [] }];
+
+  const editedRecord = (record: EditedRecord) => {
+    if (record.kind === "priority") return store.priority(record.id);
+    if (record.kind === "objective") return store.objective(record.id);
+    return store.investment(record.id);
+  };
 
   const subjectName = (request: ResearchRequest): string => {
     if (request.subjectKind === "priority") return store.priority(request.subjectId)?.name ?? request.subjectId;
@@ -472,11 +488,18 @@ export function createResearchService(deps: ResearchDeps) {
       return {
         priority,
         objective: objective && { id: objective.id, name: objective.name, revision: objective.revision, assigneeThreadId: objective.assigneeThreadId },
-        portfolio: portfolioAt(objectiveId, request.createdAt).map((investment) => ({
+        portfolio: portfolioAt(objectiveId, request).map((investment) => ({
           investmentId: investment.id, name: investment.name, existing: investment.existing, brief: investment.brief, lift: investment.lift,
         })),
-        ...(request.detail?.reason ? { rerunReason: request.detail.reason } : {}),
+        ...(request.detail?.investmentIds?.length ? { addedInvestmentIds: request.detail.investmentIds } : {}),
+        ...(coveredReasons(request.detail).length ? { rerunReasons: coveredReasons(request.detail) } : {}),
       };
+    }
+    if (request.kind === "assess_edit") {
+      const edits = editedRecords(request).map((record) => ({ ...record, record: editedRecord(record) }));
+      const objective = request.subjectKind === "objective" ? store.objective(request.subjectId) : null;
+      const priority = request.subjectKind === "priority" ? store.priority(request.subjectId) : objective ? store.priority(objective.priorityId) : null;
+      return { edits, objective, priority };
     }
     if (request.subjectKind === "priority") {
       const priority = store.priority(request.subjectId);
@@ -523,10 +546,11 @@ export function createResearchService(deps: ResearchDeps) {
         `Submit with \`bb plan research reconcile --request ${request.id} --file <path>\` (or \`--data-stdin\`). A rejection lists exactly what to fix. A valid reconciliation publishes to the Plan.`,
       ].join("\n\n");
     }
+    const edits = editedRecords(request);
     return [
-      `A Plan record was edited. Assess whether the edit affects research, for Plan request ${request.id}.`,
+      `${edits.length === 1 ? "A Plan record was" : `${edits.length} Plan records were`} edited. Assess whether the edits affect research, for Plan request ${request.id}. Judge them together as one batch.`,
       `Follow the Plan plugin's \`${SKILLS.assess}\` skill. Do not message any other thread or change Plan records.`,
-      `Edited record (${request.subjectKind} ${request.subjectId}, revision ${request.subjectRevision}):`,
+      `Edited records, each with the fields that changed, under ${request.subjectKind} ${request.subjectId}:`,
       json(brief(request)),
       `If it can't change any lift (a rename or wording change keeps the evidence), run \`bb plan research close --request ${request.id} --reason <why>\`.`,
       `If it can, run \`bb plan research rerun --request ${request.id} --objective <objectiveId> --reason <why>\`, repeating --objective only for the objectives whose portfolios are affected.`,
@@ -574,13 +598,38 @@ export function createResearchService(deps: ResearchDeps) {
   };
 
   const gate = (request: ResearchRequest): string | null => {
+    if (request.kind === "assess_edit" && request.detail?.lastEditAt) {
+      const wait = Date.parse(request.detail.lastEditAt) + ASSESS_QUIET_MS - deps.now().getTime();
+      if (wait > 0) return `Waiting for edits to settle; the assessment starts ${Math.ceil(wait / 1000)}s after the last edit and covers every edit until then.`;
+    }
     const objectiveId = objectiveIdFor(request);
     if (!objectiveId) return null;
     const objective = store.objective(objectiveId);
     if (!objective) return `Objective ${objectiveId} no longer exists.`;
     if (!objective.approved) return "Waiting for the objective to be approved.";
     if (!objective.assigneeThreadId) return "Waiting for a team to be assigned to the objective.";
+    const [running] = store.inFlightPortfolioFor(objectiveId).filter((entry) => entry.id !== request.id);
+    if (running) return `Waiting for portfolio research ${running.id} on this objective to finish; this run then covers every change since.`;
     return null;
+  };
+
+  const foldPendingPortfolio = (request: ResearchRequest) => {
+    const objectiveId = objectiveIdFor(request);
+    if (!objectiveId || !PORTFOLIO_KINDS.includes(request.kind)) return;
+    const others = store.pendingPortfolioFor(objectiveId).filter((entry) => entry.id !== request.id);
+    if (!others.length) return;
+    let detail: ResearchDetail = { ...request.detail, objectiveId };
+    for (const other of others) {
+      if (!store.claimResearch(other.id, RUNNER, stamp())) continue;
+      setJob(other.id, "closed", null, `Covered by research ${request.id}.`);
+      detail = {
+        ...detail,
+        investmentIds: mergeList(detail.investmentIds, [...(other.detail?.investmentIds ?? []), ...(other.subjectKind === "investment" ? [other.subjectId] : [])]),
+        reasons: mergeList(detail.reasons, coveredReasons(other.detail)),
+        coalesced: mergeList(detail.coalesced, [other.id, ...(other.detail?.coalesced ?? [])]),
+      };
+    }
+    store.setResearchDetail(request.id, detail);
   };
 
   const defaultProject = async (): Promise<string | null> => {
@@ -598,15 +647,18 @@ export function createResearchService(deps: ResearchDeps) {
     for (const row of activeJobs.all(...IN_FLIGHT) as JobRow[]) await advance(row);
     let running = (inFlight.get(...IN_FLIGHT) as { count: number }).count;
     let projectId: string | null | undefined;
-    for (const request of store.researchRequests({ status: "pending", kind: null })) {
+    for (const listed of store.researchRequests({ status: "pending", kind: null })) {
       if (running >= cap) break;
+      const request = store.research(listed.id);
+      if (!request || request.status !== "pending") continue;
       const waiting = gate(request);
       if (waiting) { setJob(request.id, "blocked", null, waiting); continue; }
       if (projectId === undefined) projectId = settings.projectId ?? await defaultProject();
       if (!projectId) { setJob(request.id, "blocked", null, NO_PROJECT); continue; }
       const target = projectId;
       const started = store.transaction(() => {
-        if (!store.claimResearch(request.id, RUNNER, stamp())) return false;
+        if (gate(request) || !store.claimResearch(request.id, RUNNER, stamp())) return false;
+        foldPendingPortfolio(request);
         setJob(request.id, request.kind === "assess_edit" ? "assessing" : "researching", target, null);
         return true;
       });
@@ -638,7 +690,7 @@ export function createResearchService(deps: ResearchDeps) {
     const objectiveId = objectiveIdFor(request)!;
     const all = [
       ...itemIssues("investments", value.investments),
-      ...portfolioIssues("investments", value.investments, store.investmentsFor(objectiveId), portfolioAt(objectiveId, request.createdAt)),
+      ...portfolioIssues("investments", value.investments, store.investmentsFor(objectiveId), portfolioAt(objectiveId, request)),
     ];
     if (all.length) reject("Submission", all);
     return value;
@@ -822,7 +874,7 @@ export function createResearchService(deps: ResearchDeps) {
         const objectiveId = objectiveIdFor(request)!;
         const all = [
           ...itemIssues("investments", parsed.investments),
-          ...portfolioIssues("investments", parsed.investments, store.investmentsFor(objectiveId), portfolioAt(objectiveId, request.createdAt)),
+          ...portfolioIssues("investments", parsed.investments, store.investmentsFor(objectiveId), portfolioAt(objectiveId, request)),
           ...traceIssues("investments", parsed.investments, { a: (saved.a as PortfolioSubmission).investments, b: (saved.b as PortfolioSubmission).investments }, parsed.disagreements, parsed.excluded),
         ];
         if (all.length) reject("Reconciliation", all);
@@ -855,12 +907,7 @@ export function createResearchService(deps: ResearchDeps) {
         const ids = unique(value.objectiveIds).map((objectiveId) => {
           const objective = store.objective(objectiveId);
           if (!objective) throw new PlanError("not_found", `No objective ${objectiveId}.`, "Run `bb plan show` to list objectives.");
-          const idempotencyKey = `refresh_portfolio:${objective.id}:r${objective.revision}:${request.id}`;
-          store.insertResearch({
-            id: newId("research"), kind: "refresh_portfolio", idempotencyKey, subjectKind: "objective", subjectId: objective.id,
-            subjectRevision: objective.revision, detail: { objectiveId: objective.id, reason: value.reason }, createdAt: at,
-          });
-          return (requestByKey.get(idempotencyKey) as { id: string }).id;
+          return queuePortfolioRefresh(store, objective, { key: `rerun:${request.id}`, investmentId: null, reason: value.reason }, at);
         });
         setJob(request.id, "closed", null, `Research rerun: ${value.reason}`);
         return ids;
