@@ -3,8 +3,9 @@ import { iconUrl } from "@brsbl/bb-website-icons/url";
 import { metadataCandidates, pageMetadata } from "./preview-metadata.js";
 import { PreviewProviders, ProviderRateLimited } from "./preview-providers.js";
 
+import type { GitHubPreview } from "./github-preview.js";
 export { pageMetadata };
-export type LinkPreview = { title: string; description: string; site: string; image: string | null };
+export type LinkPreview = { title: string; description: string; site: string; image: string | null; github?: GitHubPreview };
 /** How the latest load for a URL ended. `preview` may still hold earlier useful content after a failure. */
 export type PreviewStatus = "ready" | "no-image" | "blocked" | "not-found" | "timeout" | "rate-limited" | "unsupported" | "invalid-image" | "network" | "busy";
 /** `refreshing` marks a cached preview answered while a reload of that URL runs behind it. */
@@ -277,8 +278,8 @@ export class LinkPreviews {
     if (preview) entry.good = preview;
     entry.status = outcome.status;
     entry.retryAt = outcome.retryAt && outcome.retryAt > now ? Math.min(outcome.retryAt, now + PREVIEW_LIMITS.backoffMs) : undefined;
-    entry.freshUntil = Math.max(now + ttl(outcome.status), entry.retryAt ?? 0);
-    entry.bytes = entry.good ? entry.good.title.length + entry.good.description.length + entry.good.site.length + (entry.good.image?.length ?? 0) : 0;
+    entry.freshUntil = Math.max(now + (preview?.github ? 30_000 : ttl(outcome.status)), entry.retryAt ?? 0);
+    entry.bytes = entry.good ? entry.good.title.length + entry.good.description.length + entry.good.site.length + (entry.good.image?.length ?? 0) + (entry.good.github ? JSON.stringify(entry.good.github).length : 0) : 0;
     if (this.cache.get(key) === entry) this.trim();
     return this.snapshot(entry);
   }
