@@ -535,15 +535,15 @@ export const SECTION_CARD_CSS = String.raw`
   display: inline-flex;
   flex: none;
   align-items: center;
-  gap: 0.3125rem;
-  font-size: 0.8125rem;
+  gap: 0.25rem;
+  font-size: 0.6875rem;
   font-variant-numeric: tabular-nums;
   font-weight: 450;
 }
 
 .bb-section-hover-card__chip-icon {
-  width: 0.8125rem;
-  height: 0.8125rem;
+  width: 0.6875rem;
+  height: 0.6875rem;
 }
 
 /*
