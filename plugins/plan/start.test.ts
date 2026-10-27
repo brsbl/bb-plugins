@@ -346,10 +346,15 @@ describe("plugin wiring", () => {
           },
           queuedMessages: { list: async () => [] },
           events: {
-            list: async ({ threadId }) => requested.map((text, index) => ({
-              id: `evt_${index}`, threadId, seq: index + 1, createdAt: 1, scope: { kind: "thread" }, type: "client/turn/requested",
-              data: { input: [{ type: "text", text, mentions: [] }] },
-            })) as never,
+            list: async ({ threadId, limit, beforeSeq, order }) => {
+              expect(limit).toBe("100");
+              expect(order).toBe("desc");
+              const texts = [...requested, ...Array.from({ length: 100 }, () => "Unrelated later message")];
+              return texts.map((text, index) => ({
+                id: `evt_${index}`, threadId, seq: index + 1, createdAt: 1, scope: { kind: "thread" }, type: "client/turn/requested",
+                data: { input: [{ type: "text", text, mentions: [] }] },
+              })).filter(event => beforeSeq === undefined || event.seq < Number(beforeSeq)).reverse().slice(0, 100) as never;
+            },
           },
         },
       },

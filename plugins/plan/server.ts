@@ -288,8 +288,14 @@ function startHost(bb: BbPluginApi): StartHost {
     async wasSent(threadId, marker) {
       const queued = await bb.sdk.threads.queuedMessages.list({ threadId });
       if (queued.some((row) => inputText(row.content).includes(marker))) return true;
-      const events = await bb.sdk.threads.events.list({ threadId, types: ["client/turn/requested"], order: "desc", limit: "200" });
-      return events.some((event) => event.type === "client/turn/requested" && inputText(event.data.input).includes(marker));
+      let beforeSeq: string | undefined;
+      for (;;) {
+        const events = await bb.sdk.threads.events.list({ threadId, types: ["client/turn/requested"], order: "desc", limit: "100", ...(beforeSeq ? { beforeSeq } : {}) });
+        if (events.some((event) => event.type === "client/turn/requested" && inputText(event.data.input).includes(marker))) return true;
+        const last = events.at(-1);
+        if (events.length < 100 || !last) return false;
+        beforeSeq = String(last.seq);
+      }
     },
   };
 }
