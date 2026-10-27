@@ -1,5 +1,5 @@
-import { useCallback, useState, type ComponentType } from "react";
-import { definePluginApp } from "@get-bb/plugin-sdk/app";
+import { useCallback, useId, useState, type ComponentType } from "react";
+import { definePluginApp, useBbNavigate } from "@get-bb/plugin-sdk/app";
 import type { OpenRecord } from "./model.js";
 import { useOpenRecord, usePlanData, useSave } from "./components/data.js";
 import { InvestmentScreen, OwnerScreen, PlanScreen, PortfolioScreen, TeamsScreen, type Editing, type Panel, type Screen } from "./components/screens.js";
@@ -50,6 +50,24 @@ export function PlanPanel({ threadId }: { threadId: string }) {
   </div>;
 }
 
+export function PlanHeaderButton() {
+  const navigate = useBbNavigate();
+  const [error, setError] = useState<string | null>(null);
+  const errorId = useId();
+  return <>
+    <button type="button" className="pl-header-button" aria-label="Open Plan" title={error ?? "Plan"}
+      aria-describedby={error ? errorId : undefined}
+      onClick={() => setError(navigate.openThreadPanel({ actionId: "plan" }) ? null : "Plan could not open. Use Plan in the panel's new-tab menu.")}>
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M12 2 2 7l10 5 10-5-10-5Z" />
+        <path d="m2 17 10 5 10-5" />
+        <path d="m2 12 10 5 10-5" />
+      </svg>
+    </button>
+    {error ? <span id={errorId} role="alert" className="pl-sr-only">{error}</span> : null}
+  </>;
+}
+
 function PlanTab({ threadId }: { threadId: string }) {
   return <PlanPanel threadId={threadId} />;
 }
@@ -66,6 +84,7 @@ interface ThreadTabRegistration {
 
 export default definePluginApp((app) => {
   const slots = app.slots;
+  app.slots.experimental_threadHeaderAction({ id: "plan", title: "Plan", component: PlanHeaderButton });
   if ("experimental_tab" in slots && typeof slots.experimental_tab === "function") {
     const registration: ThreadTabRegistration = { id: "plan", title: "Plan", icon: "Layers", layout: "flush", context: { kind: "thread" }, availability: "action", component: PlanTab };
     slots.experimental_tab(registration);

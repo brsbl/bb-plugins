@@ -125,13 +125,20 @@ function PrioritySection({ panel, priority }: { panel: Panel; priority: Priority
 }
 
 export function PlanScreen({ panel }: { panel: Panel }) {
+  const empty = panel.snapshot.priorities.length === 0 && panel.editing?.k !== "newPri";
+  const assigned = allObjectives(panel.snapshot.priorities).some((objective) => objective.assignee);
   return <>
     <Top>
       <span className="pl-ttl">Plan</span>
-      <button type="button" className="pl-btn" onClick={() => panel.go({ kind: "teams" })}>Orgs &amp; teams</button>
+      {assigned ? <button type="button" className="pl-btn" onClick={() => panel.go({ kind: "teams" })}>Orgs &amp; teams</button> : null}
       <button type="button" className="pl-btn pl-ib" aria-label="Add company priority" title="Add company priority" onClick={() => panel.edit({ k: "newPri" })}><Icon glyph="add" /></button>
     </Top>
     <Body panel={panel}>
+      {empty ? <div className="pl-empty">
+        <Icon glyph="pri" />
+        <p className="pl-empty-h">No company priorities yet</p>
+        <p className="pl-hintbox">Add one with + above, or ask the agent in this thread to set up your plan.</p>
+      </div> : null}
       {panel.snapshot.priorities.map((priority) => <PrioritySection key={priority.id} panel={panel} priority={priority} />)}
       {panel.editing?.k === "newPri" ? <section className="pl-sec">
         <div className="pl-type"><Icon glyph="pri" />Company priority</div>
