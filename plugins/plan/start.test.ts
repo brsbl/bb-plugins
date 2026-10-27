@@ -113,6 +113,12 @@ describe("Start preconditions", () => {
     checked(noDeliverable.id);
     expect((await rejects(starts.start({ id: noDeliverable.id }), "not_ready")).message).toContain("brief.deliverable");
 
+    for (const field of ["scope", "measurement", "sources"] as const) {
+      const partial = await plan.addInvestment({ objectiveId: objective.id, name: `No ${field}`, brief: { ...BRIEF, [field]: undefined } });
+      checked(partial.id);
+      expect((await rejects(starts.start({ id: partial.id }), "not_ready")).message).toContain(`brief.${field}`);
+    }
+
     const noCriteria = await plan.addInvestment({ objectiveId: objective.id, name: "No criteria", brief: { deliverable: "A thing" } });
     checked(noCriteria.id);
     const both = await rejects(starts.start({ id: noCriteria.id }), "not_ready");
@@ -129,6 +135,31 @@ describe("Start preconditions", () => {
     await rejects(starts.start({ id: finished.id }), "wrong_state");
     await rejects(starts.start({ id: "inv_missing" }), "not_found");
     expect(fake.state.sendAttempts).toBe(0);
+  });
+});
+
+describe("existing activity already running", () => {
+  it("sets an existing investment In progress without sending, only for the user or the team thread, and obeys one per team", async () => {
+    const { plan, starts, fake, objective, sibling, state } = await setup();
+    const running = await plan.addInvestment({ objectiveId: objective.id, name: "Install-page copy test", existing: true });
+    const fresh = await plan.addInvestment({ objectiveId: objective.id, name: "Brand new", brief: BRIEF });
+    const other = await plan.addInvestment({ objectiveId: sibling.id, name: "Also running", existing: true });
+
+    await rejects(starts.markInProgress({ id: fresh.id }, { kind: "user" }), "wrong_state");
+    await rejects(starts.markInProgress({ id: running.id }, { kind: "thread", threadId: "thr_planner" }), "not_assignee");
+    await rejects(starts.markInProgress({ id: running.id }, { kind: "thread", threadId: "thr_paid" }), "not_assignee");
+    expect(await starts.markInProgress({ id: running.id }, { kind: "thread", threadId: "thr_worker" })).toMatchObject({ state: "in_progress" });
+    expect(fake.state.sendAttempts).toBe(0);
+    expect(fake.delivered).toEqual([]);
+    expect((await rejects(starts.markInProgress({ id: other.id }, { kind: "user" }), "team_busy")).message).toContain("Install-page copy test");
+    await rejects(starts.markInProgress({ id: running.id }, { kind: "user" }), "wrong_state");
+
+    const done = await starts.deliver({ id: running.id, output: {
+      deliverable: "Copy test concluded: https://notes.example/result", criteria: [{ criterion: "Test reached significance", evidence: "Readout: https://analytics.example/r/1" }],
+    } }, "thr_conversion");
+    expect(done.state).toBe("done");
+    expect(await starts.markInProgress({ id: other.id }, { kind: "user" })).toMatchObject({ state: "in_progress" });
+    expect(state(other.id)).toBe("in_progress");
   });
 });
 
@@ -362,8 +393,8 @@ describe("plugin wiring", () => {
     plugin(bb);
     disposers.push(() => harness.lifecycle.dispose());
     const rpc = (method: string, input: unknown) => harness.behavior.callRpc(method, input) as Promise<{ ok: boolean; code?: string; value?: { id: string; state: string } }>;
-    const priority = await rpc("addPriority", { name: "Grow weekly active users" });
-    const objective = await rpc("addObjective", { priorityId: priority.value!.id, name: "Lift activation", assigneeThreadId: "thr_conversion" });
+    const priority = await rpc("addPriority", { name: "Grow weekly active users", originThreadId: "thr_growth" });
+    const objective = await rpc("addObjective", { priorityId: priority.value!.id, name: "Lift activation", assigneeThreadId: "thr_conversion", originThreadId: "thr_growth" });
     const investment = await rpc("addInvestment", { objectiveId: objective.value!.id, name: "Onboarding checklist", brief: BRIEF });
     bb.storage.database().prepare("UPDATE plan_investments SET lift = ?, rank = 1 WHERE id = ?")
       .run(JSON.stringify({ low: 30, base: 60, high: 95, unit: "users", method: "Forecast", cost: "2 weeks", dependencies: "None", sources: [] }), investment.value!.id);

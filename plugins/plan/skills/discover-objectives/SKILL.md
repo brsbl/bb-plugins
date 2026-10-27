@@ -40,6 +40,9 @@ thread, and don't change Plan records.
 - Each candidate has `lift` (shaped by the `calculate-lift` skill) or
   `"unsized": { "missing": "…" }`, never both.
 - `owner.threadId` is optional and must be an existing org or team thread.
+- The user decides from what you give: Plan shows each proposal's rationale,
+  metric link, lift, effort and dependencies, ranked by base lift on one
+  shared unit, period and population.
 - Include objectives for work already underway.
 
 ## Submit

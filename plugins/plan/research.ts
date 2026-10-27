@@ -1,10 +1,12 @@
 import { z } from "zod";
 import {
-  LIMITS, liftSchema, RESEARCH_KINDS, RESEARCH_STATUSES,
-  type EditedRecord, type FunnelStep, type Investment, type Lift, type Objective, type RecordKind, type ResearchDetail, type ResearchEvidence, type ResearchKind,
+  BRIEF_FIELDS, LIMITS, liftSchema, NO_PROJECT, RESEARCH_KINDS, RESEARCH_STATUSES,
+  type Brief, type EditedRecord, type FunnelStep, type Investment, type Lift, type Objective, type RecordKind, type ResearchDetail, type ResearchEvidence, type ResearchKind,
   type ResearchRequest,
 } from "./model.js";
-import { mergeList, newId, parse, PlanError, queuePortfolioRefresh, type ThreadInfo } from "./service.js";
+import { invalidateResearch, mergeList, newId, parse, PlanError, queuePortfolioRefresh, type ThreadInfo } from "./service.js";
+
+export { NO_PROJECT };
 import { createStore, type Db, type Migrate } from "./store.js";
 
 export const SLOTS = ["a", "b"] as const;
@@ -83,6 +85,9 @@ const investmentFields = {
   existing: z.boolean(),
   cost: text,
   dependencies: text,
+  deliverable: text,
+  scope: text,
+  acceptanceCriteria: text,
   measurement: text,
   sources: sourceList,
   lift: estimateSchema.optional(),
@@ -232,9 +237,28 @@ const liftState = (item: Item) => item.lift
   ? `${item.lift.lift.base >= 0 ? "+" : ""}${item.lift.lift.base} ${item.lift.unit} per ${item.lift.period}`
   : "unsized";
 
-function sameLift(a: Item, b: Item): boolean {
-  if (!a.lift || !b.lift) return !a.lift && !b.lift;
-  return a.lift.unit === b.lift.unit && a.lift.period === b.lift.period && close(a.lift.lift.base, b.lift.lift.base);
+const estimateSources = (estimate: Estimate) => unique([
+  ...estimate.baseline.sources,
+  ...estimate.withChange.low.sources,
+  ...estimate.withChange.base.sources,
+  ...estimate.withChange.high.sources,
+  ...(estimate.funnelSteps ?? []).flatMap((step) => [...step.sources, ...(step.linkToNext?.sources ?? [])]),
+]).sort();
+
+export function liftDifferences(a: Item, b: Item): string[] {
+  if (!a.lift || !b.lift) return !a.lift && !b.lift ? [] : ["sizing"];
+  const x = a.lift;
+  const y = b.lift;
+  const differences: string[] = [];
+  if (x.unit !== y.unit) differences.push("unit");
+  if (x.period !== y.period) differences.push("period");
+  if (x.population.trim().toLowerCase() !== y.population.trim().toLowerCase()) differences.push("population");
+  if (!close(x.baseline.value, y.baseline.value)) differences.push("baseline");
+  if (x.method !== y.method) differences.push("method");
+  if (!close(x.lift.base, y.lift.base)) differences.push("base lift");
+  if (!close(x.lift.low, y.lift.low) || !close(x.lift.high, y.lift.high)) differences.push("range");
+  if (JSON.stringify(estimateSources(x)) !== JSON.stringify(estimateSources(y))) differences.push("sources");
+  return differences;
 }
 
 export function traceIssues(list: string, items: TracedItem[], submissions: Record<Slot, Item[]>, disagreements: Disagreement[], excludedItems: z.infer<typeof excluded>[]): string[] {
@@ -273,7 +297,10 @@ export function traceIssues(list: string, items: TracedItem[], submissions: Reco
       } else {
         const a = sources.find((entry) => entry.slot === "a")!.item;
         const b = sources.find((entry) => entry.slot === "b")!.item;
-        if (!sameLift(a, b)) issues.push(`${where}: submissions disagree (a: ${liftState(a)}, b: ${liftState(b)}); list it in disagreements with a resolution`);
+        const differences = liftDifferences(a, b);
+        if (differences.length) {
+          issues.push(`${where}: submissions disagree on ${differences.join(", ")} (a: ${liftState(a)}, b: ${liftState(b)}); list it in disagreements with a resolution`);
+        }
       }
     }
   });
@@ -300,34 +327,48 @@ export function traceIssues(list: string, items: TracedItem[], submissions: Reco
   return issues;
 }
 
-export interface Rankable { id: string; name: string; base: number | null; basis: string | null }
+export interface Basis { unit: string; period: string; population: string }
+export interface Rankable { id: string; name: string; base: number | null; basis: Basis | null }
+export interface Ranking { ranks: Map<string, number | null>; reasons: Map<string, string> }
 
-export function rankByLift(items: Rankable[]): Map<string, number | null> {
+const basisKey = (basis: Basis) => JSON.stringify([basis.unit, basis.period, basis.population.trim().toLowerCase()]);
+const basisLabel = (basis: Basis) => `${basis.unit} per ${basis.period} for ${basis.population}`;
+
+export function rankByLift(items: Rankable[], blocked: string | null = null): Ranking {
   const ranks = new Map<string, number | null>(items.map((item) => [item.id, null]));
-  const sized = items.filter((item): item is Rankable & { base: number; basis: string } => item.base !== null && item.basis !== null);
-  if (!sized.length) return ranks;
-  const counts = new Map<string, { count: number; top: number }>();
-  for (const item of sized) {
-    const entry = counts.get(item.basis) ?? { count: 0, top: -Infinity };
-    counts.set(item.basis, { count: entry.count + 1, top: Math.max(entry.top, item.base) });
+  const reasons = new Map<string, string>();
+  const sized = items.filter((item): item is Rankable & { base: number; basis: Basis } => item.base !== null && item.basis !== null);
+  if (!sized.length) return { ranks, reasons };
+  if (blocked) {
+    for (const item of sized) reasons.set(item.id, blocked);
+    return { ranks, reasons };
   }
-  const [basis] = [...counts.entries()].sort((x, y) => y[1].count - x[1].count || y[1].top - x[1].top)[0]!;
-  sized.filter((item) => item.basis === basis)
-    .sort((x, y) => y.base - x.base || x.name.localeCompare(y.name))
-    .forEach((item, index) => ranks.set(item.id, index + 1));
-  return ranks;
+  const groups = new Map<string, { basis: Basis; members: typeof sized }>();
+  for (const item of sized) {
+    const key = basisKey(item.basis);
+    const group = groups.get(key) ?? { basis: item.basis, members: [] };
+    group.members.push(item);
+    groups.set(key, group);
+  }
+  const largest = Math.max(...[...groups.values()].map((group) => group.members.length));
+  const leaders = [...groups.values()].filter((group) => group.members.length === largest);
+  if (leaders.length > 1) {
+    const reason = `Not ranked: sized items are on ${groups.size} different bases with no main comparable group (${[...groups.values()].map((group) => basisLabel(group.basis)).join("; ")}). Put them on one shared unit, period and population.`;
+    for (const item of sized) reasons.set(item.id, reason);
+    return { ranks, reasons };
+  }
+  const main = leaders[0]!;
+  main.members.sort((x, y) => y.base - x.base || x.name.localeCompare(y.name)).forEach((item, index) => ranks.set(item.id, index + 1));
+  for (const item of sized) {
+    if (!main.members.includes(item)) reasons.set(item.id, `Not ranked: measured as ${basisLabel(item.basis)}, not the portfolio's shared basis (${basisLabel(main.basis)}).`);
+  }
+  return { ranks, reasons };
 }
 
 const unique = (values: string[]) => [...new Set(values)];
 
 function toLift(estimate: Estimate, item: { cost: string; dependencies: string; sources: string[] }): Lift {
-  const sources = unique([
-    ...item.sources,
-    ...estimate.baseline.sources,
-    ...estimate.withChange.low.sources,
-    ...estimate.withChange.base.sources,
-    ...estimate.withChange.high.sources,
-  ]).slice(0, LIMITS.sources);
+  const sources = unique([...item.sources, ...estimateSources(estimate)]).slice(0, LIMITS.sources);
   return parse(liftSchema, {
     low: estimate.lift.low,
     base: estimate.lift.base,
@@ -350,9 +391,20 @@ function funnelSteps(estimate: Estimate | undefined): FunnelStep[] | null {
   })) ?? null;
 }
 
-const basisKey = (research: ResearchEvidence | null, lift: { unit: string } | null) => lift ? `${lift.unit}|${research?.basis?.period ?? ""}` : null;
+const rankable = (record: { id: string; name: string; research: ResearchEvidence | null }): Rankable => ({
+  id: record.id, name: record.name, base: record.research?.lift?.base ?? null, basis: record.research?.lift ? record.research.basis : null,
+});
 
-interface JobRow { request_id: string; phase: ResearchPhase; project_id: string | null; detail: string | null; updated_at: string }
+const unresolvedReason = (disagreements: Disagreement[]): string | null => {
+  const open = disagreements.filter((entry) => !entry.resolved);
+  if (!open.length) return null;
+  return `Not ranked: the portfolio has ${open.length === 1 ? "an unresolved disagreement" : `${open.length} unresolved disagreements`} (${open.map((entry) => `"${entry.topic}"`).join(", ")}); nothing ranks until it is resolved.`;
+};
+
+interface InputRecord { kind: RecordKind; id: string; revision: number; content: string }
+interface FrozenInputs { brief: unknown; records: InputRecord[]; investmentIds: string[] | null }
+
+interface JobRow { request_id: string; phase: ResearchPhase; project_id: string | null; detail: string | null; updated_at: string; inputs: string | null }
 interface ThreadRow { request_id: string; role: ThreadRole; project_id: string; title: string; thread_id: string | null; created_at: string }
 interface SubmissionRow { request_id: string; slot: Slot; subject_revision: number; thread_id: string | null; body: string; created_at: string }
 interface ReconciliationRow { request_id: string; thread_id: string | null; body: string; created_at: string }
@@ -390,8 +442,6 @@ export interface ResearchJobView {
   reconciliation: { threadId: string | null; createdAt: string; body: unknown } | null;
 }
 
-export const NO_PROJECT = "No project for research threads. Set the Plan plugin's researchProjectId setting, or assign an objective to a team thread so research can use its project.";
-
 export type ResearchService = ReturnType<typeof createResearchService>;
 
 export function createResearchService(deps: ResearchDeps) {
@@ -403,6 +453,7 @@ export function createResearchService(deps: ResearchDeps) {
   const upsertJob = db.prepare(`INSERT INTO research_jobs (request_id, phase, project_id, detail, updated_at) VALUES (@request_id, @phase, @project_id, @detail, @updated_at)
     ON CONFLICT (request_id) DO UPDATE SET phase = excluded.phase, project_id = COALESCE(excluded.project_id, research_jobs.project_id), detail = excluded.detail, updated_at = excluded.updated_at`);
   const jobDetail = db.prepare("UPDATE research_jobs SET detail = @detail, updated_at = @updated_at WHERE request_id = @request_id");
+  const jobInputs = db.prepare("UPDATE research_jobs SET inputs = @inputs WHERE request_id = @request_id");
   const inFlight = db.prepare(`SELECT COUNT(*) AS count FROM research_jobs WHERE phase IN (${IN_FLIGHT.map(() => "?").join(", ")})`);
   const activeJobs = db.prepare(`SELECT * FROM research_jobs WHERE phase IN (${IN_FLIGHT.map(() => "?").join(", ")}) ORDER BY updated_at, rowid`);
   const threadRow = db.prepare("SELECT * FROM research_threads WHERE request_id = ? AND role = ?");
@@ -458,7 +509,14 @@ export function createResearchService(deps: ResearchDeps) {
     return null;
   };
 
+  const frozen = (requestId: string): FrozenInputs | null => {
+    const raw = job(requestId)?.inputs;
+    return raw ? JSON.parse(raw) as FrozenInputs : null;
+  };
+
   const portfolioAt = (objectiveId: string, request: ResearchRequest) => {
+    const ids = frozen(request.id)?.investmentIds;
+    if (ids) return store.investmentsFor(objectiveId).filter((investment) => ids.includes(investment.id));
     const at = request.claimedAt ?? stamp();
     return store.investmentsFor(objectiveId).filter((investment) => investment.createdAt <= at);
   };
@@ -480,7 +538,49 @@ export function createResearchService(deps: ResearchDeps) {
     return store.investment(request.subjectId)?.name ?? request.subjectId;
   };
 
-  const brief = (request: ResearchRequest): unknown => {
+  const priorityInput = (id: string): InputRecord | null => {
+    const priority = store.priority(id);
+    if (!priority) return null;
+    const { name, metric, baseline, now, target, by, constraints } = priority;
+    return { kind: "priority", id, revision: priority.revision, content: JSON.stringify({ name, metric, baseline, now, target, by, constraints }) };
+  };
+  const objectiveInput = (id: string): InputRecord | null => {
+    const objective = store.objective(id);
+    return objective ? { kind: "objective", id, revision: objective.revision, content: JSON.stringify({ name: objective.name, priorityId: objective.priorityId }) } : null;
+  };
+  const investmentInput = (id: string): InputRecord | null => {
+    const investment = store.investment(id);
+    if (!investment) return null;
+    const brief = Object.fromEntries(BRIEF_FIELDS.map((field) => [field, investment.brief[field] ?? null]));
+    return { kind: "investment", id, revision: investment.revision, content: JSON.stringify({ name: investment.name, existing: investment.existing, brief }) };
+  };
+  const currentInput = (record: InputRecord) => record.kind === "priority" ? priorityInput(record.id) : record.kind === "objective" ? objectiveInput(record.id) : investmentInput(record.id);
+
+  const freeze = (request: ResearchRequest): FrozenInputs => {
+    const objectiveId = objectiveIdFor(request);
+    if (objectiveId) {
+      const objective = store.objective(objectiveId);
+      const investmentIds = store.investmentsFor(objectiveId).map((investment) => investment.id);
+      const records = [
+        objective ? priorityInput(objective.priorityId) : null,
+        objectiveInput(objectiveId),
+        ...investmentIds.map(investmentInput),
+      ].filter((record): record is InputRecord => record !== null);
+      return { brief: liveBrief(request, investmentIds), records, investmentIds };
+    }
+    const records = request.kind === "discover_objectives" ? [priorityInput(request.subjectId)].filter((record): record is InputRecord => record !== null) : [];
+    return { brief: liveBrief(request, null), records, investmentIds: null };
+  };
+
+  const changedInputs = (request: ResearchRequest): string[] => (frozen(request.id)?.records ?? []).flatMap((record) => {
+    const current = currentInput(record);
+    if (!current) return [`${record.kind} ${record.id} was removed`];
+    return current.content === record.content ? [] : [`${record.kind} ${record.id} (revision ${record.revision} → ${current.revision})`];
+  });
+
+  const brief = (request: ResearchRequest): unknown => frozen(request.id)?.brief ?? liveBrief(request, null);
+
+  const liveBrief = (request: ResearchRequest, investmentIds: string[] | null): unknown => {
     const objectiveId = objectiveIdFor(request);
     if (objectiveId) {
       const objective = store.objective(objectiveId);
@@ -488,7 +588,7 @@ export function createResearchService(deps: ResearchDeps) {
       return {
         priority,
         objective: objective && { id: objective.id, name: objective.name, revision: objective.revision, assigneeThreadId: objective.assigneeThreadId },
-        portfolio: portfolioAt(objectiveId, request).map((investment) => ({
+        portfolio: (investmentIds ? store.investmentsFor(objectiveId).filter((investment) => investmentIds.includes(investment.id)) : portfolioAt(objectiveId, request)).map((investment) => ({
           investmentId: investment.id, name: investment.name, existing: investment.existing, brief: investment.brief, lift: investment.lift,
         })),
         ...(request.detail?.investmentIds?.length ? { addedInvestmentIds: request.detail.investmentIds } : {}),
@@ -529,7 +629,7 @@ export function createResearchService(deps: ResearchDeps) {
         `You are independent research agent ${role.toUpperCase()} for Plan research request ${request.id}: ${KIND_LABEL[request.kind]}.`,
         `Follow the Plan plugin's \`${skill}\` skill, and its \`${SKILLS.lift}\` skill for every lift. This is the research standard in org-status README §6: work alone from original sources and record sources, method, calculations and limits.`,
         "Independence: a second agent is researching this same brief separately. Do not look for, read or ask about its work, do not message any other thread, and do not change Plan records. Your only output is one submission; Plan publishes nothing until both submissions are reconciled.",
-        `Brief (records as of revision ${request.subjectRevision}):`,
+        "Brief (the records as frozen when this request started; the other agent and the reconciliation get this same brief):",
         json(brief(request)),
         `When ready, save your submission JSON to a file and run \`bb plan research submit --request ${request.id} --slot ${role} --file <path>\` (or pipe it with \`--data-stdin\`). A rejection lists exactly what to fix; fix it and submit again. An accepted submission is final.`,
       ].join("\n\n");
@@ -539,7 +639,7 @@ export function createResearchService(deps: ResearchDeps) {
       return [
         `You reconcile Plan research request ${request.id}: ${KIND_LABEL[request.kind]}.`,
         `Follow the Plan plugin's \`${SKILLS.reconcile}\` skill, and its \`${SKILLS.lift}\` skill for any recomputation. Both independent submissions are saved below. Compare them claim by claim; do not average, vote, or invent items. Do not message any other thread or change Plan records.`,
-        "Brief:",
+        "Brief (the same frozen brief both research agents got):",
         json(brief(request)),
         "Submissions:",
         json(saved),
@@ -632,6 +732,19 @@ export function createResearchService(deps: ResearchDeps) {
     store.setResearchDetail(request.id, detail);
   };
 
+  const originProject = async (request: ResearchRequest): Promise<string | null> => {
+    const objectiveId = objectiveIdFor(request)
+      ?? (request.subjectKind === "objective" ? request.subjectId : request.subjectKind === "investment" ? store.investment(request.subjectId)?.objectiveId ?? null : null);
+    const objective = objectiveId ? store.objective(objectiveId) : null;
+    const priority = store.priority(objective?.priorityId ?? (request.subjectKind === "priority" ? request.subjectId : ""));
+    for (const threadId of [objective?.originThreadId, priority?.originThreadId]) {
+      if (!threadId) continue;
+      const projectId = await deps.host.threadProject(threadId).catch(() => null);
+      if (projectId) return projectId;
+    }
+    return null;
+  };
+
   const defaultProject = async (): Promise<string | null> => {
     for (const objective of store.objectives()) {
       if (!objective.assigneeThreadId) continue;
@@ -646,20 +759,25 @@ export function createResearchService(deps: ResearchDeps) {
     const cap = Math.max(1, Math.floor(settings.concurrency));
     for (const row of activeJobs.all(...IN_FLIGHT) as JobRow[]) await advance(row);
     let running = (inFlight.get(...IN_FLIGHT) as { count: number }).count;
-    let projectId: string | null | undefined;
+    let fallback: string | null | undefined;
     for (const listed of store.researchRequests({ status: "pending", kind: null })) {
       if (running >= cap) break;
       const request = store.research(listed.id);
       if (!request || request.status !== "pending") continue;
       const waiting = gate(request);
       if (waiting) { setJob(request.id, "blocked", null, waiting); continue; }
-      if (projectId === undefined) projectId = settings.projectId ?? await defaultProject();
+      let projectId = settings.projectId ?? await originProject(request);
+      if (!projectId) {
+        if (fallback === undefined) fallback = await defaultProject();
+        projectId = fallback;
+      }
       if (!projectId) { setJob(request.id, "blocked", null, NO_PROJECT); continue; }
       const target = projectId;
       const started = store.transaction(() => {
         if (gate(request) || !store.claimResearch(request.id, RUNNER, stamp())) return false;
         foldPendingPortfolio(request);
         setJob(request.id, request.kind === "assess_edit" ? "assessing" : "researching", target, null);
+        jobInputs.run({ request_id: request.id, inputs: JSON.stringify(freeze(store.research(request.id)!)) });
         return true;
       });
       if (!started) continue;
@@ -712,6 +830,9 @@ export function createResearchService(deps: ResearchDeps) {
     funnelSteps: funnelSteps(item.lift),
     rationale: null,
     ownerProposal: null,
+    metricLink: null,
+    cost: null,
+    dependencies: null,
     ...extra,
   });
 
@@ -728,7 +849,11 @@ export function createResearchService(deps: ResearchDeps) {
         name: candidate.name,
         approved: false,
         assigneeThreadId: candidate.owner.threadId ?? null,
-        research: evidence(request, candidate, { rationale: candidate.rationale, ownerProposal: candidate.owner.proposal }),
+        originThreadId: null,
+        research: evidence(request, candidate, {
+          rationale: candidate.rationale, ownerProposal: candidate.owner.proposal, metricLink: candidate.metricLink,
+          cost: candidate.effort ?? null, dependencies: candidate.dependencies ?? null,
+        }),
         rank: null,
         revision: 1,
         createdAt: at,
@@ -738,10 +863,12 @@ export function createResearchService(deps: ResearchDeps) {
       existing.add(candidate.name.trim().toLowerCase());
       created.push(objective);
     }
-    const ranks = rankByLift(created.map((objective) => ({
-      id: objective.id, name: objective.name, base: objective.research?.lift?.base ?? null, basis: basisKey(objective.research, objective.research?.lift ?? null),
-    })));
-    for (const objective of created) store.setObjectiveRank(objective.id, ranks.get(objective.id) ?? null);
+    const { ranks, reasons } = rankByLift(created.map(rankable), unresolvedReason(value.disagreements));
+    for (const objective of created) {
+      store.setObjectiveRank(objective.id, ranks.get(objective.id) ?? null);
+      const reason = reasons.get(objective.id);
+      if (reason && objective.research) store.setObjectiveEvidence(objective.id, { ...objective.research, missing: reason });
+    }
     return { kind: "priority" as const, id: priority.id, summary: `Proposed ${created.length} objective${created.length === 1 ? "" : "s"}; you choose which to adopt.`, ids: created.map((objective) => objective.id) };
   };
 
@@ -751,13 +878,20 @@ export function createResearchService(deps: ResearchDeps) {
     const ids: string[] = [];
     for (const item of value.investments) {
       const lift = item.lift ? toLift(item.lift, item) : null;
-      const research = evidence(request, item);
+      const research = evidence(request, item, { cost: item.cost, dependencies: item.dependencies });
+      const researched: Required<Brief> = {
+        deliverable: item.deliverable, scope: item.scope, acceptanceCriteria: item.acceptanceCriteria, measurement: item.measurement, sources: item.sources.slice(0, LIMITS.sources),
+      };
       const current = store.investmentsFor(objectiveId);
       const match = item.investmentId
         ? current.find((investment) => investment.id === item.investmentId)
         : current.find((investment) => investment.name.trim().toLowerCase() === item.name.trim().toLowerCase());
       if (match) {
-        store.publishInvestmentResearch(match.id, lift, research, at);
+        const merged: Brief = { ...match.brief };
+        for (const field of BRIEF_FIELDS) {
+          if (!match.briefSetByHand.includes(field)) Object.assign(merged, { [field]: researched[field] });
+        }
+        store.publishInvestmentResearch(match.id, lift, research, merged, at);
         ids.push(match.id);
         continue;
       }
@@ -767,7 +901,8 @@ export function createResearchService(deps: ResearchDeps) {
         name: item.name,
         existing: item.existing,
         state: "not_started",
-        brief: { measurement: item.measurement, sources: item.sources },
+        brief: researched,
+        briefSetByHand: [],
         lift,
         research,
         rank: null,
@@ -779,12 +914,43 @@ export function createResearchService(deps: ResearchDeps) {
       ids.push(investment.id);
     }
     const portfolio = store.investmentsFor(objectiveId);
-    const ranks = rankByLift(portfolio.map((investment) => ({
-      id: investment.id, name: investment.name, base: investment.lift?.base ?? null, basis: basisKey(investment.research, investment.lift),
-    })));
-    for (const investment of portfolio) store.setInvestmentRank(investment.id, ranks.get(investment.id) ?? null);
+    const blocked = unresolvedReason(value.disagreements);
+    const { ranks, reasons } = rankByLift(portfolio.map((investment) => rankable({ ...investment, research: investment.lift ? investment.research : null })), blocked);
+    for (const investment of portfolio) {
+      store.setInvestmentRank(investment.id, ranks.get(investment.id) ?? null);
+      const reason = reasons.get(investment.id);
+      if (reason && investment.research) store.setInvestmentEvidence(investment.id, { ...investment.research, missing: reason });
+    }
     const ranked = ids.filter((id) => ranks.get(id) !== null).length;
-    return { kind: "objective" as const, id: objectiveId, summary: `Published ${ids.length} investment${ids.length === 1 ? "" : "s"}: ${ranked} ranked, ${ids.length - ranked} unranked.`, ids };
+    const summary = `Published ${ids.length} investment${ids.length === 1 ? "" : "s"}: ${ranked} ranked, ${ids.length - ranked} unranked.${blocked ? ` ${blocked}` : ""}`;
+    return { kind: "objective" as const, id: objectiveId, summary, ids };
+  };
+
+  const supersede = (request: ResearchRequest, changed: string[]): string => {
+    const at = stamp();
+    const reason = `Inputs changed while research ${request.id} ran: ${changed.join("; ")}`;
+    const summary = `Superseded: ${changed.join("; ")} changed after this research started. Nothing was published; a fresh run covers the change.`;
+    store.transaction(() => {
+      const objectiveId = objectiveIdFor(request);
+      const objective = objectiveId ? store.objective(objectiveId) : null;
+      if (objective) {
+        const followUp = queuePortfolioRefresh(store, objective, { key: `superseded:${request.id}`, investmentId: null, reason }, at);
+        const next = store.research(followUp)!;
+        store.setResearchDetail(followUp, { ...next.detail, investmentIds: mergeList(next.detail?.investmentIds, request.detail?.investmentIds ?? []) });
+      } else if (request.kind === "discover_objectives") {
+        const priority = store.priority(request.subjectId);
+        if (priority) {
+          store.insertResearch({
+            id: newId("research"), kind: "discover_objectives", idempotencyKey: `discover_objectives:${priority.id}:after:${request.id}`, subjectKind: "priority",
+            subjectId: priority.id, subjectRevision: priority.revision, detail: { reasons: [reason] }, createdAt: at,
+          });
+        }
+      }
+      setJob(request.id, "closed", null, summary);
+    });
+    deps.publish({ kind: request.subjectKind, id: request.subjectId });
+    kick();
+    return summary;
   };
 
   const view = (request: ResearchRequest): ResearchJobView => {
@@ -828,6 +994,10 @@ export function createResearchService(deps: ResearchDeps) {
       if (previous) {
         throw new PlanError("already_submitted", `Slot ${value.slot} already submitted for research request ${request.id} at ${previous.created_at}; submissions are immutable.`);
       }
+      const changed = changedInputs(request);
+      if (changed.length) {
+        return { requestId: request.id, slot: value.slot, accepted: false, next: supersede(request, changed) };
+      }
       const body = await validateSubmission(request, value.submission);
       const result = store.transaction(() => {
         requirePhase(request, ["researching"], "take submissions");
@@ -854,6 +1024,8 @@ export function createResearchService(deps: ResearchDeps) {
       const request = requireRequest(value.requestId);
       requirePhase(request, ["reconciling"], "take a reconciliation");
       const owner = requireCaller(request, "reconcile", callerThreadId);
+      const stale = changedInputs(request);
+      if (stale.length) return { requestId: request.id, published: [] as string[], summary: supersede(request, stale), superseded: true };
       const saved = savedSubmissions(request);
       let body: ObjectivesReconciliation | PortfolioReconciliation;
       if (request.kind === "discover_objectives") {
@@ -883,6 +1055,8 @@ export function createResearchService(deps: ResearchDeps) {
       const at = stamp();
       const published = store.transaction(() => {
         requirePhase(request, ["reconciling"], "take a reconciliation");
+        const late = changedInputs(request);
+        if (late.length) return null;
         insertReconciliation.run({ request_id: request.id, thread_id: owner, body: JSON.stringify(body), created_at: at });
         const result = request.kind === "discover_objectives"
           ? publishObjectives(request, body as ObjectivesReconciliation, at)
@@ -890,9 +1064,10 @@ export function createResearchService(deps: ResearchDeps) {
         setJob(request.id, "published", null, result.summary);
         return result;
       });
+      if (!published) return { requestId: request.id, published: [] as string[], summary: supersede(request, changedInputs(request)), superseded: true };
       deps.publish({ kind: published.kind, id: published.id });
       kick();
-      return { requestId: request.id, published: published.ids, summary: published.summary };
+      return { requestId: request.id, published: published.ids, summary: published.summary, superseded: false };
     },
 
     async rerun(input: unknown, callerThreadId: string | null) {
@@ -907,11 +1082,12 @@ export function createResearchService(deps: ResearchDeps) {
         const ids = unique(value.objectiveIds).map((objectiveId) => {
           const objective = store.objective(objectiveId);
           if (!objective) throw new PlanError("not_found", `No objective ${objectiveId}.`, "Run `bb plan show` to list objectives.");
-          return queuePortfolioRefresh(store, objective, { key: `rerun:${request.id}`, investmentId: null, reason: value.reason }, at);
+          return invalidateResearch(store, objective, null, { key: `rerun:${request.id}`, investmentId: null, reason: value.reason }, at);
         });
         setJob(request.id, "closed", null, `Research rerun: ${value.reason}`);
         return ids;
       });
+      for (const objectiveId of unique(value.objectiveIds)) deps.publish({ kind: "objective", id: objectiveId });
       kick();
       return { requestId: request.id, outcome: "rerun", refreshRequests: created };
     },

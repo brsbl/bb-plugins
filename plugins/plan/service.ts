@@ -1,9 +1,9 @@
 import { randomBytes } from "node:crypto";
 import type { z } from "zod";
 import {
-  briefSchema, emptyInput, investmentAddInput, investmentEditInput, objectiveAddInput, objectiveApproveInput, objectiveAssignInput,
+  BRIEF_FIELDS, briefSchema, emptyInput, inferMetricFormat, NO_PROJECT, NO_PROJECT_SHORT, investmentAddInput, investmentEditInput, objectiveAddInput, objectiveApproveInput, objectiveAssignInput,
   objectiveEditInput, openRecordInput, priorityAddInput, priorityEditInput, researchClaimInput, researchListInput, showInput,
-  type Assignee, type Brief, type EditedRecord, type Investment, type Objective, type ObjectiveView, type OpenRecord, type Overview, type Priority, type PriorityView,
+  type Assignee, type Brief, type BriefField, type EditedRecord, type Investment, type Objective, type ObjectiveView, type OpenRecord, type Overview, type Priority, type PriorityView,
   type RecordKind, type ResearchDetail, type ResearchKind, type ResearchRequest,
 } from "./model.js";
 import { createStore, type Db, type Migrate, type Store } from "./store.js";
@@ -105,6 +105,27 @@ export function queuePortfolioRefresh(store: Store, objective: Objective, cause:
   return store.researchByKey(idempotencyKey)!.id;
 }
 
+export const MATERIAL_PRIORITY_FIELDS = ["metric", "baseline", "target", "by", "constraints"] as const;
+export const MATERIAL_INVESTMENT_FIELDS = ["existing", "brief.scope"] as const;
+
+function renumberRanks(store: Store, objectiveId: string): void {
+  const ranked = store.investmentsFor(objectiveId).filter((investment) => investment.rank !== null).sort((a, b) => a.rank! - b.rank!);
+  ranked.forEach((investment, index) => { if (investment.rank !== index + 1) store.setInvestmentRank(investment.id, index + 1); });
+}
+
+export function invalidateResearch(store: Store, objective: Objective, investmentIds: readonly string[] | null, cause: PortfolioCause, at: string): string {
+  for (const investment of store.investmentsFor(objective.id)) {
+    if (investmentIds && !investmentIds.includes(investment.id)) continue;
+    if (investment.lift || investment.rank !== null || investment.research) store.clearInvestmentResearch(investment.id, at);
+  }
+  renumberRanks(store, objective.id);
+  return queuePortfolioRefresh(store, objective, cause, at);
+}
+
+function briefChanges(before: Brief, after: Brief): string[] {
+  return BRIEF_FIELDS.filter((field) => JSON.stringify(before[field] ?? null) !== JSON.stringify(after[field] ?? null)).map((field) => `brief.${field}`);
+}
+
 function withRecord(records: readonly EditedRecord[], record: EditedRecord): EditedRecord[] {
   const index = records.findIndex((entry) => entry.kind === record.kind && entry.id === record.id);
   if (index === -1) return [...records, record];
@@ -164,8 +185,10 @@ export function createPlanService(deps: PlanDeps) {
   const objectiveViews = async (objectives: Objective[], investmentsOf: (objectiveId: string) => Investment[]): Promise<ObjectiveView[]> => {
     const assignee = await assigneeLookup(objectives);
     const active = store.activePortfolioObjectiveIds();
+    const blocked = store.researchBlockedBy(NO_PROJECT);
     return objectives.map((objective) => ({
       ...objective, assignee: assignee(objective.assigneeThreadId), investments: investmentsOf(objective.id), researchActive: active.has(objective.id),
+      researchBlocked: blocked.has(`objective:${objective.id}`) ? NO_PROJECT_SHORT : null,
     }));
   };
 
@@ -173,7 +196,7 @@ export function createPlanService(deps: PlanDeps) {
   const openInPanel = new Map<string, OpenRecord>();
 
   return {
-    async addPriority(input: unknown): Promise<Priority> {
+    async addPriority(input: unknown, originThreadId: string | null = null): Promise<Priority> {
       const value = parse(priorityAddInput, input);
       const at = stamp();
       const priority: Priority = {
@@ -185,6 +208,8 @@ export function createPlanService(deps: PlanDeps) {
         target: value.target ?? null,
         by: value.by ?? null,
         constraints: value.constraints ?? null,
+        metricFormat: value.metricFormat ?? inferMetricFormat(value.metric),
+        originThreadId,
         revision: 1,
         createdAt: at,
         updatedAt: at,
@@ -214,12 +239,21 @@ export function createPlanService(deps: PlanDeps) {
           by: patch.by !== undefined ? patch.by : base.by,
           constraints: patch.constraints !== undefined ? patch.constraints : base.constraints,
         };
-        const fields = changedFields(base, next, ["name", "metric", "baseline", "now", "target", "by", "constraints"]);
+        next.metricFormat = patch.metricFormat ?? (next.metric !== base.metric ? inferMetricFormat(next.metric) : base.metricFormat);
+        const fields = changedFields(base, next, ["name", "metric", "metricFormat", "baseline", "now", "target", "by", "constraints"]);
         if (!fields.length) return { record: base, changed: false };
         const at = stamp();
         const saved = { ...next, revision: base.revision + 1, updatedAt: at };
         if (!store.updatePriority(saved, expectedRevision)) throw stale("priority", id, expectedRevision, store.priority(id)?.revision ?? expectedRevision);
-        assessEdit({ kind: "priority", id, revision: saved.revision, fields }, { kind: "priority", id, revision: saved.revision }, at);
+        const material = fields.filter((field) => (MATERIAL_PRIORITY_FIELDS as readonly string[]).includes(field));
+        const assessed = fields.filter((field) => field !== "metricFormat");
+        if (material.length) {
+          for (const objective of store.objectivesFor(id)) {
+            invalidateResearch(store, objective, null, { key: `edit:priority:${id}:${saved.revision}`, investmentId: null, reason: `Company priority ${material.join(", ")} changed` }, at);
+          }
+        } else if (assessed.length) {
+          assessEdit({ kind: "priority", id, revision: saved.revision, fields: assessed }, { kind: "priority", id, revision: saved.revision }, at);
+        }
         return { record: saved, changed: true };
       });
       if (result.changed) changed("priority", id);
@@ -235,10 +269,14 @@ export function createPlanService(deps: PlanDeps) {
       const { id } = parse(showInput, input);
       const priority = store.priority(id);
       if (!priority) throw missing("priority", id);
-      return { ...priority, objectives: await objectiveViews(store.objectivesFor(id), (objectiveId) => store.investmentsFor(objectiveId)) };
+      return {
+        ...priority,
+        objectives: await objectiveViews(store.objectivesFor(id), (objectiveId) => store.investmentsFor(objectiveId)),
+        researchBlocked: store.researchBlockedBy(NO_PROJECT).has(`priority:${id}`) ? NO_PROJECT_SHORT : null,
+      };
     },
 
-    async addObjective(input: unknown): Promise<Objective> {
+    async addObjective(input: unknown, originThreadId: string | null = null): Promise<Objective> {
       const value = parse(objectiveAddInput, input);
       if (value.assigneeThreadId) await requireThread(value.assigneeThreadId);
       const at = stamp();
@@ -248,6 +286,7 @@ export function createPlanService(deps: PlanDeps) {
         name: value.name,
         approved: !value.proposed,
         assigneeThreadId: value.assigneeThreadId ?? null,
+        originThreadId,
         research: null,
         rank: null,
         revision: 1,
@@ -339,6 +378,7 @@ export function createPlanService(deps: PlanDeps) {
         existing: value.existing ?? false,
         state: "not_started",
         brief: value.brief ?? {},
+        briefSetByHand: BRIEF_FIELDS.filter((field) => value.brief?.[field] !== undefined),
         lift: null,
         research: null,
         rank: null,
@@ -364,15 +404,22 @@ export function createPlanService(deps: PlanDeps) {
         checkRevision("investment", id, current, expectedRevision);
         const base = current!;
         const brief: Brief = value.brief ? parse(briefSchema, applyPatch(base.brief, value.brief)) : base.brief;
-        const next: Investment = { ...base, name: value.name ?? base.name, existing: value.existing ?? base.existing, brief };
-        const fields = changedFields(base, next, ["name", "existing", "brief"]);
+        const patch = value.brief ?? {};
+        const briefSetByHand = BRIEF_FIELDS.filter((field: BriefField) => patch[field] === undefined ? base.briefSetByHand.includes(field) : patch[field] !== null);
+        const next: Investment = { ...base, name: value.name ?? base.name, existing: value.existing ?? base.existing, brief, briefSetByHand };
+        const fields = [...changedFields(base, next, ["name", "existing"]), ...briefChanges(base.brief, brief)];
         if (!fields.length) return { record: base, changed: false };
         const at = stamp();
         const saved = { ...next, revision: base.revision + 1, updatedAt: at };
         if (!store.updateInvestment(saved, expectedRevision)) throw stale("investment", id, expectedRevision, store.investment(id)?.revision ?? expectedRevision);
         const objective = store.objective(saved.objectiveId)!;
-        assessEdit({ kind: "investment", id, revision: saved.revision, fields }, { kind: "objective", id: objective.id, revision: objective.revision }, at);
-        return { record: saved, changed: true };
+        const material = fields.filter((field) => (MATERIAL_INVESTMENT_FIELDS as readonly string[]).includes(field));
+        if (material.length) {
+          invalidateResearch(store, objective, [id], { key: `edit:investment:${id}:${saved.revision}`, investmentId: id, reason: `${saved.name}: ${material.join(", ")} changed` }, at);
+        } else {
+          assessEdit({ kind: "investment", id, revision: saved.revision, fields }, { kind: "objective", id: objective.id, revision: objective.revision }, at);
+        }
+        return { record: store.investment(id)!, changed: true };
       });
       if (result.changed) changed("investment", id);
       return result.record;
@@ -390,8 +437,11 @@ export function createPlanService(deps: PlanDeps) {
       const investments = new Map<string, Investment[]>();
       for (const investment of store.investments()) investments.set(investment.objectiveId, [...(investments.get(investment.objectiveId) ?? []), investment]);
       const views = await objectiveViews(store.objectives(), (objectiveId) => investments.get(objectiveId) ?? []);
+      const blocked = store.researchBlockedBy(NO_PROJECT);
       return {
-        priorities: store.priorities().map((priority): PriorityView => ({ ...priority, objectives: views.filter((view) => view.priorityId === priority.id) })),
+        priorities: store.priorities().map((priority): PriorityView => ({
+          ...priority, objectives: views.filter((view) => view.priorityId === priority.id), researchBlocked: blocked.has(`priority:${priority.id}`) ? NO_PROJECT_SHORT : null,
+        })),
       };
     },
 

@@ -2,7 +2,8 @@ import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode 
 import type { ObjectiveView, PriorityView } from "../model.js";
 import type { ThreadOption } from "../rpc.js";
 import type { Rpc } from "./data.js";
-import { chooseThread, mentionText, metricPatch, threadLabel, threadQuery } from "./view-model.js";
+import type { MetricFormat } from "../model.js";
+import { chooseThread, mentionText, metricPatch, threadLabel, threadQuery, UNASSIGN } from "./view-model.js";
 
 const PATHS = {
   pri: <><circle cx="8" cy="8" r="6" /><circle cx="8" cy="8" r="2.5" /></>,
@@ -73,20 +74,26 @@ export function MetricEditor({ priority, onSave, onInvalid, onCancel }: {
 }) {
   const initial = useRef({ priority, onSave }).current;
   const box = useRef<HTMLDivElement>(null);
+  const baseline = useRef<HTMLInputElement>(null);
   const now = useRef<HTMLInputElement>(null);
   const target = useRef<HTMLInputElement>(null);
   const by = useRef<HTMLInputElement>(null);
   const metric = useRef<HTMLInputElement>(null);
+  const format = useRef<HTMLSelectElement>(null);
+  const constraints = useRef<HTMLInputElement>(null);
   const settle = useSettle();
   const [busy, setBusy] = useState(false);
   useEffect(() => focusOnMount(now.current), []);
   const finish = (keep: boolean) => settle(() => {
     if (!keep) { onCancel(); return; }
     const patch = metricPatch(initial.priority, {
+      baseline: baseline.current?.value ?? "",
       now: now.current?.value ?? "",
       target: target.current?.value ?? "",
       by: by.current?.value ?? "",
-      ...(metric.current ? { metric: metric.current.value } : {}),
+      metric: metric.current?.value ?? "",
+      metricFormat: (format.current?.value as MetricFormat | undefined) ?? initial.priority.metricFormat,
+      constraints: constraints.current?.value ?? "",
     });
     if (typeof patch === "string") { onInvalid(patch); onCancel(); return; }
     if (!Object.keys(patch).length) { onCancel(); return; }
@@ -95,11 +102,20 @@ export function MetricEditor({ priority, onSave, onInvalid, onCancel }: {
   });
   return <div ref={box} className="pl-metric pl-mi" onKeyDown={editKeys(finish)}
     onBlur={(event) => { if (!box.current?.contains(event.relatedTarget as Node | null)) finish(true); }}>
+    <span>from</span>
+    <input ref={baseline} className="pl-ie pl-n" inputMode="decimal" defaultValue={priority.baseline ?? ""} aria-label="Baseline" readOnly={busy} />
+    <span>·</span>
     <input ref={now} className="pl-ie pl-n" inputMode="decimal" defaultValue={priority.now ?? ""} aria-label="Now" readOnly={busy} />
     <span>now →</span>
     <input ref={target} className="pl-ie pl-n" inputMode="decimal" defaultValue={priority.target ?? ""} aria-label="Target" readOnly={busy} />
-    {priority.metric ? <span>{priority.metric} by</span> : <><input ref={metric} className="pl-ie pl-m" defaultValue="" placeholder="Metric" aria-label="Metric" readOnly={busy} /><span>by</span></>}
+    <input ref={metric} className="pl-ie pl-m" defaultValue={priority.metric ?? ""} placeholder="Metric" aria-label="Metric" readOnly={busy} />
+    <select ref={format} className="pl-ie pl-f" defaultValue={priority.metricFormat} aria-label="Format" disabled={busy}>
+      <option value="number">123</option>
+      <option value="percent">%</option>
+    </select>
+    <span>by</span>
     <input ref={by} className="pl-ie pl-d" defaultValue={priority.by ?? ""} placeholder="YYYY-MM-DD" aria-label="By" readOnly={busy} />
+    <input ref={constraints} className="pl-ie pl-c" defaultValue={priority.constraints ?? ""} placeholder="Constraints" aria-label="Constraints" readOnly={busy} />
   </div>;
 }
 
@@ -145,6 +161,9 @@ export function TeamPicker({ objective, rpc, onPick, onCancel }: {
   return <>
     <input ref={ref} className="pl-ie" list={listId} value={text} onChange={(event) => setText(mentionText(event.target.value))} readOnly={busy}
       aria-label="Assign a team: @mention its thread" onKeyDown={editKeys(finish)} onBlur={() => finish(true)} />
-    <datalist id={listId}>{options.map((option) => <option key={option.id} value={`@${option.name}`} />)}</datalist>
+    <datalist id={listId}>
+      {options.map((option) => <option key={option.id} value={`@${option.label}`} />)}
+      {initial.objective.assigneeThreadId ? <option value={UNASSIGN} /> : null}
+    </datalist>
   </>;
 }

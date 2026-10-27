@@ -1,6 +1,8 @@
 import { randomBytes } from "node:crypto";
 import { z } from "zod";
-import { LIMITS, showInput, type Investment, type Objective, type RecordKind } from "./model.js";
+import { acceptanceCriteria, briefIssues, LIMITS, showInput, type Investment, type Objective, type RecordKind } from "./model.js";
+
+export { acceptanceCriteria, briefIssues };
 import { parse, PlanError } from "./service.js";
 import { createStore, type Db, type Migrate } from "./store.js";
 
@@ -69,12 +71,6 @@ export const deliverInput = z.strictObject({ id: z.string().trim().min(1).max(LI
 
 export const OUTPUT_SHAPE = '{"deliverable": "what you delivered and where", "criteria": [{"criterion": "<each acceptance criterion, exactly>", "evidence": "how it is met, with links"}], "measurement": "how it is measured"}';
 
-export function acceptanceCriteria(criteria: string): string[] {
-  return criteria.split(/\r?\n/)
-    .map((line) => line.replace(/^\s*(?:(?:[-*•]|\d+[.)]|\[[ xX]\])\s+)+/, "").trim())
-    .filter(Boolean);
-}
-
 const normalize = (value: string) => value.trim().replace(/\s+/g, " ").toLowerCase();
 
 export function deliveryIssues(investment: Investment, output: DeliveryOutput): string[] {
@@ -84,7 +80,7 @@ export function deliveryIssues(investment: Investment, output: DeliveryOutput): 
   const seen = new Set<string>();
   output.criteria.forEach((entry, index) => {
     const key = normalize(entry.criterion);
-    if (!wanted.has(key)) issues.push(`criteria[${index}]: "${entry.criterion}" isn't one of this investment's acceptance criteria; use their exact text`);
+    if (wanted.size && !wanted.has(key)) issues.push(`criteria[${index}]: "${entry.criterion}" isn't one of this investment's acceptance criteria; use their exact text`);
     else if (seen.has(key)) issues.push(`criteria[${index}]: "${entry.criterion}" is listed twice`);
     seen.add(key);
     if (TRIVIAL.test(entry.evidence.trim())) issues.push(`criteria[${index}].evidence: "${entry.evidence}" isn't evidence; say how the criterion is met and link the proof`);
@@ -127,7 +123,7 @@ export function briefMessage(args: { startId: string; investment: Investment; ob
     `Investment ${investment.id} (\`bb plan investment show ${investment.id}\`) · Start ${startId}`,
     "",
     `Deliverable: ${brief.deliverable ?? ""}`,
-    `Scope: ${brief.scope ?? "Only what this brief describes."}`,
+    `Scope: ${brief.scope ?? ""}`,
     "Acceptance criteria:",
     ...criteria.map((criterion, index) => `${index + 1}. ${criterion}`),
     ...(brief.measurement ? [`Measurement: ${brief.measurement}`] : []),
@@ -182,13 +178,10 @@ export function createStartService(deps: StartDeps) {
     if (investment.rank === null) issues.push("Its lift isn't checked and reconciled yet");
     if (!objective.approved) issues.push("Approve its objective first");
     if (!objective.assigneeThreadId) issues.push("Assign a team first");
-    if (!investment.brief.deliverable) issues.push("brief.deliverable: add what the team hands back");
-    if (!investment.brief.acceptanceCriteria || !acceptanceCriteria(investment.brief.acceptanceCriteria).length) {
-      issues.push("brief.acceptanceCriteria: add how the deliverable is accepted, one criterion per line");
-    }
+    issues.push(...briefIssues(investment.brief));
     if (issues.length || !objective.assigneeThreadId) {
       throw new PlanError("not_ready", `Can't start ${investment.name}:\n${issues.map((issue) => `- ${issue}`).join("\n")}`,
-        `Fill the brief with \`bb plan investment edit ${investment.id} --deliverable … --acceptance-criteria … --expected-revision ${investment.revision}\`.`);
+        `Fill the brief with \`bb plan investment edit ${investment.id} --deliverable … --scope … --acceptance-criteria … --measurement … --source … --expected-revision ${investment.revision}\`.`);
     }
     return { objective, assigneeThreadId: objective.assigneeThreadId };
   };
@@ -267,6 +260,18 @@ export function createStartService(deps: StartDeps) {
     return false;
   };
 
+  const isTeamOrWorker = async (callerThreadId: string, teamThreadId: string): Promise<boolean> => {
+    let current: string | null = callerThreadId;
+    const visited = new Set<string>();
+    while (current && !visited.has(current) && visited.size < MAX_ANCESTRY) {
+      if (current === teamThreadId) return true;
+      visited.add(current);
+      const thread: TeamThread | null = await deps.host.thread(current).catch(() => null);
+      current = thread?.parentThreadId ?? null;
+    }
+    return false;
+  };
+
   return {
     active(): ActiveStart[] {
       return (activeStarts.all() as StartRow[]).flatMap((row) => row.status === "sending" || row.status === "uncertain" || row.status === "sent"
@@ -310,6 +315,42 @@ export function createStartService(deps: StartDeps) {
       return send(row);
     },
 
+    async markInProgress(input: unknown, caller: { kind: "user" } | { kind: "thread"; threadId: string }): Promise<Investment> {
+      const { id } = parse(showInput, input);
+      const investment = requireInvestment(id);
+      if (!investment.existing) {
+        throw new PlanError("wrong_state", `${investment.name} is new work, not existing activity; Start it to send its brief.`, "Only an investment marked existing can be set In progress without a brief.");
+      }
+      if (investment.state !== "not_started") throw new PlanError("wrong_state", `${investment.name} is already ${investment.state === "done" ? "Done" : "In progress"}.`);
+      const objective = store.objective(investment.objectiveId);
+      if (!objective) throw new PlanError("not_found", `No objective ${investment.objectiveId}.`);
+      const assigneeThreadId = objective.assigneeThreadId;
+      if (!assigneeThreadId) throw new PlanError("not_ready", `Can't mark ${investment.name} In progress:\n- Assign a team first`);
+      if (caller.kind === "thread" && !(await isTeamOrWorker(caller.threadId, assigneeThreadId))) {
+        throw new PlanError("not_assignee", `Only the user or the team thread ${assigneeThreadId} (or one of its workers) can mark ${investment.name} In progress.`);
+      }
+      const thread = await deps.host.thread(assigneeThreadId).catch(() => null);
+      store.transaction(() => {
+        const latest = requireInvestment(id);
+        if (latest.state !== "not_started" || active(latest.id)) throw new PlanError("wrong_state", `${latest.name} is already In progress.`);
+        const current = store.objective(latest.objectiveId);
+        if (current?.assigneeThreadId !== assigneeThreadId) throw new PlanError("stale_revision", "The objective's team changed while marking it In progress. Nothing changed.");
+        const busy = teamBusy(assigneeThreadId, thread?.name ?? null);
+        if (busy) throw busy;
+        const startId = `st_${randomBytes(8).toString("hex")}`;
+        try {
+          insertStart.run({ id: startId, investment_id: latest.id, assignee_thread_id: assigneeThreadId, message: `Marked In progress as existing activity; no brief was sent.`, at: stamp() });
+        } catch (error) {
+          if (error instanceof Error && "code" in error && error.code === "SQLITE_CONSTRAINT_UNIQUE") throw teamBusy(assigneeThreadId, thread?.name ?? null) ?? new PlanError("start_pending", "This investment is already being started.");
+          throw error;
+        }
+        moveStart.run({ id: startId, from: "sending", to: "sent", error: null, at: stamp() });
+        setState.run({ id: latest.id, from: "not_started", to: "in_progress", at: stamp() });
+      });
+      deps.publish({ kind: "investment", id });
+      return requireInvestment(id);
+    },
+
     async deliver(input: unknown, callerThreadId: string | null): Promise<Investment> {
       const value = parse(deliverInput, input);
       if (!callerThreadId) {
@@ -321,16 +362,7 @@ export function createStartService(deps: StartDeps) {
       }
       const row = active(investment.id);
       if (!row || row.status !== "sent") throw new PlanError("wrong_state", `${investment.name} has no confirmed Start.`);
-      let current: string | null = callerThreadId;
-      const visited = new Set<string>();
-      let allowed = false;
-      while (current && !visited.has(current) && visited.size < MAX_ANCESTRY) {
-        if (current === row.assignee_thread_id) { allowed = true; break; }
-        visited.add(current);
-        const thread: TeamThread | null = await deps.host.thread(current).catch(() => null);
-        current = thread?.parentThreadId ?? null;
-      }
-      if (!allowed) {
+      if (!(await isTeamOrWorker(callerThreadId, row.assignee_thread_id))) {
         throw new PlanError("not_assignee", `Only the team thread ${row.assignee_thread_id} or one of its workers can deliver ${investment.name}.`);
       }
       const output = readOutput(value.output);

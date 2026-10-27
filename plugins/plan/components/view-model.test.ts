@@ -4,8 +4,9 @@ import type { InvestmentState, Lift, ResearchEvidence } from "../model.js";
 import { createPlanService, type ThreadInfo } from "../service.js";
 import type { Migrate } from "../store.js";
 import {
-  allObjectives, busyFor, canShowStart, chooseThread, emptyPortfolioText, groupOrgs, liftText, metricPatch, objectiveMeta, originLabel,
-  mentionText, ownerObjectives, portfolioRows, researchFinishedUnsized, startBlockedReason, startRetryHint, teamLabel, threadQuery, unknownLiftText,
+  allObjectives, busyFor, canShowStart, chooseThread, emptyPortfolioText, evidenceSources, formatAmount, formatBy, funnelSummary, groupOrgs, liftText,
+  liveOwner, metricPatch, objectiveMeta, orderedObjectives, originLabel, mentionText, ownerObjectives, portfolioRows, researchFinishedUnsized,
+  startBlockedReason, startRetryHint, teamLabel, threadQuery, unitLabel, unknownLiftText,
 } from "./view-model.js";
 import type { ActiveStart } from "../start.js";
 
@@ -39,6 +40,7 @@ function setup() {
   const setMissing = (id: string, missing: string) => {
     const research: ResearchEvidence = {
       requestId: "rr_1", submissionThreadIds: ["thr_a", "thr_b"], reconciliationThreadId: "thr_r", basis: null, lift: null, missing, funnelSteps: null, rationale: null, ownerProposal: null,
+      metricLink: null, cost: "1 week", dependencies: "Discord admin access",
     };
     db.prepare("UPDATE plan_investments SET lift = NULL, rank = NULL, research = ? WHERE id = ?").run(JSON.stringify(research), id);
   };
@@ -75,7 +77,9 @@ describe("portfolio view model", () => {
     const view = await objective(target.id);
     const discord = view.investments.find((entry) => entry.id === added[1]!.id)!;
     expect(researchFinishedUnsized(discord)).toBe(true);
-    expect(liftText(view, discord)).toBe("—");
+    expect(liftText(view, discord)).toBe("Researching");
+    expect(discord.research).toMatchObject({ cost: "1 week", dependencies: "Discord admin access" });
+    expect(liftText(view, view.investments.find((entry) => entry.id === added[4]!.id)!)).toBe("Unranked");
     expect(canShowStart(discord)).toBe(false);
     const researching = await service.addInvestment({ objectiveId: target.id, name: "Still researching" });
     const next = await objective(target.id);
@@ -94,6 +98,7 @@ describe("portfolio view model", () => {
 
     expect(emptyPortfolioText(await objective(assigned.id))).toBe("Researching");
     expect(emptyPortfolioText(await objective(unassigned.id))).toBe("Research starts once a team is assigned");
+    expect(emptyPortfolioText(await objective(proposed.id))).toBe("Research starts once the objective is approved");
     expect(unknownLiftText(await objective(assigned.id))).toBe("Researching");
     expect(unknownLiftText(await objective(unassigned.id))).toBe("—");
     expect(unknownLiftText(await objective(proposed.id))).toBe("—");
@@ -124,7 +129,10 @@ describe("portfolio view model", () => {
     expect(startBlockedReason(await objectives(), await objective(proposed.id), [])).toBe("Approve the objective first");
     const bare = await service.addInvestment({ objectiveId: other.id, name: "No brief yet" });
     const otherView = await objective(other.id);
-    expect(startBlockedReason(all, otherView, [], otherView.investments.find((entry) => entry.id === bare.id))).toBe("Add a deliverable and acceptance criteria to the brief first");
+    expect(startBlockedReason(all, otherView, [], otherView.investments.find((entry) => entry.id === bare.id))).toBe("Complete the brief first: deliverable, scope, acceptance criteria, measurement and sources");
+    const partial = await service.addInvestment({ objectiveId: other.id, name: "Two fields", brief: { deliverable: "A thing", acceptanceCriteria: "Ships" } });
+    const partialView = await objective(other.id);
+    expect(startBlockedReason(all, partialView, [], partialView.investments.find((entry) => entry.id === partial.id))).toContain("Complete the brief first");
     expect(objectiveMeta(await objective(first.id))).toBe("Growth / Conversion · In progress: Install-page copy test");
     expect(objectiveMeta(await objective(unassigned.id))).toBe("Unassigned");
 
@@ -147,7 +155,7 @@ describe("portfolio view model", () => {
 });
 
 describe("lift while research is active", () => {
-  it("shows Researching for every unsized investment while its objective's portfolio research is pending or in flight, and — once none is", async () => {
+  it("shows Researching for every investment without checked lift while its objective is approved and assigned, even after a run couldn't size it", async () => {
     const { service, setLift, setMissing, finishResearch, objective } = setup();
     const priority = await service.addPriority({ name: "Grow weekly active users" });
     const target = await service.addObjective({ priorityId: priority.id, name: "Lift activation", assigneeThreadId: "thr_conversion" });
@@ -167,7 +175,7 @@ describe("lift while research is active", () => {
     expect(await lift()).toEqual(["Researching", null]);
     finishResearch("published");
     expect((await objective(target.id)).researchActive).toBe(false);
-    expect(await lift()).toEqual(["—", null]);
+    expect(await lift()).toEqual(["Researching", null]);
 
     const proposed = await service.addObjective({ priorityId: priority.id, name: "Proposed", proposed: true, assigneeThreadId: "thr_paid" });
     await service.addInvestment({ objectiveId: proposed.id, name: "Waiting" });
@@ -206,7 +214,7 @@ describe("unconfirmed Starts", () => {
     const priority = await service.addPriority({ name: "Grow weekly active users" });
     const first = await service.addObjective({ priorityId: priority.id, name: "Lift activation", assigneeThreadId: "thr_conversion" });
     const second = await service.addObjective({ priorityId: priority.id, name: "Shorten install", assigneeThreadId: "thr_conversion" });
-    const brief = { deliverable: "A checklist", acceptanceCriteria: "Ships" };
+    const brief = { deliverable: "A checklist", scope: "First thread", acceptanceCriteria: "Ships", measurement: "WAU", sources: ["https://notes.example"] };
     const pending = await service.addInvestment({ objectiveId: first.id, name: "Onboarding checklist", brief });
     const rival = await service.addInvestment({ objectiveId: second.id, name: "Install-page copy test", brief });
     setLift(pending.id, 40, "not_started", 1);
@@ -232,6 +240,37 @@ describe("navigation view model", () => {
     expect(originLabel({ kind: "plan" })).toBe("Plan");
     expect(originLabel({ kind: "owner", owner: { kind: "team", threadId: "thr_conversion", name: "Conversion" } })).toBe("Conversion");
     expect(originLabel({ kind: "owner", owner: { kind: "org", threadId: "thr_growth", name: null } })).toBe("thr_growth");
+  });
+
+  it("reads owner headings and breadcrumb labels from the live org list, so renames follow", () => {
+    const orgs = [{ threadId: "thr_growth", name: "Growth org", teams: [{ threadId: "thr_conversion", name: "Activation" }] }];
+    const team = { kind: "team" as const, threadId: "thr_conversion", name: "Conversion" };
+    expect(liveOwner(orgs, team).name).toBe("Activation");
+    expect(liveOwner(orgs, { kind: "org", threadId: "thr_growth", name: "Growth" }).name).toBe("Growth org");
+    expect(originLabel({ kind: "owner", owner: team }, orgs)).toBe("Activation");
+    expect(liveOwner([], team).name).toBe("Conversion");
+  });
+
+  it("lists proposed objectives after adopted ones in computed rank order, with owner and base lift", async () => {
+    const { db, service } = setup();
+    const priority = await service.addPriority({ name: "Grow weekly active users" });
+    const adopted = await service.addObjective({ priorityId: priority.id, name: "Adopted" });
+    const low = await service.addObjective({ priorityId: priority.id, name: "Low", proposed: true });
+    const unsized = await service.addObjective({ priorityId: priority.id, name: "Unsized", proposed: true, assigneeThreadId: "thr_paid" });
+    const high = await service.addObjective({ priorityId: priority.id, name: "High", proposed: true });
+    const evidence = (base: number | null) => JSON.stringify({
+      requestId: "rr_1", submissionThreadIds: ["thr_a", "thr_b"], reconciliationThreadId: "thr_r", basis: null,
+      lift: base === null ? null : { low: base - 5, base, high: base + 5, unit: "weekly active users" }, missing: null, funnelSteps: null,
+      rationale: "Why", ownerProposal: "Growth / Conversion owns onboarding", metricLink: null, cost: null, dependencies: null,
+    });
+    db.prepare("UPDATE plan_objectives SET research = ?, rank = ? WHERE id = ?").run(evidence(10), 2, low.id);
+    db.prepare("UPDATE plan_objectives SET research = ?, rank = ? WHERE id = ?").run(evidence(80), 1, high.id);
+    db.prepare("UPDATE plan_objectives SET research = ?, rank = NULL WHERE id = ?").run(evidence(null), unsized.id);
+    const objectives = (await service.overview()).priorities[0]!.objectives;
+    const ordered = orderedObjectives(objectives);
+    expect(ordered.map((entry) => entry.id)).toEqual([adopted.id, high.id, low.id, unsized.id]);
+    expect(objectiveMeta(ordered[1]!)).toBe("Proposed · Growth / Conversion owns onboarding · +80");
+    expect(objectiveMeta(ordered[3]!)).toBe("Proposed · Growth / Paid acquisition");
   });
 
   it("groups assignee threads under their parent org and lists an org's objectives with its teams'", async () => {
@@ -262,16 +301,53 @@ describe("inline edit helpers", () => {
     const { service } = setup();
     const priority = await service.addPriority({ name: "Grow weekly active users", metric: "weekly active users", now: 1450, target: 2000, by: "2027-01-31" });
     const view = (await service.overview()).priorities[0]!;
-    expect(metricPatch(view, { now: "1,500", target: "2000", by: "2027-01-31" })).toEqual({ now: 1500, baseline: 1500 });
-    expect(metricPatch(view, { now: "abc", target: "2000", by: "" })).toBe("Now must be a number");
-    const patch = metricPatch(view, { now: "1500", target: "", by: "2027-02-28" });
+    const same = { baseline: "", now: "1450", target: "2000", by: "2027-01-31", metric: "weekly active users", metricFormat: "number" as const, constraints: "" };
+    expect(metricPatch(view, { ...same, now: "1,500" })).toEqual({ now: 1500, baseline: 1500 });
+    expect(metricPatch(view, { ...same, now: "abc", by: "" })).toBe("Now must be a number");
+    expect(metricPatch(view, { ...same, baseline: "x" })).toBe("Baseline must be a number");
+    const patch = metricPatch(view, { ...same, now: "1500", target: "", by: "2027-02-28" });
     expect(patch).toEqual({ now: 1500, target: null, by: "2027-02-28", baseline: 1500 });
     const saved = await service.editPriority({ id: priority.id, expectedRevision: priority.revision, ...(patch as Record<string, unknown>) });
     expect(saved).toMatchObject({ now: 1500, target: null, by: "2027-02-28", baseline: 1500, revision: 2 });
+    const current = (await service.overview()).priorities[0]!;
+    const edit = metricPatch(current, { baseline: "1200", now: "1500", target: "", by: "2027-02-28", metric: "4-week retention", metricFormat: "percent", constraints: "No paid ads" });
+    expect(edit).toEqual({ baseline: 1200, metric: "4-week retention", metricFormat: "percent", constraints: "No paid ads" });
+    expect(await service.editPriority({ id: priority.id, expectedRevision: 2, ...(edit as Record<string, unknown>) })).toMatchObject({ baseline: 1200, metric: "4-week retention", metricFormat: "percent", constraints: "No paid ads" });
+  });
+
+  it("formats metric values by the priority's format, lowercases a sentence-case unit, and drops the year for dates within a year", async () => {
+    const { service } = setup();
+    expect((await service.addPriority({ name: "Keep teams", metric: "4-week retention", now: 40 })).metricFormat).toBe("percent");
+    expect((await service.addPriority({ name: "Activation", metric: "Activation %" })).metricFormat).toBe("percent");
+    expect((await service.addPriority({ name: "Grow", metric: "weekly active users" })).metricFormat).toBe("number");
+    expect((await service.addPriority({ name: "Override", metric: "retained teams", metricFormat: "number" })).metricFormat).toBe("number");
+    expect(formatAmount(40, "percent")).toBe("40%");
+    expect(formatAmount(1450, "number")).toBe("1,450");
+    expect(unitLabel("Added week-1 active users")).toBe("added week-1 active users");
+    expect(unitLabel("WAU")).toBe("WAU");
+    const today = new Date("2026-10-27T12:00:00Z");
+    expect(formatBy("2026-12-31", today)).toBe("Dec 31");
+    expect(formatBy("2027-01-31", today)).toBe("Jan 31");
+    expect(formatBy("2027-12-31", today)).toBe("Dec 31, 2027");
+    expect(formatBy("2025-01-31", today)).toBe("Jan 31, 2025");
+  });
+
+  it("summarizes funnel steps in one row and includes every step source in Sources", () => {
+    const investment = {
+      lift: { sources: ["https://a.example"] }, brief: { sources: ["https://brief.example"] },
+      research: { metricLink: null, funnelSteps: [
+        { step: "Download", value: 1, unit: "x", sources: ["https://d.example"], linkToNext: { rate: 0.5, sources: ["https://link.example"] } },
+        { step: "install", value: 1, unit: "x", sources: ["https://i.example"], linkToNext: null },
+      ] },
+    } as unknown as Parameters<typeof funnelSummary>[0];
+    expect(funnelSummary(investment)).toBe("Download → install, each step sourced");
+    expect(evidenceSources(investment)).toEqual(["https://a.example", "https://brief.example", "https://d.example", "https://link.example", "https://i.example"]);
   });
 
   it("resolves an @mention to a thread ID, an empty mention to unassigned, and an unknown name to nothing", () => {
-    const options = [{ id: "thr_conversion", name: "Growth / Conversion" }];
+    const options = [{ id: "thr_conversion", name: "Conversion", label: "Growth / Conversion" }, { id: "thr_conv2", name: "Conversion", label: "Product / Conversion" }];
+    expect(chooseThread("@Product / Conversion", options)).toEqual({ id: "thr_conv2" });
+    expect(chooseThread("Unassign", options)).toEqual({ id: null });
     expect(chooseThread("@Growth / Conversion", options)).toEqual({ id: "thr_conversion" });
     expect(chooseThread("@growth / conversion", options)).toEqual({ id: "thr_conversion" });
     expect(chooseThread("@thr_paid", options)).toEqual({ id: "thr_paid" });

@@ -1,7 +1,7 @@
 import Database from "better-sqlite3";
 import { describe, expect, it } from "vitest";
 import { createPlanService, PlanError, type ThreadInfo } from "./service.js";
-import type { Migrate } from "./store.js";
+import { MIGRATIONS, type Migrate } from "./store.js";
 
 const migrate: Migrate = (db, statements) => {
   db.exec("CREATE TABLE IF NOT EXISTS test_migrations (id INTEGER PRIMARY KEY)");
@@ -78,7 +78,8 @@ describe("optimistic concurrency", () => {
     const error = await rejects(service.editPriority({ id: priority.id, expectedRevision: 1, target: 1800 }), "stale_revision");
     expect(error.message).toContain("revision 2");
     expect((await service.showPriority({ id: priority.id })).target).toBe(2200);
-    expect((await requests("assess_edit")).length).toBe(1);
+    expect(await requests("assess_edit")).toEqual([]);
+    expect((await requests("refresh_portfolio")).map((request) => request.detail?.reasons)).toEqual([["Company priority target changed"]]);
 
     await service.editObjective({ id: objective.id, expectedRevision: 1, name: "Activation" });
     await rejects(service.approveObjective({ id: objective.id, expectedRevision: 1 }), "stale_revision");
@@ -151,8 +152,9 @@ describe("research triggers", () => {
     await service.editInvestment({ id: investment.id, expectedRevision: renamed.revision, brief: { scope: "Copy only" } });
     expect((await requests("assess_edit")).map((request) => request.detail)).toEqual([{
       group: `objective:${objective.id}`, lastEditAt: "2026-10-27T12:00:00.000Z",
-      records: [{ kind: "investment", id: investment.id, revision: 3, fields: ["name", "brief"] }],
+      records: [{ kind: "investment", id: investment.id, revision: 2, fields: ["name"] }],
     }]);
+    expect((await requests("refresh_portfolio"))[0]!.detail?.reasons).toEqual(["Install-page test: brief.scope changed"]);
 
     expect((await requests()).length).toBe(3);
   });
@@ -173,6 +175,74 @@ describe("research triggers", () => {
     expect(claimed).toMatchObject({ status: "claimed", claimedBy: "thr_researcher1" });
     await rejects(service.claimResearchRequest({ id: request!.id, claimedBy: "thr_researcher2" }), "already_claimed");
     expect(await service.listResearchRequests({ status: "pending" })).toEqual([]);
+  });
+});
+
+describe("material edits", () => {
+  const checked = (db: Database.Database, id: string, rank: number) => db.prepare("UPDATE plan_investments SET lift = ?, rank = ?, research = ? WHERE id = ?").run(
+    JSON.stringify({ low: 1, base: rank * 10, high: 99, unit: "users", method: "Forecast", cost: "1 week", dependencies: "None", sources: [] }), rank,
+    JSON.stringify({ requestId: "rr_1", submissionThreadIds: [], reconciliationThreadId: null, basis: null, lift: null, missing: null, funnelSteps: null, rationale: null, ownerProposal: null, metricLink: null, cost: null, dependencies: null }),
+    id,
+  );
+
+  it("clears the edited investment's lift and rank at once, renumbers the rest, and queues fresh research; a rename keeps the evidence", async () => {
+    const { db, service, requests } = setup();
+    const { objective } = await seed(service);
+    const first = await service.addInvestment({ objectiveId: objective.id, name: "Checklist" });
+    const second = await service.addInvestment({ objectiveId: objective.id, name: "Email" });
+    const third = await service.addInvestment({ objectiveId: objective.id, name: "Gallery" });
+    [first, second, third].forEach((entry, index) => checked(db, entry.id, index + 1));
+    db.prepare("UPDATE research_requests SET status = 'claimed'").run();
+
+    const renamed = await service.editInvestment({ id: first.id, expectedRevision: 1, name: "Checklist v2" });
+    expect(renamed).toMatchObject({ rank: 1, lift: { base: 10 } });
+    expect(await requests("refresh_portfolio")).toMatchObject([{ status: "claimed" }]);
+
+    const scoped = await service.editInvestment({ id: first.id, expectedRevision: 2, brief: { scope: "Only teams" } });
+    expect(scoped).toMatchObject({ rank: null, lift: null, research: null, briefSetByHand: ["scope"] });
+    const portfolio = (await service.showObjective({ id: objective.id })).investments;
+    expect(portfolio.map((entry) => [entry.name, entry.rank])).toEqual([["Checklist v2", null], ["Email", 1], ["Gallery", 2]]);
+    const pending = (await requests("refresh_portfolio")).filter((request) => request.status === "pending");
+    expect(pending).toMatchObject([{ detail: { investmentIds: [first.id], reasons: ["Checklist v2: brief.scope changed"] } }]);
+  });
+
+  it("clears every portfolio under a priority when its target changes", async () => {
+    const { db, service } = setup();
+    const { priority, objective } = await seed(service);
+    const other = await service.addObjective({ priorityId: priority.id, name: "Paid", assigneeThreadId: "thr_paidacq" });
+    const a = await service.addInvestment({ objectiveId: objective.id, name: "A" });
+    const b = await service.addInvestment({ objectiveId: other.id, name: "B" });
+    checked(db, a.id, 1);
+    checked(db, b.id, 1);
+    await service.editPriority({ id: priority.id, expectedRevision: 1, now: 1500 });
+    expect((await service.showInvestment({ id: a.id })).rank).toBe(1);
+    await service.editPriority({ id: priority.id, expectedRevision: 2, target: 2400 });
+    expect([(await service.showInvestment({ id: a.id })).rank, (await service.showInvestment({ id: b.id })).lift]).toEqual([null, null]);
+  });
+
+  it("tracks which brief fields were set by hand", async () => {
+    const { service } = setup();
+    const { objective } = await seed(service);
+    const added = await service.addInvestment({ objectiveId: objective.id, name: "A", brief: { deliverable: "Thing", sources: ["https://x.example"] } });
+    expect(added.briefSetByHand).toEqual(["deliverable", "sources"]);
+    const edited = await service.editInvestment({ id: added.id, expectedRevision: 1, brief: { sources: null, measurement: "WAU" } });
+    expect(edited.briefSetByHand).toEqual(["deliverable", "measurement"]);
+  });
+});
+
+describe("upgrading an existing database", () => {
+  it("marks existing brief fields as set by hand and infers a percent format for existing priorities", async () => {
+    const db = new Database(":memory:");
+    const previous = MIGRATIONS.slice(0, MIGRATIONS.indexOf("ALTER TABLE plan_priorities ADD COLUMN metric_format TEXT NOT NULL DEFAULT 'number' CHECK (metric_format IN ('number', 'percent'))"));
+    expect(previous.length).toBeGreaterThan(10);
+    migrate(db, previous);
+    db.prepare("INSERT INTO plan_priorities (id, name, metric, revision, created_at, updated_at) VALUES ('pri_old', 'Keep teams', '4-week retention', 1, 'x', 'x')").run();
+    db.prepare("INSERT INTO plan_objectives (id, priority_id, name, approved, revision, created_at, updated_at) VALUES ('obj_old', 'pri_old', 'Reduce drop-off', 1, 1, 'x', 'x')").run();
+    db.prepare(`INSERT INTO plan_investments (id, objective_id, name, existing, state, brief, revision, created_at, updated_at)
+      VALUES ('inv_old', 'obj_old', 'Email', 0, 'not_started', '{"deliverable":"A","sources":["https://x.example"]}', 1, 'x', 'x')`).run();
+    const service = createPlanService({ db, migrate, findThread: async () => null, publish: () => {}, now: () => new Date("2026-10-27T12:00:00Z") });
+    expect(await service.showInvestment({ id: "inv_old" })).toMatchObject({ briefSetByHand: ["deliverable", "sources"] });
+    expect((await service.showPriority({ id: "pri_old" })).metricFormat).toBe("percent");
   });
 });
 

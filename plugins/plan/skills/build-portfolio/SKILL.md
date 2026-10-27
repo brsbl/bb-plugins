@@ -13,7 +13,7 @@ thread, and don't change Plan records.
 | --- | --- |
 | **From** | An objective, its company priority and search scope |
 | **Steps** | List existing activity → search for new candidates → record what was covered and excluded → estimate each one's lift → rank |
-| **Gives** | The whole portfolio, existing and new, on one shared lift basis. Never just the investments chosen to start. |
+| **Gives** | The whole portfolio, existing and new, on one shared lift basis, each with a Start-ready brief. Never just the investments chosen to start. |
 | **Can't pass if** | Existing activity is left out, coverage is undocumented, or a material disagreement is unresolved |
 
 Plan computes the ranking from base lift. Don't submit ranks.
@@ -35,6 +35,9 @@ Plan computes the ranking from base lift. Don't submit ranks.
       "existing": true,
       "cost": "2 engineer-weeks",
       "dependencies": "None",
+      "deliverable": "Checklist shipped in every new first thread",
+      "scope": "First-thread empty state only; no email or site changes",
+      "acceptanceCriteria": "Checklist shows in every new first thread\nCompletion is tracked in Analytics",
       "measurement": "Week-1 active users from the shared metric",
       "sources": ["…"],
       "lift": { "…": "see calculate-lift" }
@@ -48,8 +51,19 @@ Plan computes the ranking from base lift. Don't submit ranks.
   `investmentId`. Omit `investmentId` only for new candidates.
 - Each item has `lift` (shaped by the `calculate-lift` skill) or
   `"unsized": { "missing": "…" }`, never both.
-- Put every investment on the same unit and period, or explain in
-  `limitations` why one can't be.
+- Every item carries its brief: `deliverable`, `scope`, `acceptanceCriteria`
+  (one criterion per line), `measurement` and `sources`. Plan writes them to
+  the investment's brief on publish, so Start can hand it to the team, but
+  never over a field the user set by hand. Give `cost` and `dependencies`
+  even when the item is unsized.
+- Put every investment on the same unit, period and population. Plan ranks
+  only the main comparable group; items on another basis stay unranked with
+  the reason recorded. If one can't share the basis, say why in
+  `limitations`.
+- Work from the brief in your prompt. It is frozen when the request starts,
+  and the other agent and the reconciliation get the same one. If a record
+  changes meanwhile, Plan supersedes this request and queues a fresh run; a
+  `submit` that returns `accepted: false` with "Superseded" means stop.
 
 ## Submit
 

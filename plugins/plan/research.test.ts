@@ -1,7 +1,8 @@
 import Database from "better-sqlite3";
 import { createFakePluginHost, makeThreadResponse } from "@get-bb/plugin-sdk/testing";
 import { afterEach, describe, expect, it } from "vitest";
-import { ASSESS_QUIET_MS, createResearchService, NO_PROJECT, rankByLift, type ResearchHost, type SpawnRequest } from "./research.js";
+import { NO_PROJECT_SHORT } from "./model.js";
+import { ASSESS_QUIET_MS, createResearchService, liftDifferences, NO_PROJECT, rankByLift, traceIssues, type ResearchHost, type SpawnRequest } from "./research.js";
 import plugin from "./server.js";
 import { createPlanService, PlanError, type ThreadInfo } from "./service.js";
 import type { Migrate } from "./store.js";
@@ -79,7 +80,8 @@ function lift(baseline: number, low: number, base: number, high: number, overrid
   };
 }
 const investment = (key: string, name: string, extra: Record<string, unknown> = {}) => ({
-  key, name, existing: false, cost: "2 weeks", dependencies: "None", measurement: "Shared WAU", sources: ["https://notes.example/plan"], ...extra,
+  key, name, existing: false, cost: "2 weeks", dependencies: "None", deliverable: `${name} shipped`, scope: `${name} only`,
+  acceptanceCriteria: `${name} is live for new signups`, measurement: "Shared WAU", sources: ["https://notes.example/plan"], ...extra,
 });
 const coverage = { searched: "Onboarding funnel, support tickets, Oct 2026", excluded: [], sources: ["https://notes.example/search"] };
 
@@ -329,7 +331,7 @@ describe("reconciliation and publishing", () => {
 
     const unlisted = { ...valid, disagreements: valid.disagreements.slice(1) };
     const quiet = await rejects(context.research.reconcile({ requestId: context.build.id, reconciliation: unlisted }, context.reconciler), "rejected");
-    expect(quiet.message).toContain('investments[0] ("Onboarding checklist"): submissions disagree (a: +40 weekly active users per week ending 2026-12-06, b: +30');
+    expect(quiet.message).toContain('investments[0] ("Onboarding checklist"): submissions disagree on base lift, range, sources (a: +40 weekly active users per week ending 2026-12-06, b: +30');
 
     const unresolved = structuredClone(valid);
     unresolved.disagreements[0]!.resolved = false;
@@ -367,13 +369,27 @@ describe("reconciliation and publishing", () => {
   });
 
   it("ranks only items on the most common unit and period basis", () => {
-    const ranks = rankByLift([
-      { id: "x", name: "X", base: 10, basis: "wau|w1" },
-      { id: "y", name: "Y", base: 500, basis: "installs|w1" },
-      { id: "z", name: "Z", base: 30, basis: "wau|w1" },
+    const wau = { unit: "wau", period: "w1", population: "New signups" };
+    const { ranks, reasons } = rankByLift([
+      { id: "x", name: "X", base: 10, basis: wau },
+      { id: "y", name: "Y", base: 500, basis: { ...wau, unit: "installs" } },
+      { id: "z", name: "Z", base: 30, basis: wau },
+      { id: "p", name: "P", base: 900, basis: { ...wau, population: "Existing teams" } },
       { id: "u", name: "U", base: null, basis: null },
     ]);
-    expect(Object.fromEntries(ranks)).toEqual({ x: 2, y: null, z: 1, u: null });
+    expect(Object.fromEntries(ranks)).toEqual({ x: 2, y: null, z: 1, p: null, u: null });
+    expect(reasons.get("p")).toContain("not the portfolio's shared basis (wau per w1 for New signups)");
+    expect(reasons.get("y")).toContain("measured as installs per w1");
+    expect(reasons.has("x")).toBe(false);
+  });
+
+  it("ranks nothing when incompatible groups tie, instead of breaking the tie by lift", () => {
+    const { ranks, reasons } = rankByLift([
+      { id: "a", name: "A", base: 10, basis: { unit: "wau", period: "w1", population: "New signups" } },
+      { id: "b", name: "B", base: 500, basis: { unit: "wau", period: "w1", population: "Existing teams" } },
+    ]);
+    expect(Object.fromEntries(ranks)).toEqual({ a: null, b: null });
+    expect(reasons.get("b")).toContain("no main comparable group");
   });
 
   it("derives objectives as proposed records, ranked by lift, with owner proposals", async () => {
@@ -383,7 +399,7 @@ describe("reconciliation and publishing", () => {
     await context.research.tick();
     const candidate = (key: string, name: string, extra: Record<string, unknown>) => ({
       key, name, rationale: `${name} moves WAU`, metricLink: { claim: "Counts toward WAU", sources: ["https://analytics.example/def"] },
-      owner: { proposal: "Growth / Conversion", threadId: "thr_growthconv" }, ...extra,
+      owner: { proposal: "Growth / Conversion", threadId: "thr_growthconv" }, effort: "About 3 weeks", dependencies: "Analytics event", ...extra,
     });
     const a = { candidates: [candidate("act", "Lift activation", { lift: lift(1450, 20, 40, 70) }), candidate("ret", "Reduce week-4 drop-off", { lift: lift(1450, 50, 80, 120) })], limitations: "x" };
     const b = { candidates: [candidate("act", "Lift activation", { lift: lift(1450, 20, 40, 70) }), candidate("ret", "Reduce week-4 drop-off", { lift: lift(1450, 50, 80, 120) })], limitations: "y" };
@@ -403,7 +419,151 @@ describe("reconciliation and publishing", () => {
       ["Reduce week-4 drop-off", false, 1, "thr_growthconv"],
     ]);
     expect(objectives[0]!.research).toMatchObject({ rationale: "Lift activation moves WAU", ownerProposal: "Growth / Conversion" });
+    expect(objectives[0]!.research).toMatchObject({ metricLink: { claim: "Counts toward WAU" }, cost: "About 3 weeks", dependencies: "Analytics event" });
     expect((await context.plan.listResearchRequests({ kind: "build_portfolio" }))).toHaveLength(0);
+  });
+});
+
+describe("research tied to its inputs", () => {
+  const briefOf = (prompt: string) => prompt.slice(prompt.indexOf("```json"), prompt.indexOf("```", prompt.indexOf("```json") + 7));
+
+  it("gives both slots and the reconciliation the brief frozen when the request started, even when a spawn is retried after an edit", async () => {
+    const context = await portfolioSetup();
+    context.state.failNextSpawnAfterCreate = true;
+    await context.research.tick();
+    await context.plan.editInvestment({ id: context.existing.id, expectedRevision: 1, brief: { deliverable: "Edited after the request started" } });
+    await context.research.tick();
+    const [a, b] = ["a", "b"].map((role) => context.spawned.find((entry) => entry.metadata.researchRequestId === context.build.id && entry.metadata.role === role)!);
+    expect(briefOf(a!.prompt)).toBe(briefOf(b!.prompt));
+    expect(b!.prompt).not.toContain("Edited after the request started");
+    expect(b!.prompt).toContain("frozen when this request started");
+  });
+
+  it("supersedes a reconciliation whose inputs changed since the request started: nothing publishes and a fresh run is queued", async () => {
+    const context = await bothSubmitted();
+    expect(briefOf(context.spawned.find((entry) => entry.id === context.reconciler)!.prompt)).toBe(briefOf(context.spawned.find((entry) => entry.id === threadFor(context.spawned, context.build.id, "a"))!.prompt));
+    await context.plan.editPriority({ id: context.priority.id, expectedRevision: 1, now: 1500 });
+    const result = await context.research.reconcile({ requestId: context.build.id, reconciliation: validReconciliation(context) }, context.reconciler);
+    expect(result).toMatchObject({ published: [], superseded: true });
+    expect(result.summary).toContain(`priority ${context.priority.id} (revision 1 → 2)`);
+    expect((await context.research.show({ requestId: context.build.id })).phase).toBe("closed");
+    expect((await context.plan.showObjective({ id: context.objective.id })).investments).toMatchObject([{ id: context.existing.id, lift: null, rank: null }]);
+    const followUps = (await context.plan.listResearchRequests({ kind: "refresh_portfolio" })).filter((request) => request.idempotencyKey.includes(`superseded:${context.build.id}`));
+    expect(followUps).toHaveLength(1);
+    expect(followUps[0]!.detail?.reasons?.[0]).toContain("Inputs changed while research");
+  });
+
+  it("supersedes a submission whose inputs changed, instead of saving work on stale inputs", async () => {
+    const context = await portfolioSetup();
+    await context.research.tick();
+    await context.plan.editObjective({ id: context.objective.id, expectedRevision: context.objective.revision, name: "Renamed meanwhile" });
+    const result = await context.research.submit({ requestId: context.build.id, slot: "a", submission: {
+      coverage, investments: [investment("check", "Onboarding checklist", { investmentId: context.existing.id, existing: true, unsized: { missing: "None yet" } })], limitations: "None",
+    } }, threadFor(context.spawned, context.build.id, "a"));
+    expect(result).toMatchObject({ accepted: false, next: expect.stringContaining("Superseded") });
+    expect((await context.research.show({ requestId: context.build.id })).submissions).toEqual([]);
+  });
+
+  it("clears rank and lift for every investment when an assessment reruns research, so Start is unavailable until a fresh reconciliation", async () => {
+    const context = await bothSubmitted();
+    context.research.tick();
+    await context.research.reconcile({ requestId: context.build.id, reconciliation: validReconciliation(context) }, context.reconciler);
+    expect((await context.plan.showObjective({ id: context.objective.id })).investments.filter((entry) => entry.rank !== null)).toHaveLength(3);
+    await context.plan.editObjective({ id: context.objective.id, expectedRevision: context.objective.revision, name: "Lift activation for teams" });
+    context.advance(ASSESS_QUIET_MS);
+    await context.research.tick();
+    const [assess] = await context.research.list({ kind: "assess_edit" });
+    await context.research.rerun({ requestId: assess!.request.id, objectiveIds: [context.objective.id], reason: "Population changed to teams" }, threadFor(context.spawned, assess!.request.id, "assess"));
+    const portfolio = (await context.plan.showObjective({ id: context.objective.id })).investments;
+    expect(portfolio.map((entry) => [entry.rank, entry.lift])).toEqual(portfolio.map(() => [null, null]));
+  });
+});
+
+describe("Start-ready briefs from research", () => {
+  it("writes deliverable, scope, acceptance criteria, measurement and sources to new and existing investments, but never over a field set by hand", async () => {
+    const context = await portfolioSetup();
+    await context.plan.editInvestment({ id: context.existing.id, expectedRevision: 1, brief: { scope: "Hand-written scope" } });
+    const build = (await context.plan.listResearchRequests({})).find((request) => request.kind === "build_portfolio")!;
+    await context.research.tick();
+    const submission: { coverage: typeof coverage; investments: Array<Record<string, unknown> & { key: string }>; limitations: string } = { coverage, investments: [
+      investment("check", "Onboarding checklist", { investmentId: context.existing.id, existing: true, unsized: { missing: "No cohort data" }, cost: "3 weeks", dependencies: "Analytics event" }),
+      investment("email", "Day-2 email", { lift: lift(1450, 5, 10, 20) }),
+    ], limitations: "None" };
+    for (const slot of ["a", "b"] as const) await context.research.submit({ requestId: build.id, slot, submission }, threadFor(context.spawned, build.id, slot));
+    await context.research.tick();
+    await context.research.reconcile({ requestId: build.id, reconciliation: {
+      coverage, investments: submission.investments.map((entry) => ({ ...entry, from: [{ slot: "a", key: entry.key }, { slot: "b", key: entry.key }], ...(entry.lift ? { liftFrom: { slot: "a", key: entry.key } } : {}) })),
+      disagreements: [], excluded: [], limitations: "None",
+    } }, threadFor(context.spawned, build.id, "reconcile"));
+    const byName = Object.fromEntries((await context.plan.showObjective({ id: context.objective.id })).investments.map((entry) => [entry.name, entry]));
+    expect(byName["Onboarding checklist"]!.brief).toEqual({
+      scope: "Hand-written scope", deliverable: "Onboarding checklist shipped", acceptanceCriteria: "Onboarding checklist is live for new signups",
+      measurement: "Shared WAU", sources: ["https://notes.example/plan"],
+    });
+    expect(byName["Onboarding checklist"]!.research).toMatchObject({ missing: "No cohort data", cost: "3 weeks", dependencies: "Analytics event" });
+    expect(byName["Day-2 email"]).toMatchObject({ rank: 1, briefSetByHand: [], brief: { deliverable: "Day-2 email shipped", scope: "Day-2 email only", acceptanceCriteria: "Day-2 email is live for new signups" } });
+  });
+
+  it("rejects a portfolio submission missing any brief field", async () => {
+    const context = await portfolioSetup();
+    await context.research.tick();
+    const { deliverable: _d, scope: _s, acceptanceCriteria: _c, ...bare } = investment("check", "Onboarding checklist", { investmentId: context.existing.id, unsized: { missing: "x" } });
+    const error = await rejects(context.research.submit({ requestId: context.build.id, slot: "a", submission: { coverage, investments: [bare], limitations: "None" } }, threadFor(context.spawned, context.build.id, "a")), "rejected");
+    expect(error.message).toContain("investments.0.deliverable");
+    expect(error.message).toContain("investments.0.scope");
+    expect(error.message).toContain("investments.0.acceptanceCriteria");
+  });
+});
+
+describe("disagreements and comparability", () => {
+  it("requires a listed disagreement when submissions differ only in population, baseline or method", async () => {
+    const context = await bothSubmitted();
+    const valid = validReconciliation(context);
+    for (const [field, value] of [["population", "Existing teams"], ["method", "forecast"]] as const) {
+      const changed = { ...lift(1450, 5, 10, 20), [field]: value };
+      expect(liftDifferences({ key: "email", name: "Day-2 email", lift: lift(1450, 5, 10, 20) as never }, { key: "email", name: "Day-2 email", lift: changed as never })).toEqual([field]);
+    }
+    const a = { key: "email", name: "Day-2 email", lift: lift(1450, 5, 10, 20) as never };
+    const b = { key: "email", name: "Day-2 email", lift: { ...lift(1450, 5, 10, 20), population: "Existing teams" } as never };
+    const issues = traceIssues("investments", [{ ...a, from: [{ slot: "a", key: "email" }, { slot: "b", key: "email" }], liftFrom: { slot: "a", key: "email" } }], { a: [a], b: [b] }, [], []);
+    expect(issues).toEqual([expect.stringContaining("submissions disagree on population")]);
+    expect(traceIssues("investments", [{ ...a, from: [{ slot: "a", key: "email" }, { slot: "b", key: "email" }], liftFrom: { slot: "a", key: "email" } }], { a: [a], b: [b] }, [
+      { topic: "Population", affects: ["email"], positions: { a: "New signups", b: "Existing teams" }, resolution: "The objective targets new signups", resolved: true },
+    ], [])).toEqual([]);
+    const shifted = lift(1400, 5, 10, 20);
+    expect(liftDifferences({ key: "x", name: "X", lift: lift(1450, 5, 10, 20) as never }, { key: "x", name: "X", lift: shifted as never })).toEqual(["baseline"]);
+    expect(valid.investments).toHaveLength(4);
+  });
+
+  it("keeps the whole portfolio unranked while any disagreement is unresolved, recording why", async () => {
+    const context = await bothSubmitted();
+    const reconciliation = validReconciliation(context) as ReturnType<typeof validReconciliation> & { investments: Array<Record<string, unknown>> };
+    reconciliation.disagreements[1] = { ...reconciliation.disagreements[1]!, resolved: false };
+    const result = await context.research.reconcile({ requestId: context.build.id, reconciliation }, context.reconciler);
+    expect(result.summary).toContain("0 ranked, 4 unranked");
+    const portfolio = (await context.plan.showObjective({ id: context.objective.id })).investments;
+    expect(portfolio.every((entry) => entry.rank === null)).toBe(true);
+    const gallery = portfolio.find((entry) => entry.name === "Template gallery")!;
+    expect(gallery.lift).toMatchObject({ base: 60 });
+    expect(gallery.research?.missing).toContain('unresolved disagreement ("Only a found the bot")');
+  });
+});
+
+describe("research project", () => {
+  it("uses the project of the thread the priority or objective was created in before the assigned-team fallback, and shows a short line when blocked", async () => {
+    const context = setup({ threadProjects: { thr_planning: "prj_planning", thr_growthconv: "prj_growth" } });
+    const priority = await context.plan.addPriority({ name: "Grow weekly active users" }, "thr_planning");
+    await context.plan.addObjective({ priorityId: priority.id, name: "Lift", assigneeThreadId: "thr_growthconv" }, "thr_nowhere");
+    await context.research.tick();
+    expect(new Set(context.spawned.map((entry) => entry.projectId))).toEqual(new Set(["prj_planning"]));
+
+    const blocked = setup({ threadProjects: {} });
+    const lonely = await blocked.plan.addPriority({ name: "Lonely" }, "thr_nowhere");
+    await blocked.research.tick();
+    expect((await blocked.plan.showPriority({ id: lonely.id })).researchBlocked).toBe(NO_PROJECT_SHORT);
+    blocked.state.projectId = "prj_set";
+    await blocked.research.tick();
+    expect((await blocked.plan.showPriority({ id: lonely.id })).researchBlocked).toBeNull();
   });
 });
 
@@ -535,14 +695,14 @@ describe("batched research", () => {
     const renamed = await plan.editObjective({ id: objective.id, expectedRevision: objective.revision, name: "Lift week-1 activation" });
     const edited = await plan.editInvestment({ id: existing.id, expectedRevision: existing.revision, name: "Checklist v2" });
     context.advance(60_000);
-    await plan.editInvestment({ id: edited.id, expectedRevision: edited.revision, brief: { scope: "First thread only" } });
+    await plan.editInvestment({ id: edited.id, expectedRevision: edited.revision, brief: { deliverable: "Checklist in the first thread" } });
     await plan.editInvestment({ id: second.id, expectedRevision: second.revision, brief: { measurement: "WAU" } });
     const assessments = await plan.listResearchRequests({ kind: "assess_edit" });
     expect(assessments).toHaveLength(1);
     expect(assessments[0]).toMatchObject({ subjectKind: "objective", subjectId: objective.id, detail: { group: `objective:${objective.id}`, records: [
       { kind: "objective", id: objective.id, revision: renamed.revision, fields: ["name"] },
-      { kind: "investment", id: existing.id, revision: 3, fields: ["name", "brief"] },
-      { kind: "investment", id: second.id, revision: 2, fields: ["brief"] },
+      { kind: "investment", id: existing.id, revision: 3, fields: ["name", "brief.deliverable"] },
+      { kind: "investment", id: second.id, revision: 2, fields: ["brief.measurement"] },
     ] } });
 
     context.advance(ASSESS_QUIET_MS - 1000);
@@ -564,12 +724,12 @@ describe("batched research", () => {
 
   it("debounces priority edits separately from objective edits", async () => {
     const context = await portfolioSetup();
-    const first = await context.plan.editPriority({ id: context.priority.id, expectedRevision: 1, target: 2100 });
-    await context.plan.editPriority({ id: context.priority.id, expectedRevision: first.revision, by: "2027-03-31" });
+    const first = await context.plan.editPriority({ id: context.priority.id, expectedRevision: 1, now: 1500 });
+    await context.plan.editPriority({ id: context.priority.id, expectedRevision: first.revision, name: "Grow WAU" });
     await context.plan.editObjective({ id: context.objective.id, expectedRevision: context.objective.revision, name: "Activation" });
     const assessments = await context.plan.listResearchRequests({ kind: "assess_edit" });
     expect(assessments.map((request) => request.detail?.group)).toEqual([`priority:${context.priority.id}`, `objective:${context.objective.id}`]);
-    expect(assessments[0]!.detail?.records).toEqual([{ kind: "priority", id: context.priority.id, revision: 3, fields: ["target", "by"] }]);
+    expect(assessments[0]!.detail?.records).toEqual([{ kind: "priority", id: context.priority.id, revision: 3, fields: ["now", "name"] }]);
   });
 });
 

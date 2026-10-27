@@ -105,6 +105,28 @@ describe("bb plan CLI and plan tool", () => {
     expect(edited.brief.sources).toBeUndefined();
   });
 
+  it("marks existing running activity In progress from the user's CLI, and rejects the tool from a thread that isn't the team's", async () => {
+    const { cli, tool, harness } = setup();
+    const priority = (await cli(["priority", "add", "Grow weekly active users", "--json"])).body;
+    const objective = (await cli(["objective", "add", priority.id, "Lift activation", "--assign", "thr_growthconv", "--json"])).body;
+    const running = (await cli(["investment", "add", objective.id, "Install-page copy test", "--existing", "--json"])).body;
+    const viaTool = await tool({ action: "investment_mark_in_progress", id: running.id });
+    expect(viaTool).toMatchObject({ isError: true, body: { error: { code: "not_assignee" } } });
+    const marked = await cli(["investment", "mark-in-progress", "--id", running.id, "--json"]);
+    expect(marked.body).toMatchObject({ id: running.id, state: "in_progress" });
+    expect(harness.inspection.sdk.callsTo("threads.send")).toHaveLength(0);
+  });
+
+  it("records the calling thread as the origin of priorities and objectives added from the CLI or tool", async () => {
+    const { harness, tool } = setup();
+    const added = JSON.parse((await harness.behavior.runCli(["priority", "add", "Grow", "--metric", "4-week retention", "--json"], { threadId: "thr_growthconv" })).stdout);
+    expect(added).toMatchObject({ originThreadId: "thr_growthconv", metricFormat: "percent" });
+    const objective = await tool({ action: "objective_add", priorityId: added.id, name: "Lift" });
+    expect(objective.body.originThreadId).toBe("thread-test");
+    const formatted = JSON.parse((await harness.behavior.runCli(["priority", "edit", added.id, "--format", "number", "--expected-revision", "1", "--json"])).stdout);
+    expect(formatted).toMatchObject({ metricFormat: "number", revision: 2 });
+  });
+
   it("shows the whole plan and publishes each change for the panel", async () => {
     const { cli, harness } = setup();
     const priority = (await cli(["priority", "add", "Grow weekly active users", "--json"])).body;

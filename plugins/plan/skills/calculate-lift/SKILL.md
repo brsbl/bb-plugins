@@ -56,6 +56,8 @@ Checks code enforces:
 
 - **Unknown lift is not zero.** If the evidence can't size it, omit `lift` and
   give `"unsized": { "missing": "<the exact evidence that would size it>" }`.
+- Plan ranks only items on the same unit, period and population. Use the
+  portfolio's shared population, or the item stays unranked.
 - Label forecasts `forecast`. Downloads never become active users without a
   sourced conversion step.
 - Overlapping effects are never added together; size each change on its own

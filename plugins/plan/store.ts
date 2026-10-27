@@ -1,4 +1,5 @@
 import type Database from "better-sqlite3";
+import { BRIEF_FIELDS, type BriefField, type MetricFormat } from "./model.js";
 import type {
   Brief, Investment, InvestmentState, Lift, Objective, Priority, RecordKind, ResearchDetail, ResearchEvidence, ResearchKind, ResearchRequest, ResearchStatus,
 } from "./model.js";
@@ -117,6 +118,13 @@ export const MIGRATIONS = [
     body TEXT NOT NULL,
     created_at TEXT NOT NULL
   )`,
+  "ALTER TABLE plan_priorities ADD COLUMN metric_format TEXT NOT NULL DEFAULT 'number' CHECK (metric_format IN ('number', 'percent'))",
+  "UPDATE plan_priorities SET metric_format = 'percent' WHERE instr(metric, '%') > 0 OR lower(metric) LIKE '%retention%'",
+  "ALTER TABLE plan_priorities ADD COLUMN origin_thread_id TEXT",
+  "ALTER TABLE plan_objectives ADD COLUMN origin_thread_id TEXT",
+  "ALTER TABLE plan_investments ADD COLUMN brief_manual TEXT NOT NULL DEFAULT '[]'",
+  "UPDATE plan_investments SET brief_manual = (SELECT json_group_array(key) FROM json_each(plan_investments.brief))",
+  "ALTER TABLE research_jobs ADD COLUMN inputs TEXT",
 ];
 
 interface PriorityRow {
@@ -128,6 +136,8 @@ interface PriorityRow {
   target_value: number | null;
   due_by: string | null;
   constraints: string | null;
+  metric_format: MetricFormat;
+  origin_thread_id: string | null;
   revision: number;
   created_at: string;
   updated_at: string;
@@ -139,6 +149,7 @@ interface ObjectiveRow {
   name: string;
   approved: number;
   assignee_thread_id: string | null;
+  origin_thread_id: string | null;
   research: string | null;
   rank: number | null;
   revision: number;
@@ -153,6 +164,7 @@ interface InvestmentRow {
   existing: number;
   state: InvestmentState;
   brief: string;
+  brief_manual: string;
   lift: string | null;
   research: string | null;
   rank: number | null;
@@ -184,6 +196,8 @@ const toPriority = (row: PriorityRow): Priority => ({
   target: row.target_value,
   by: row.due_by,
   constraints: row.constraints,
+  metricFormat: row.metric_format,
+  originThreadId: row.origin_thread_id,
   revision: row.revision,
   createdAt: row.created_at,
   updatedAt: row.updated_at,
@@ -195,6 +209,7 @@ const toObjective = (row: ObjectiveRow): Objective => ({
   name: row.name,
   approved: row.approved === 1,
   assigneeThreadId: row.assignee_thread_id,
+  originThreadId: row.origin_thread_id,
   research: row.research ? (JSON.parse(row.research) as ResearchEvidence) : null,
   rank: row.rank,
   revision: row.revision,
@@ -209,6 +224,7 @@ const toInvestment = (row: InvestmentRow): Investment => ({
   existing: row.existing === 1,
   state: row.state,
   brief: JSON.parse(row.brief) as Brief,
+  briefSetByHand: briefFields(JSON.parse(row.brief_manual) as unknown),
   lift: row.lift ? (JSON.parse(row.lift) as Lift) : null,
   research: row.research ? (JSON.parse(row.research) as ResearchEvidence) : null,
   rank: row.rank,
@@ -216,6 +232,8 @@ const toInvestment = (row: InvestmentRow): Investment => ({
   createdAt: row.created_at,
   updatedAt: row.updated_at,
 });
+
+const briefFields = (value: unknown): BriefField[] => (Array.isArray(value) ? BRIEF_FIELDS.filter((field) => value.includes(field)) : []);
 
 const toResearch = (row: ResearchRow): ResearchRequest => ({
   id: row.id,
@@ -237,28 +255,31 @@ export function createStore(db: Db, migrate: Migrate) {
   migrate(db, MIGRATIONS);
   const priorityById = db.prepare("SELECT * FROM plan_priorities WHERE id = ?");
   const priorities = db.prepare("SELECT * FROM plan_priorities ORDER BY created_at, rowid");
-  const insertPriority = db.prepare(`INSERT INTO plan_priorities (id, name, metric, baseline_value, current_value, target_value, due_by, constraints, revision, created_at, updated_at)
-    VALUES (@id, @name, @metric, @baseline, @now, @target, @by, @constraints, @revision, @created_at, @updated_at)`);
+  const insertPriority = db.prepare(`INSERT INTO plan_priorities (id, name, metric, baseline_value, current_value, target_value, due_by, constraints, metric_format, origin_thread_id, revision, created_at, updated_at)
+    VALUES (@id, @name, @metric, @baseline, @now, @target, @by, @constraints, @metric_format, @origin_thread_id, @revision, @created_at, @updated_at)`);
   const updatePriority = db.prepare(`UPDATE plan_priorities SET name = @name, metric = @metric, baseline_value = @baseline, current_value = @now, target_value = @target,
-    due_by = @by, constraints = @constraints, revision = revision + 1, updated_at = @updated_at WHERE id = @id AND revision = @expected`);
+    due_by = @by, constraints = @constraints, metric_format = @metric_format, revision = revision + 1, updated_at = @updated_at WHERE id = @id AND revision = @expected`);
 
   const objectiveById = db.prepare("SELECT * FROM plan_objectives WHERE id = ?");
   const objectivesByPriority = db.prepare("SELECT * FROM plan_objectives WHERE priority_id = ? ORDER BY created_at, rowid");
   const objectives = db.prepare("SELECT * FROM plan_objectives ORDER BY created_at, rowid");
-  const insertObjective = db.prepare(`INSERT INTO plan_objectives (id, priority_id, name, approved, assignee_thread_id, research, rank, revision, created_at, updated_at)
-    VALUES (@id, @priority_id, @name, @approved, @assignee_thread_id, @research, @rank, @revision, @created_at, @updated_at)`);
+  const insertObjective = db.prepare(`INSERT INTO plan_objectives (id, priority_id, name, approved, assignee_thread_id, origin_thread_id, research, rank, revision, created_at, updated_at)
+    VALUES (@id, @priority_id, @name, @approved, @assignee_thread_id, @origin_thread_id, @research, @rank, @revision, @created_at, @updated_at)`);
   const updateObjective = db.prepare(`UPDATE plan_objectives SET priority_id = @priority_id, name = @name, approved = @approved,
     assignee_thread_id = @assignee_thread_id, revision = revision + 1, updated_at = @updated_at WHERE id = @id AND revision = @expected`);
 
   const investmentById = db.prepare("SELECT * FROM plan_investments WHERE id = ?");
   const investmentsByObjective = db.prepare("SELECT * FROM plan_investments WHERE objective_id = ? ORDER BY created_at, rowid");
   const investments = db.prepare("SELECT * FROM plan_investments ORDER BY created_at, rowid");
-  const insertInvestment = db.prepare(`INSERT INTO plan_investments (id, objective_id, name, existing, state, brief, lift, research, rank, revision, created_at, updated_at)
-    VALUES (@id, @objective_id, @name, @existing, @state, @brief, @lift, @research, @rank, @revision, @created_at, @updated_at)`);
-  const publishInvestment = db.prepare("UPDATE plan_investments SET lift = @lift, research = @research, updated_at = @updated_at WHERE id = @id");
+  const insertInvestment = db.prepare(`INSERT INTO plan_investments (id, objective_id, name, existing, state, brief, brief_manual, lift, research, rank, revision, created_at, updated_at)
+    VALUES (@id, @objective_id, @name, @existing, @state, @brief, @brief_manual, @lift, @research, @rank, @revision, @created_at, @updated_at)`);
+  const publishInvestment = db.prepare("UPDATE plan_investments SET lift = @lift, research = @research, brief = @brief, updated_at = @updated_at WHERE id = @id");
+  const clearInvestment = db.prepare("UPDATE plan_investments SET lift = NULL, research = NULL, rank = NULL, updated_at = @updated_at WHERE id = @id");
+  const setResearchOnly = db.prepare("UPDATE plan_investments SET research = @research WHERE id = @id");
+  const setObjectiveResearch = db.prepare("UPDATE plan_objectives SET research = @research WHERE id = @id");
   const rankInvestment = db.prepare("UPDATE plan_investments SET rank = @rank WHERE id = @id");
   const rankObjective = db.prepare("UPDATE plan_objectives SET rank = @rank WHERE id = @id");
-  const updateInvestment = db.prepare(`UPDATE plan_investments SET name = @name, existing = @existing, brief = @brief,
+  const updateInvestment = db.prepare(`UPDATE plan_investments SET name = @name, existing = @existing, brief = @brief, brief_manual = @brief_manual,
     revision = revision + 1, updated_at = @updated_at WHERE id = @id AND revision = @expected`);
 
   const insertResearch = db.prepare(`INSERT INTO research_requests (id, idempotency_key, kind, subject_kind, subject_id, subject_revision, detail, status, created_at)
@@ -278,6 +299,8 @@ export function createStore(db: Db, migrate: Migrate) {
     WHERE ${portfolioKinds} AND j.phase IN ('researching', 'reconciling') AND ${portfolioObjective} = ? ORDER BY r.created_at, r.rowid`);
   const activePortfolio = db.prepare(`SELECT DISTINCT ${portfolioObjective} AS objective_id FROM research_requests r LEFT JOIN research_jobs j ON j.request_id = r.id
     WHERE ${portfolioKinds} AND (r.status = 'pending' OR j.phase IN ('researching', 'reconciling'))`);
+  const blockedJobs = db.prepare(`SELECT r.subject_kind, r.subject_id, j.detail FROM research_requests r JOIN research_jobs j ON j.request_id = r.id
+    WHERE r.status = 'pending' AND j.phase = 'blocked' AND j.detail = ?`);
   const pendingAssess = db.prepare(`SELECT r.* FROM research_requests r WHERE r.kind = 'assess_edit' AND r.status = 'pending' AND json_extract(r.detail, '$.group') = ?
     ORDER BY r.created_at, r.rowid`);
 
@@ -295,13 +318,14 @@ export function createStore(db: Db, migrate: Migrate) {
     insertPriority(priority: Priority): void {
       insertPriority.run({
         id: priority.id, name: priority.name, metric: priority.metric, baseline: priority.baseline, now: priority.now, target: priority.target,
-        by: priority.by, constraints: priority.constraints, revision: priority.revision, created_at: priority.createdAt, updated_at: priority.updatedAt,
+        by: priority.by, constraints: priority.constraints, metric_format: priority.metricFormat, origin_thread_id: priority.originThreadId,
+        revision: priority.revision, created_at: priority.createdAt, updated_at: priority.updatedAt,
       });
     },
     updatePriority(priority: Priority, expected: number): boolean {
       return updatePriority.run({
         id: priority.id, name: priority.name, metric: priority.metric, baseline: priority.baseline, now: priority.now, target: priority.target,
-        by: priority.by, constraints: priority.constraints, updated_at: priority.updatedAt, expected,
+        by: priority.by, constraints: priority.constraints, metric_format: priority.metricFormat, updated_at: priority.updatedAt, expected,
       }).changes === 1;
     },
     objective(id: string): Objective | null {
@@ -317,7 +341,8 @@ export function createStore(db: Db, migrate: Migrate) {
     insertObjective(objective: Objective): void {
       insertObjective.run({
         id: objective.id, priority_id: objective.priorityId, name: objective.name, approved: objective.approved ? 1 : 0,
-        assignee_thread_id: objective.assigneeThreadId, research: objective.research ? JSON.stringify(objective.research) : null, rank: objective.rank,
+        assignee_thread_id: objective.assigneeThreadId, origin_thread_id: objective.originThreadId,
+        research: objective.research ? JSON.stringify(objective.research) : null, rank: objective.rank,
         revision: objective.revision, created_at: objective.createdAt, updated_at: objective.updatedAt,
       });
     },
@@ -340,13 +365,22 @@ export function createStore(db: Db, migrate: Migrate) {
     insertInvestment(investment: Investment): void {
       insertInvestment.run({
         id: investment.id, objective_id: investment.objectiveId, name: investment.name, existing: investment.existing ? 1 : 0, state: investment.state,
-        brief: JSON.stringify(investment.brief), lift: investment.lift ? JSON.stringify(investment.lift) : null,
+        brief: JSON.stringify(investment.brief), brief_manual: JSON.stringify(investment.briefSetByHand), lift: investment.lift ? JSON.stringify(investment.lift) : null,
         research: investment.research ? JSON.stringify(investment.research) : null, rank: investment.rank, revision: investment.revision,
         created_at: investment.createdAt, updated_at: investment.updatedAt,
       });
     },
-    publishInvestmentResearch(id: string, lift: Lift | null, research: ResearchEvidence, at: string): void {
-      publishInvestment.run({ id, lift: lift ? JSON.stringify(lift) : null, research: JSON.stringify(research), updated_at: at });
+    publishInvestmentResearch(id: string, lift: Lift | null, research: ResearchEvidence, brief: Brief, at: string): void {
+      publishInvestment.run({ id, lift: lift ? JSON.stringify(lift) : null, research: JSON.stringify(research), brief: JSON.stringify(brief), updated_at: at });
+    },
+    clearInvestmentResearch(id: string, at: string): void {
+      clearInvestment.run({ id, updated_at: at });
+    },
+    setInvestmentEvidence(id: string, research: ResearchEvidence | null): void {
+      setResearchOnly.run({ id, research: research ? JSON.stringify(research) : null });
+    },
+    setObjectiveEvidence(id: string, research: ResearchEvidence | null): void {
+      setObjectiveResearch.run({ id, research: research ? JSON.stringify(research) : null });
     },
     setInvestmentRank(id: string, rank: number | null): void {
       rankInvestment.run({ id, rank });
@@ -357,7 +391,7 @@ export function createStore(db: Db, migrate: Migrate) {
     updateInvestment(investment: Investment, expected: number): boolean {
       return updateInvestment.run({
         id: investment.id, name: investment.name, existing: investment.existing ? 1 : 0, brief: JSON.stringify(investment.brief),
-        updated_at: investment.updatedAt, expected,
+        brief_manual: JSON.stringify(investment.briefSetByHand), updated_at: investment.updatedAt, expected,
       }).changes === 1;
     },
     insertResearch(request: Omit<ResearchRequest, "status" | "claimedAt" | "claimedBy">): boolean {
@@ -391,6 +425,9 @@ export function createStore(db: Db, migrate: Migrate) {
     },
     activePortfolioObjectiveIds(): Set<string> {
       return new Set((activePortfolio.all() as Array<{ objective_id: string | null }>).map((row) => row.objective_id).filter((id): id is string => id !== null));
+    },
+    researchBlockedBy(detail: string): Set<string> {
+      return new Set((blockedJobs.all(detail) as Array<{ subject_kind: RecordKind; subject_id: string }>).map((row) => `${row.subject_kind}:${row.subject_id}`));
     },
     pendingAssessFor(group: string): ResearchRequest[] {
       return (pendingAssess.all(group) as ResearchRow[]).map(toResearch);

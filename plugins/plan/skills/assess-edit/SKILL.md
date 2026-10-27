@@ -11,10 +11,17 @@ whole: close it if none of the edits can change lift, otherwise rerun once for
 the objectives any of them affect.
 Don't message any other thread or change Plan records.
 
+Edits to a priority's metric, baseline, target, date or constraints, or to an
+investment's scope or existing flag, never reach you: Plan clears the affected
+lift and rank at once and reruns research itself. You judge every other edit.
+
 | Edit | Decision |
 | --- | --- |
 | Rename, wording, typo, moving a record without changing its scope | No research impact: the evidence still holds |
-| Metric, baseline, target, date, constraints, scope, existing flag, or anything a lift input depends on | Rerun the portfolios whose lift inputs it touches |
+| A deliverable, criterion, measurement, source or name change that alters what the change is or how its lift is measured | Rerun the portfolios whose lift inputs it touches |
+
+A rerun clears the affected portfolios' lift and rank, so they show
+Researching and can't be started until the fresh reconciliation publishes.
 
 Rerun only what the change affects. A priority's target change can affect
 every objective under it; an investment's brief change affects only its

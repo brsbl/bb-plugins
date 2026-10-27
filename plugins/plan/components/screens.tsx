@@ -5,9 +5,9 @@ import type { Outcome, Snapshot } from "../rpc.js";
 import type { Rpc } from "./data.js";
 import { Editable, Icon, InlineText, MetricEditor, Pencil, TeamPicker } from "./inline.js";
 import {
-  allObjectives, busyFor, canShowStart, emptyPortfolioText, formatAmount, formatBy, liftBar, liftDomain, metricProgress, objectiveMeta,
-  liftText, originLabel, researchFinishedUnsized, ownerObjectives, portfolioRows, startBlockedReason, startRetryHint, teamLabel, threadLabel, unknownLiftText,
-  type Origin, type Owner,
+  allObjectives, busyFor, canShowStart, emptyPortfolioText, evidenceSources, formatAmount, formatBy, funnelSummary, liftBar, liftDomain, liveOwner, metricProgress,
+  objectiveMeta, liftText, orderedObjectives, originLabel, ownerObjectives, portfolioRows, signedAmount, startBlockedReason, startRetryHint, teamLabel, threadLabel,
+  unitLabel, unknownLiftText, type Origin, type Owner,
 } from "./view-model.js";
 
 export type Screen =
@@ -25,6 +25,7 @@ export type Editing =
   | null;
 
 export interface Panel {
+  threadId: string;
   snapshot: Snapshot;
   rpc: Rpc;
   editing: Editing;
@@ -59,7 +60,7 @@ function Body({ panel, children }: { panel: Panel; children: ReactNode }) {
   </div>;
 }
 
-const signed = (value: number) => `${value >= 0 ? "+" : ""}${value.toLocaleString("en-US")}`;
+const signed = signedAmount;
 const amount = (value: number) => value.toLocaleString("en-US");
 
 function MetricLine({ panel, priority }: { panel: Panel; priority: PriorityView }) {
@@ -68,16 +69,22 @@ function MetricLine({ panel, priority }: { panel: Panel; priority: PriorityView 
       onSave={async (patch) => { await panel.save(() => panel.rpc.call("editPriority", { id: priority.id, expectedRevision: priority.revision, ...patch })); panel.edit(null); }} />;
   }
   const pct = metricProgress(priority);
-  return <div className="pl-metric">
-    <span className="pl-prog" role="img" aria-label={`${pct}% of the way to target`}><i style={{ width: `${pct}%` }} /></span>
-    <Editable label={`target for ${priority.name}`} onEdit={() => panel.edit({ k: "metric", id: priority.id })}>
-      <span><b>{formatAmount(priority.now)}</b> now → {formatAmount(priority.target)}{priority.metric ? ` ${priority.metric}` : ""}{priority.by ? ` by ${formatBy(priority.by)}` : ""}</span>
-    </Editable>
-  </div>;
+  const format = priority.metricFormat;
+  return <>
+    <div className="pl-metric">
+      <span className="pl-prog" role="img" aria-label={`${pct}% of the way to target`}><i style={{ width: `${pct}%` }} /></span>
+      <Editable label={`target for ${priority.name}`} onEdit={() => panel.edit({ k: "metric", id: priority.id })}>
+        <span><b>{formatAmount(priority.now, format)}</b> now → {formatAmount(priority.target, format)}{priority.metric ? ` ${priority.metric}` : ""}{priority.by ? ` by ${formatBy(priority.by)}` : ""}</span>
+      </Editable>
+    </div>
+    {priority.constraints ? <p className="pl-hintbox">
+      <Editable label={`constraints for ${priority.name}`} onEdit={() => panel.edit({ k: "metric", id: priority.id })}>Constraints: {priority.constraints}</Editable>
+    </p> : null}
+  </>;
 }
 
 export function ObjectiveRow({ panel, objective, origin }: { panel: Panel; objective: ObjectiveView; origin: Origin }) {
-  const meta = objective.approved ? objectiveMeta(objective) : `Proposed · ${objectiveMeta(objective)}`;
+  const meta = objectiveMeta(objective);
   if (isEditing(panel, "obj", objective.id)) {
     return <div className="pl-row"><Icon glyph="obj" /><span className="pl-t">
       <InlineText value={objective.name} label="Objective" onCancel={done(panel)}
@@ -110,14 +117,15 @@ function PrioritySection({ panel, priority }: { panel: Panel; priority: Priority
         : <Editable label={`company priority: ${priority.name}`} onEdit={() => panel.edit({ k: "pri", id: priority.id })}>{priority.name}</Editable>}
     </div>
     <MetricLine panel={panel} priority={priority} />
+    {priority.researchBlocked ? <p className="pl-msg">{priority.researchBlocked}</p> : null}
     <div className="pl-kids">
       <div className="pl-lbl">Objectives · {priority.objectives.length}
         <button type="button" className="pl-ib" aria-label={`Add objective to ${priority.name}`} title="Add objective" onClick={() => panel.edit({ k: "newObj", priorityId: priority.id })}><Icon glyph="add" /></button>
       </div>
-      {priority.objectives.map((objective) => <ObjectiveRow key={objective.id} panel={panel} objective={objective} origin={{ kind: "plan" }} />)}
+      {orderedObjectives(priority.objectives).map((objective) => <ObjectiveRow key={objective.id} panel={panel} objective={objective} origin={{ kind: "plan" }} />)}
       {adding ? <div className="pl-row"><Icon glyph="obj" /><span className="pl-t">
         <InlineText value="" label="Objective" onCancel={done(panel)}
-          onSave={async (name) => { await panel.save(() => panel.rpc.call("addObjective", { priorityId: priority.id, name })); panel.edit(null); }} />
+          onSave={async (name) => { await panel.save(() => panel.rpc.call("addObjective", { priorityId: priority.id, name, originThreadId: panel.threadId })); panel.edit(null); }} />
         <small>Unassigned</small>
       </span></div> : null}
     </div>
@@ -126,11 +134,10 @@ function PrioritySection({ panel, priority }: { panel: Panel; priority: Priority
 
 export function PlanScreen({ panel }: { panel: Panel }) {
   const empty = panel.snapshot.priorities.length === 0 && panel.editing?.k !== "newPri";
-  const assigned = allObjectives(panel.snapshot.priorities).some((objective) => objective.assignee);
   return <>
     <Top>
       <span className="pl-ttl">Plan</span>
-      {assigned ? <button type="button" className="pl-btn" onClick={() => panel.go({ kind: "teams" })}>Orgs &amp; teams</button> : null}
+      <button type="button" className="pl-btn" onClick={() => panel.go({ kind: "teams" })}>Orgs &amp; teams</button>
       <button type="button" className="pl-btn pl-ib" aria-label="Add company priority" title="Add company priority" onClick={() => panel.edit({ k: "newPri" })}><Icon glyph="add" /></button>
     </Top>
     <Body panel={panel}>
@@ -143,7 +150,7 @@ export function PlanScreen({ panel }: { panel: Panel }) {
       {panel.editing?.k === "newPri" ? <section className="pl-sec">
         <div className="pl-type"><Icon glyph="pri" />Company priority</div>
         <div className="pl-h"><InlineText value="" label="Company priority" onCancel={done(panel)}
-          onSave={async (name) => { await panel.save(() => panel.rpc.call("addPriority", { name })); panel.edit(null); }} /></div>
+          onSave={async (name) => { await panel.save(() => panel.rpc.call("addPriority", { name, originThreadId: panel.threadId })); panel.edit(null); }} /></div>
       </section> : null}
     </Body>
   </>;
@@ -178,7 +185,8 @@ function LiftBar({ investment, domain }: { investment: Investment & { lift: NonN
 export function PortfolioScreen({ panel, objectiveId, origin }: { panel: Panel; objectiveId: string; origin: Origin }) {
   const objective = findObjective(panel.snapshot, objectiveId);
   const up: Screen = origin.kind === "plan" ? { kind: "plan" } : { kind: "owner", owner: origin.owner };
-  if (!objective) return <Missing panel={panel} back={up} label={originLabel(origin)} />;
+  const back = originLabel(origin, panel.snapshot.orgs);
+  if (!objective) return <Missing panel={panel} back={up} label={back} />;
   const objectives = allObjectives(panel.snapshot.priorities);
   const starts = panel.snapshot.starts;
   const busy = busyFor(objectives, objective.assigneeThreadId, starts);
@@ -187,7 +195,7 @@ export function PortfolioScreen({ panel, objectiveId, origin }: { panel: Panel; 
   const adding = panel.editing?.k === "newInv" && panel.editing.objectiveId === objective.id;
   const open = (investment: Investment) => panel.go({ kind: "investment", objectiveId: objective.id, investmentId: investment.id, origin });
   const row = (investment: Investment, rank: number) => {
-    const lift = investment.lift
+    const lift = investment.lift && investment.rank !== null
       ? <span className="pl-lift"><LiftBar investment={{ ...investment, lift: investment.lift }} domain={domain} /><b>{signed(investment.lift.base)}</b> ({amount(investment.lift.low)}–{amount(investment.lift.high)})</span>
       : <span className="pl-lift">{liftText(objective, investment)}</span>;
     const why = startBlockedReason(objectives, objective, starts, investment);
@@ -206,7 +214,7 @@ export function PortfolioScreen({ panel, objectiveId, origin }: { panel: Panel; 
   return <>
     <Top>
       <nav className="pl-crumb" aria-label="Breadcrumb">
-        <button type="button" className="pl-back" onClick={() => panel.go(up)}>‹ {originLabel(origin)}</button>
+        <button type="button" className="pl-back" onClick={() => panel.go(up)}>‹ {back}</button>
         <span aria-hidden="true">/</span>
         <span className="pl-cur" aria-current="page">{objective.name}</span>
       </nav>
@@ -220,7 +228,9 @@ export function PortfolioScreen({ panel, objectiveId, origin }: { panel: Panel; 
           <dt>Team</dt><dd><TeamField panel={panel} objective={objective} /></dd>
           {busy ? <><dt>Working on</dt><dd>{busy.investment.name}{busy.objective.id !== objective.id ? <small> · {busy.objective.name}</small> : null}</dd></> : null}
         </dl>
+        {objective.researchBlocked ? <p className="pl-msg">{objective.researchBlocked}</p> : null}
       </div>
+      {objective.approved ? null : <Proposal panel={panel} objective={objective} />}
       {!objective.investments.length && !adding ? <p className="pl-hintbox">{emptyPortfolioText(objective)}</p> : <>
         <div className="pl-colh"><span>#</span><span>Investment</span><span>Lift (range)</span><span /></div>
         {ranked.map((investment) => row(investment, investment.rank))}
@@ -237,22 +247,53 @@ export function PortfolioScreen({ panel, objectiveId, origin }: { panel: Panel; 
   </>;
 }
 
-function Sources({ sources }: { sources: string[] }) {
-  if (!sources.length) return <>—</>;
-  return <>{sources.map((source, index) => <span key={`${index}:${source}`} className="pl-src">
-    {/^https?:\/\//.test(source) ? <a className="pl-lk" href={source} target="_blank" rel="noreferrer">{source}</a> : source}
-  </span>)}</>;
+function Sources({ sources, submissions }: { sources: string[]; submissions: string[] }) {
+  const navigate = useBbNavigate();
+  const [a, b] = submissions;
+  if (!sources.length && !a) return <>—</>;
+  return <>
+    {sources.map((source, index) => <span key={`${index}:${source}`} className="pl-src">
+      {/^https?:\/\//.test(source) ? <a className="pl-lk" href={source} target="_blank" rel="noreferrer">{source}</a> : source}
+    </span>)}
+    {a && b ? <span className="pl-src">
+      <button type="button" className="pl-lk" title="Opens submission A" onClick={() => navigate.toThread(a)}>Open both submissions</button>
+      {" "}<button type="button" className="pl-lk" aria-label="Open submission B" title="Opens submission B" onClick={() => navigate.toThread(b)}>B</button>
+    </span> : null}
+  </>;
+}
+
+function Proposal({ panel, objective }: { panel: Panel; objective: ObjectiveView }) {
+  const research = objective.research;
+  const lift = research?.lift;
+  const sources = research?.metricLink?.sources ?? [];
+  return <>
+    <div className="pl-gh">Proposal
+      <button type="button" className="pl-ib" aria-label={`Approve objective ${objective.name}`} title="Approve"
+        onClick={() => { void panel.save(() => panel.rpc.call("approveObjective", { id: objective.id, expectedRevision: objective.revision })); }}>
+        <Icon glyph="check" />
+      </button>
+    </div>
+    <dl className="pl-sum">
+      <div><dt>Lift</dt><dd>{lift ? `${signed(lift.base)} ${unitLabel(lift.unit)} (${amount(lift.low)}–${amount(lift.high)})` : research?.missing ?? "—"}</dd></div>
+      {lift && research?.missing ? <div><dt>Missing evidence</dt><dd>{research.missing}</dd></div> : null}
+      <div><dt>Rationale</dt><dd>{research?.rationale ?? "—"}</dd></div>
+      <div><dt>Metric link</dt><dd>{research?.metricLink?.claim ?? "—"}</dd></div>
+      <div><dt>Effort</dt><dd>{research?.cost ?? "—"}</dd></div>
+      <div><dt>Depends on</dt><dd>{research?.dependencies ?? "—"}</dd></div>
+      <div><dt>Sources</dt><dd><Sources sources={sources} submissions={research?.submissionThreadIds ?? []} /></dd></div>
+    </dl>
+  </>;
 }
 
 export function InvestmentScreen({ panel, objectiveId, investmentId, origin }: { panel: Panel; objectiveId: string; investmentId: string; origin: Origin }) {
-  const navigate = useBbNavigate();
   const objective = findObjective(panel.snapshot, objectiveId);
   const investment = objective?.investments.find((entry) => entry.id === investmentId);
   if (!objective || !investment) return <Missing panel={panel} back={{ kind: "plan" }} label="Plan" />;
   const lift = investment.lift;
-  const unsized = researchFinishedUnsized(investment);
-  const pending = liftText(objective, investment) ?? "—";
-  const sources = [...new Set([...(lift?.sources ?? []), ...(investment.brief.sources ?? [])])];
+  const pending = lift ? "—" : unknownLiftText(objective);
+  const missing = investment.research?.missing ?? null;
+  const funnel = funnelSummary(investment);
+  const markable = investment.existing && investment.state === "not_started" && objective.assigneeThreadId !== null;
   return <>
     <Top><button type="button" className="pl-back" onClick={() => panel.go({ kind: "portfolio", objectiveId, origin })}>‹ {objective.name}</button></Top>
     <Body panel={panel}>
@@ -265,33 +306,23 @@ export function InvestmentScreen({ panel, objectiveId, investmentId, origin }: {
             : <Editable label={`investment: ${investment.name}`} onEdit={() => panel.edit({ k: "inv", id: investment.id })}>{investment.name}</Editable>}
         </div>
         {lift ? <>
-          <p className="pl-big">{signed(lift.base)} <small>{lift.unit}</small></p>
+          <p className="pl-big">{signed(lift.base)} <small>{unitLabel(lift.unit)}</small></p>
           <p className="pl-hintbox pl-range">Likely range {amount(lift.low)} to {amount(lift.high)}</p>
         </> : <p className="pl-big">{pending}</p>}
+        {markable ? <p className="pl-hintbox"><button type="button" className="pl-lk"
+          onClick={() => { void panel.save(() => panel.rpc.call("markInProgress", { id: investment.id })); }}>Mark in progress</button></p> : null}
       </div>
       <div className="pl-gh">Evidence</div>
       <dl className="pl-sum">
         <div><dt>How estimated</dt><dd>{lift?.method ?? pending}</dd></div>
-        {unsized ? <div><dt>Missing evidence</dt><dd>{investment.research?.missing}</dd></div> : null}
-        <div><dt>Sources</dt><dd><Sources sources={sources} /></dd></div>
-        {investment.research && investment.research.submissionThreadIds.length === 2 ? <div><dt>Research</dt><dd>
-          <span className="pl-src">Open both submissions:</span>
-          {investment.research.submissionThreadIds.map((threadId, index) => <button key={threadId} type="button" className="pl-lk pl-src"
-            onClick={() => navigate.toThread(threadId)}>Submission {index === 0 ? "A" : "B"}</button>)}
-        </dd></div> : null}
+        {missing ? <div><dt>Missing evidence</dt><dd>{missing}</dd></div> : null}
+        {funnel ? <div><dt>Funnel steps</dt><dd>{funnel}</dd></div> : null}
+        <div><dt>Sources</dt><dd><Sources sources={evidenceSources(investment)} submissions={investment.research?.submissionThreadIds ?? []} /></dd></div>
       </dl>
-      {investment.research?.funnelSteps?.length ? <>
-        <div className="pl-gh">Funnel steps</div>
-        <dl className="pl-sum">
-          {investment.research.funnelSteps.map((step, index) => <div key={`${index}:${step.step}`}>
-            <dt>{step.step}</dt><dd>{amount(step.value)} {step.unit}</dd>
-          </div>)}
-        </dl>
-      </> : null}
       <div className="pl-gh">Cost</div>
       <dl className="pl-sum">
-        <div><dt>Effort</dt><dd>{lift?.cost ?? "—"}</dd></div>
-        <div><dt>Depends on</dt><dd>{lift?.dependencies ?? "—"}</dd></div>
+        <div><dt>Effort</dt><dd>{investment.research?.cost ?? lift?.cost ?? "—"}</dd></div>
+        <div><dt>Depends on</dt><dd>{investment.research?.dependencies ?? lift?.dependencies ?? "—"}</dd></div>
       </dl>
       <div className="pl-gh">Measurement</div>
       <dl className="pl-sum">
@@ -319,7 +350,8 @@ export function TeamsScreen({ panel }: { panel: Panel }) {
   </>;
 }
 
-export function OwnerScreen({ panel, owner }: { panel: Panel; owner: Owner }) {
+export function OwnerScreen({ panel, owner: opened }: { panel: Panel; owner: Owner }) {
+  const owner = liveOwner(panel.snapshot.orgs, opened);
   const objectives = ownerObjectives(allObjectives(panel.snapshot.priorities), panel.snapshot.orgs, owner);
   return <>
     <Top><button type="button" className="pl-back" onClick={() => panel.go({ kind: "teams" })}>‹ Orgs &amp; teams</button></Top>

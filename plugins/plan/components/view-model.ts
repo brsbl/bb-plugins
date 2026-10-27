@@ -1,4 +1,4 @@
-import type { Assignee, Investment, Lift, ObjectiveView, PriorityView } from "../model.js";
+import { briefIssues, type Assignee, type Investment, type Lift, type MetricFormat, type ObjectiveView, type PriorityView } from "../model.js";
 import type { ActiveStart } from "../start.js";
 
 export interface ThreadRef { threadId: string; name: string | null }
@@ -32,6 +32,23 @@ export function ownerObjectives(objectives: ObjectiveView[], orgs: OrgGroup[], o
   const org = orgs.find((entry) => entry.threadId === owner.threadId);
   const ids = new Set([owner.threadId, ...(org?.teams.map((team) => team.threadId) ?? [])]);
   return objectives.filter((objective) => objective.assigneeThreadId !== null && ids.has(objective.assigneeThreadId));
+}
+
+export function liveOwner(orgs: OrgGroup[], owner: Owner): Owner {
+  for (const org of orgs) {
+    if (owner.kind === "org" && org.threadId === owner.threadId) return { ...owner, name: org.name };
+    const team = org.teams.find((entry) => entry.threadId === owner.threadId);
+    if (team) return { ...owner, name: team.name };
+  }
+  return owner;
+}
+
+export function orderedObjectives(objectives: ObjectiveView[]): ObjectiveView[] {
+  const proposed = objectives.filter((objective) => !objective.approved)
+    .map((objective, index) => ({ objective, index }))
+    .sort((a, b) => (a.objective.rank ?? Infinity) - (b.objective.rank ?? Infinity) || a.index - b.index)
+    .map((entry) => entry.objective);
+  return [...objectives.filter((objective) => objective.approved), ...proposed];
 }
 
 export function inProgress(objective: ObjectiveView): Investment | undefined {
@@ -70,6 +87,11 @@ export function assigneeLabel(objective: ObjectiveView): string | null {
 }
 
 export function objectiveMeta(objective: ObjectiveView): string {
+  if (!objective.approved) {
+    const owner = assigneeLabel(objective) ?? objective.research?.ownerProposal ?? "Unassigned";
+    const lift = objective.research?.lift;
+    return ["Proposed", owner, lift ? signedAmount(lift.base) : ""].filter(Boolean).join(" · ");
+  }
   const active = inProgress(objective);
   return [assigneeLabel(objective) ?? "Unassigned", active ? `In progress: ${active.name}` : ""].filter(Boolean).join(" · ");
 }
@@ -79,7 +101,9 @@ export function researching(objective: ObjectiveView): boolean {
 }
 
 export function emptyPortfolioText(objective: ObjectiveView): string {
-  return researching(objective) ? "Researching" : "Research starts once a team is assigned";
+  if (researching(objective)) return "Researching";
+  if (!objective.approved) return objective.assigneeThreadId ? "Research starts once the objective is approved" : "Research starts once the objective is approved and a team is assigned";
+  return "Research starts once a team is assigned";
 }
 
 export function unknownLiftText(objective: ObjectiveView): string {
@@ -99,8 +123,8 @@ export function researchFinishedUnsized(investment: Investment): boolean {
 }
 
 export function liftText(objective: ObjectiveView, investment: Investment): string | null {
-  if (investment.lift) return null;
-  return researching(objective) && objective.researchActive ? "Researching" : "—";
+  if (investment.lift) return investment.rank === null ? "Unranked" : null;
+  return researching(objective) ? "Researching" : "—";
 }
 
 export function canShowStart(investment: Investment): boolean {
@@ -111,7 +135,7 @@ export function startBlockedReason(objectives: ObjectiveView[], objective: Objec
   if (!objective.approved) return "Approve the objective first";
   if (!objective.assigneeThreadId || !objective.assignee) return "Assign a team first";
   if (!objective.assignee.available) return "The assigned team thread no longer exists";
-  if (investment && (!investment.brief.deliverable || !investment.brief.acceptanceCriteria)) return "Add a deliverable and acceptance criteria to the brief first";
+  if (investment && briefIssues(investment.brief).length) return "Complete the brief first: deliverable, scope, acceptance criteria, measurement and sources";
   const busy = busyFor(objectives, objective.assigneeThreadId, starts);
   if (!busy || (investment && busy.investment.id === investment.id)) return null;
   const team = (objective.assignee.name ?? "This team").split(" / ").pop() ?? "This team";
@@ -126,8 +150,8 @@ export function startRetryHint(starts: readonly ActiveStart[], investment: Inves
     : "The brief is being sent to the team.";
 }
 
-export function originLabel(origin: Origin): string {
-  return origin.kind === "plan" ? "Plan" : threadLabel(origin.owner);
+export function originLabel(origin: Origin, orgs: OrgGroup[] = []): string {
+  return origin.kind === "plan" ? "Plan" : threadLabel(liveOwner(orgs, origin.owner));
 }
 
 export function liftDomain(lifts: Lift[]): { min: number; max: number } {
@@ -141,13 +165,41 @@ export function liftBar(lift: Lift, domain: { min: number; max: number }): { lef
   return { left: x(lift.low), width: x(lift.high) - x(lift.low), base: x(lift.base) };
 }
 
-export function formatAmount(value: number | null): string {
-  return value === null ? "—" : value.toLocaleString("en-US");
+export function formatAmount(value: number | null, format: MetricFormat = "number"): string {
+  if (value === null) return "—";
+  const text = value.toLocaleString("en-US");
+  return format === "percent" ? `${text}%` : text;
 }
+
+export function signedAmount(value: number): string {
+  return `${value >= 0 ? "+" : ""}${value.toLocaleString("en-US")}`;
+}
+
+export function unitLabel(unit: string): string {
+  return /^[A-Z][a-z]/.test(unit) ? unit[0]!.toLowerCase() + unit.slice(1) : unit;
+}
+
+export function funnelSummary(investment: Investment): string | null {
+  const steps = investment.research?.funnelSteps;
+  return steps?.length ? `${steps.map((step) => step.step).join(" → ")}, each step sourced` : null;
+}
+
+export function evidenceSources(investment: Investment): string[] {
+  const steps = investment.research?.funnelSteps ?? [];
+  return [...new Set([
+    ...(investment.lift?.sources ?? []),
+    ...(investment.brief.sources ?? []),
+    ...(investment.research?.metricLink?.sources ?? []),
+    ...steps.flatMap((step) => [...step.sources, ...(step.linkToNext?.sources ?? [])]),
+  ])];
+}
+
+const YEAR_MS = 365 * 24 * 60 * 60 * 1000;
 
 export function formatBy(iso: string, today: Date = new Date()): string {
   const date = new Date(`${iso}T00:00:00Z`);
-  const sameYear = date.getUTCFullYear() === today.getUTCFullYear();
+  const ahead = date.getTime() - Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
+  const sameYear = date.getUTCFullYear() === today.getUTCFullYear() || (ahead >= 0 && ahead < YEAR_MS);
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric", ...(sameYear ? {} : { year: "numeric" }), timeZone: "UTC" });
 }
 
@@ -164,21 +216,27 @@ export function parseAmount(text: string): number | null | undefined {
   return cleaned && Number.isFinite(value) ? value : undefined;
 }
 
-export function metricPatch(priority: PriorityView, fields: { now: string; target: string; by: string; metric?: string }): Record<string, unknown> | string {
+export interface MetricFields { baseline: string; now: string; target: string; by: string; metric: string; metricFormat: MetricFormat; constraints: string }
+
+export function metricPatch(priority: PriorityView, fields: MetricFields): Record<string, unknown> | string {
+  const baselineInput = parseAmount(fields.baseline);
   const now = parseAmount(fields.now);
   const target = parseAmount(fields.target);
+  if (baselineInput === undefined) return "Baseline must be a number";
   if (now === undefined) return "Now must be a number";
   if (target === undefined) return "Target must be a number";
   const by = fields.by.trim() || null;
+  const metric = fields.metric.trim() || null;
+  const constraints = fields.constraints.trim() || null;
+  const baseline = baselineInput ?? (priority.baseline === null ? now : null);
   const patch: Record<string, unknown> = {};
+  if (baseline !== priority.baseline) patch.baseline = baseline;
   if (now !== priority.now) patch.now = now;
   if (target !== priority.target) patch.target = target;
   if (by !== priority.by) patch.by = by;
-  if (fields.metric !== undefined) {
-    const metric = fields.metric.trim() || null;
-    if (metric !== priority.metric) patch.metric = metric;
-  }
-  if (priority.baseline === null && now !== null) patch.baseline = now;
+  if (metric !== priority.metric) patch.metric = metric;
+  if (fields.metricFormat !== priority.metricFormat) patch.metricFormat = fields.metricFormat;
+  if (constraints !== priority.constraints) patch.constraints = constraints;
   return patch;
 }
 
@@ -190,10 +248,14 @@ export function mentionText(text: string): string {
   return text.replace(/^\s*@+/, "@");
 }
 
-export function chooseThread(text: string, options: { id: string; name: string }[]): { id: string | null } | null {
+export const UNASSIGN = "Unassign";
+
+export function chooseThread(text: string, options: { id: string; name: string; label: string }[]): { id: string | null } | null {
   const query = threadQuery(text);
-  if (!query) return { id: null };
+  if (!query || query === UNASSIGN) return { id: null };
   if (/^thr_[A-Za-z0-9_-]+$/.test(query)) return { id: query };
-  const exact = options.find((option) => option.name === query) ?? options.find((option) => option.name.toLowerCase() === query.toLowerCase());
+  const lower = query.toLowerCase();
+  const exact = options.find((option) => option.label === query) ?? options.find((option) => option.label.toLowerCase() === lower)
+    ?? options.find((option) => option.name === query) ?? options.find((option) => option.name.toLowerCase() === lower);
   return exact ? { id: exact.id } : null;
 }

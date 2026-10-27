@@ -26,6 +26,32 @@ export type ResearchKind = (typeof RESEARCH_KINDS)[number];
 export const RESEARCH_STATUSES = ["pending", "claimed"] as const;
 export type ResearchStatus = (typeof RESEARCH_STATUSES)[number];
 export type RecordKind = "priority" | "objective" | "investment";
+export const METRIC_FORMATS = ["number", "percent"] as const;
+export type MetricFormat = (typeof METRIC_FORMATS)[number];
+export const BRIEF_FIELDS = ["deliverable", "scope", "acceptanceCriteria", "measurement", "sources"] as const;
+export type BriefField = (typeof BRIEF_FIELDS)[number];
+export const NO_PROJECT = "No project for research threads. Set the Plan plugin's researchProjectId setting, create the priority or objective from a thread in the project research should use, or assign an objective to a team thread so research can use its project.";
+export const NO_PROJECT_SHORT = "Research can't start: no project for its threads. Set Plan's Research project setting.";
+
+export function acceptanceCriteria(criteria: string): string[] {
+  return criteria.split(/\r?\n/)
+    .map((line) => line.replace(/^\s*(?:(?:[-*•]|\d+[.)]|\[[ xX]\])\s+)+/, "").trim())
+    .filter(Boolean);
+}
+
+export function briefIssues(brief: Brief): string[] {
+  const issues: string[] = [];
+  if (!brief.deliverable) issues.push("brief.deliverable: add what the team hands back");
+  if (!brief.scope) issues.push("brief.scope: add what the work covers and excludes");
+  if (!brief.acceptanceCriteria || !acceptanceCriteria(brief.acceptanceCriteria).length) issues.push("brief.acceptanceCriteria: add how the deliverable is accepted, one criterion per line");
+  if (!brief.measurement) issues.push("brief.measurement: add how the result is measured");
+  if (!brief.sources?.length) issues.push("brief.sources: add at least one source");
+  return issues;
+}
+
+export function inferMetricFormat(metric: string | null | undefined): MetricFormat {
+  return metric && (metric.includes("%") || /retention/i.test(metric)) ? "percent" : "number";
+}
 
 export const briefSchema = z.strictObject({
   deliverable: briefText.optional(),
@@ -57,6 +83,8 @@ export interface Priority {
   target: number | null;
   by: string | null;
   constraints: string | null;
+  metricFormat: MetricFormat;
+  originThreadId: string | null;
   revision: number;
   createdAt: string;
   updatedAt: string;
@@ -80,6 +108,9 @@ export interface ResearchEvidence {
   funnelSteps: FunnelStep[] | null;
   rationale: string | null;
   ownerProposal: string | null;
+  metricLink: { claim: string; sources: string[] } | null;
+  cost: string | null;
+  dependencies: string | null;
 }
 
 export interface Objective {
@@ -88,6 +119,7 @@ export interface Objective {
   name: string;
   approved: boolean;
   assigneeThreadId: string | null;
+  originThreadId: string | null;
   research: ResearchEvidence | null;
   rank: number | null;
   revision: number;
@@ -102,6 +134,7 @@ export interface Investment {
   existing: boolean;
   state: InvestmentState;
   brief: Brief;
+  briefSetByHand: BriefField[];
   lift: Lift | null;
   research: ResearchEvidence | null;
   rank: number | null;
@@ -150,16 +183,18 @@ export interface Assignee {
   parent: { threadId: string; name: string | null } | null;
 }
 
-export type ObjectiveView = Objective & { assignee: Assignee | null; investments: Investment[]; researchActive: boolean };
-export type PriorityView = Priority & { objectives: ObjectiveView[] };
+export type ObjectiveView = Objective & { assignee: Assignee | null; investments: Investment[]; researchActive: boolean; researchBlocked: string | null };
+export type PriorityView = Priority & { objectives: ObjectiveView[]; researchBlocked: string | null };
 export interface Overview { priorities: PriorityView[] }
 
 const atLeastOneChange = (keys: readonly string[]) => (value: Record<string, unknown>) => keys.some((key) => value[key] !== undefined);
 
-const PRIORITY_FIELDS = ["name", "metric", "baseline", "now", "target", "by", "constraints"] as const;
+const PRIORITY_FIELDS = ["name", "metric", "metricFormat", "baseline", "now", "target", "by", "constraints"] as const;
+const metricFormat = z.enum(METRIC_FORMATS);
 export const priorityAddInput = z.strictObject({
   name,
   metric: metric.optional(),
+  metricFormat: metricFormat.optional(),
   baseline: amount.optional(),
   now: amount.optional(),
   target: amount.optional(),
@@ -171,6 +206,7 @@ export const priorityEditInput = z.strictObject({
   expectedRevision: revision,
   name: name.optional(),
   metric: metric.nullable().optional(),
+  metricFormat: metricFormat.optional(),
   baseline: amount.nullable().optional(),
   now: amount.nullable().optional(),
   target: amount.nullable().optional(),
@@ -185,6 +221,8 @@ export const objectiveAddInput = z.strictObject({
   proposed: z.boolean().optional(),
   assigneeThreadId: threadId.optional(),
 });
+export const priorityAddRpcInput = priorityAddInput.extend({ originThreadId: threadId });
+export const objectiveAddRpcInput = objectiveAddInput.extend({ originThreadId: threadId });
 export const objectiveEditInput = z.strictObject({
   id: recordId,
   expectedRevision: revision,

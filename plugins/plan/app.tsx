@@ -5,7 +5,8 @@ import { useOpenRecord, usePlanData, useSave } from "./components/data.js";
 import { InvestmentScreen, OwnerScreen, PlanScreen, PortfolioScreen, TeamsScreen, type Editing, type Panel, type Screen } from "./components/screens.js";
 import "./app.css";
 
-function openRecordFor(screen: Screen): OpenRecord | null {
+function openRecordFor(screen: Screen, priorityId: string | null): OpenRecord | null {
+  if (screen.kind === "plan" && priorityId) return { kind: "priority", id: priorityId };
   if (screen.kind === "portfolio") return { kind: "objective", id: screen.objectiveId };
   if (screen.kind === "investment") return { kind: "investment", id: screen.investmentId };
   return null;
@@ -22,11 +23,17 @@ export function PlanPanel({ threadId }: { threadId: string }) {
   const data = usePlanData();
   const [screen, setScreen] = useState<Screen>({ kind: "plan" });
   const [editing, setEditing] = useState<Editing>(null);
+  const [openPriority, setOpenPriority] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const save = useSave(data.reload, setNotice);
-  const go = useCallback((next: Screen) => { setScreen(next); setEditing(null); setNotice(null); }, []);
-  const edit = useCallback((next: Editing) => { setEditing(next); if (next) setNotice(null); }, []);
-  useOpenRecord(data.rpc, threadId, openRecordFor(screen), data.connection);
+  const go = useCallback((next: Screen) => { setScreen(next); setEditing(null); setNotice(null); setOpenPriority(null); }, []);
+  const edit = useCallback((next: Editing) => {
+    setEditing(next);
+    if (next) setNotice(null);
+    if (next && (next.k === "pri" || next.k === "metric")) setOpenPriority(next.id);
+    else if (next?.k === "newObj") setOpenPriority(next.priorityId);
+  }, []);
+  useOpenRecord(data.rpc, threadId, openRecordFor(screen, openPriority), data.connection);
 
   if (!data.snapshot) {
     return <div className="pl">
@@ -39,7 +46,7 @@ export function PlanPanel({ threadId }: { threadId: string }) {
     </div>;
   }
 
-  const panel: Panel = { snapshot: data.snapshot, rpc: data.rpc, editing, edit, save, notice, notify: setNotice, go };
+  const panel: Panel = { threadId, snapshot: data.snapshot, rpc: data.rpc, editing, edit, save, notice, notify: setNotice, go };
   const key = screenKey(screen);
   return <div className="pl">
     {screen.kind === "plan" ? <PlanScreen key={key} panel={panel} />

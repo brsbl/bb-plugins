@@ -2,12 +2,12 @@ import { readFile } from "node:fs/promises";
 import { isAbsolute, resolve } from "node:path";
 import { cliCommand, defineCli, PluginCliError, type BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
-import { RESEARCH_KINDS, RESEARCH_STATUSES, type Brief, type Investment, type Objective, type ObjectiveView, type Overview, type Priority, type PriorityView } from "./model.js";
+import { METRIC_FORMATS, RESEARCH_KINDS, RESEARCH_STATUSES, type Brief, type OpenRecord, type Investment, type Objective, type ObjectiveView, type Overview, type Priority, type PriorityView } from "./model.js";
 import { createResearchService, DEFAULT_CONCURRENCY, RESEARCH_PHASES, SLOTS, type ResearchHost, type ResearchJobView, type ResearchService } from "./research.js";
 import { createPlanService, PlanError, type PlanService, type ThreadInfo } from "./service.js";
 import { classifySendError, createStartService, OUTPUT_SHAPE, SendFailure, type StartHost, type StartService } from "./start.js";
 import { CHANGED, rpcContract, type Outcome, type Snapshot, type ThreadOption } from "./rpc.js";
-import { groupOrgs, teamLabel, type AssigneeThread, type ThreadRef } from "./components/view-model.js";
+import { groupOrgs, teamLabel, threadLabel, type AssigneeThread, type ThreadRef } from "./components/view-model.js";
 
 export { CHANGED };
 const MAX_STDOUT = 900 * 1024;
@@ -16,7 +16,7 @@ const TOOL_ACTIONS = [
   "show",
   "priority_add", "priority_edit", "priority_list", "priority_show",
   "objective_add", "objective_edit", "objective_approve", "objective_assign", "objective_show",
-  "investment_add", "investment_edit", "investment_show", "investment_start", "investment_deliver",
+  "investment_add", "investment_edit", "investment_show", "investment_start", "investment_mark_in_progress", "investment_deliver",
   "research_list", "research_show", "research_submit", "research_reconcile", "research_rerun", "research_close",
 ] as const;
 type ToolAction = (typeof TOOL_ACTIONS)[number];
@@ -36,7 +36,8 @@ const INSTRUCTIONS = [
   "Every edit, approve and assign needs expectedRevision from your latest read. A stale_revision error means the record changed: show it again, reconcile with the user's change, and only then retry.",
   "Objectives you propose are added with proposed=true and stay unapproved until the user adopts them. Assign an objective only to an existing org or team thread ID, never a typed name.",
   "Lift and investment state are not editable here. Adding or assigning records sends nothing to any thread.",
-  "investment_start sends the investment's saved brief to its objective's team thread and marks it In progress; it needs checked lift, an approved objective with a team, a deliverable and acceptance criteria, and a team with nothing In progress. Start only when the user asks.",
+  "investment_start sends the investment's saved brief to its objective's team thread and marks it In progress; it needs checked, ranked lift, an approved objective with a team, a complete brief (deliverable, scope, acceptance criteria, measurement and sources), and a team with nothing In progress. Start only when the user asks.",
+  "investment_mark_in_progress sets an investment marked existing to In progress without sending a brief, for activity that is already running. Only the objective's team thread or one of its workers can call it; the user can also do it from the panel or `bb plan investment mark-in-progress`. It obeys the one-per-team rule.",
   "investment_deliver marks it Done and frees the team. Call it only from the team thread the brief was sent to or one of its workers, once the deliverable passes every acceptance criterion, with output: one { criterion, evidence } entry per criterion.",
   "Research runs on its own and is batched: one portfolio run per objective at a time, with later changes folded into one follow-up run, and edits debounced into one assessment. Plan creates two independent hidden research threads per request, then one reconciliation thread, and publishes only a valid reconciliation. research_submit, research_reconcile, research_rerun and research_close are for those research threads only, following the Plan plugin's research skills.",
 ].join(" ");
@@ -46,11 +47,11 @@ interface Services { plan: PlanService; research: ResearchService; starts: Start
 
 const ACTIONS: Record<ToolAction, (services: Services, input: Record<string, unknown>, threadId: string) => Promise<unknown>> = {
   show: async ({ plan }, input, threadId) => ({ ...(await plan.overview(input)), openInPanel: plan.openRecord(threadId) }),
-  priority_add: ({ plan }, input) => plan.addPriority(input),
+  priority_add: ({ plan }, input, threadId) => plan.addPriority(input, threadId),
   priority_edit: ({ plan }, input) => plan.editPriority(input),
   priority_list: ({ plan }, input) => plan.listPriorities(input),
   priority_show: ({ plan }, input) => plan.showPriority(input),
-  objective_add: ({ plan }, input) => plan.addObjective(input),
+  objective_add: ({ plan }, input, threadId) => plan.addObjective(input, threadId),
   objective_edit: ({ plan }, input) => plan.editObjective(input),
   objective_approve: ({ plan }, input) => plan.approveObjective(input),
   objective_assign: ({ plan }, input) => plan.assignObjective(input),
@@ -59,6 +60,7 @@ const ACTIONS: Record<ToolAction, (services: Services, input: Record<string, unk
   investment_edit: ({ plan }, input) => plan.editInvestment(input),
   investment_show: ({ plan }, input) => plan.showInvestment(input),
   investment_start: ({ starts }, input) => starts.start(input),
+  investment_mark_in_progress: ({ starts }, input, threadId) => starts.markInProgress(input, { kind: "thread", threadId }),
   investment_deliver: ({ starts }, input, threadId) => starts.deliver(input, threadId),
   research_list: ({ research }, input) => research.list(input),
   research_show: ({ research }, input) => research.show(input),
@@ -69,13 +71,14 @@ const ACTIONS: Record<ToolAction, (services: Services, input: Record<string, unk
 };
 
 const toolParameters = z.object({
-  action: z.enum(TOOL_ACTIONS).describe("show: the whole plan, plus openInPanel: the record open in this thread's Plan panel ({ kind, id } or null). <record>_add, <record>_edit, <record>_show, priority_list, objective_approve, objective_assign, investment_start (sends the brief to the team), investment_deliver (team thread only). research_list, research_show; research threads only: research_submit, research_reconcile, research_rerun, research_close."),
-  id: z.string().optional().describe("Record ID for _edit, _show, objective_approve, objective_assign, investment_start and investment_deliver"),
+  action: z.enum(TOOL_ACTIONS).describe("show: the whole plan, plus openInPanel: the record open in this thread's Plan panel ({ kind, id } or null). <record>_add, <record>_edit, <record>_show, priority_list, objective_approve, objective_assign, investment_start (sends the brief to the team), investment_mark_in_progress (existing activity already running; team thread only), investment_deliver (team thread only). research_list, research_show; research threads only: research_submit, research_reconcile, research_rerun, research_close."),
+  id: z.string().optional().describe("Record ID for _edit, _show, objective_approve, objective_assign, investment_start, investment_mark_in_progress and investment_deliver"),
   expectedRevision: z.number().int().optional().describe("The revision you last read; required for _edit, objective_approve and objective_assign"),
   name: z.string().optional().describe("Record name"),
   priorityId: z.string().optional().describe("objective_add: parent priority. objective_edit: move under this priority"),
   objectiveId: z.string().optional().describe("investment_add: parent objective"),
   metric: z.string().nullable().optional().describe("Priority metric name from Analytics' shared definitions; null clears"),
+  metricFormat: z.enum(METRIC_FORMATS).optional().describe("How the priority's metric values display: number, or percent (40 shows as 40%). Inferred from the metric name when omitted"),
   baseline: z.number().nullable().optional().describe("Priority baseline value; null clears"),
   now: z.number().nullable().optional().describe("Priority current value; null clears"),
   target: z.number().nullable().optional().describe("Priority target value; null clears"),
@@ -144,6 +147,10 @@ function amount(n: number | null): string {
   return n === null ? "—" : n.toLocaleString("en-US");
 }
 
+function openLine(record: OpenRecord | null): string {
+  return record ? `\n\nOpen in this thread's Plan panel: ${record.kind} ${record.id}` : "";
+}
+
 function priorityLine(priority: Priority): string {
   const metric = priority.metric ? ` · ${amount(priority.now)} now → ${amount(priority.target)} ${priority.metric}${priority.by ? ` by ${priority.by}` : ""}` : "";
   return `${priority.id}  r${priority.revision}  ${priority.name}${metric}`;
@@ -194,7 +201,12 @@ function investmentDetail(investment: Investment): string {
   if (brief.acceptanceCriteria) lines.push(`Acceptance criteria: ${brief.acceptanceCriteria}`);
   if (brief.measurement) lines.push(`Measurement: ${brief.measurement}`);
   for (const source of brief.sources ?? []) lines.push(`Source: ${source}`);
-  if (investment.lift) lines.push(`Method: ${investment.lift.method}`, `Cost: ${investment.lift.cost}`, `Depends on: ${investment.lift.dependencies}`);
+  if (investment.lift) lines.push(`Method: ${investment.lift.method}`);
+  const cost = investment.research?.cost ?? investment.lift?.cost;
+  const dependencies = investment.research?.dependencies ?? investment.lift?.dependencies;
+  if (cost) lines.push(`Cost: ${cost}`);
+  if (dependencies) lines.push(`Depends on: ${dependencies}`);
+  if (investment.research?.missing) lines.push(`Missing evidence: ${investment.research.missing}`);
   return lines.join("\n");
 }
 
@@ -259,15 +271,19 @@ export function mentionCandidate(thread: MentionThread): boolean {
 
 async function searchThreads(bb: BbPluginApi, query: string): Promise<ThreadOption[]> {
   const text = query.trim().replace(/^@+/, "").trim();
-  if (!text) {
-    const threads = await bb.sdk.threads.list({ limit: MENTION_LIMIT * 3 });
-    return threads.filter(mentionCandidate).slice(0, MENTION_LIMIT).map((thread) => ({ id: thread.id, name: threadName(thread) }));
-  }
-  const found = await bb.sdk.threads.search({ query: text, limitPerGroup: String(SEARCH_LIMIT_PER_GROUP) });
-  return found.active.results
-    .filter((result) => mentionCandidate(result.thread) && result.matches.some((match) => match.sourceKind === "title" || match.sourceKind === "title_fallback"))
-    .slice(0, MENTION_LIMIT)
-    .map((result) => ({ id: result.thread.id, name: threadName(result.thread) }));
+  const threads = text
+    ? (await bb.sdk.threads.search({ query: text, limitPerGroup: String(SEARCH_LIMIT_PER_GROUP) })).active.results
+      .filter((result) => mentionCandidate(result.thread) && result.matches.some((match) => match.sourceKind === "title" || match.sourceKind === "title_fallback"))
+      .map((result) => result.thread)
+    : (await bb.sdk.threads.list({ limit: MENTION_LIMIT * 3 })).filter(mentionCandidate);
+  const picked = threads.slice(0, MENTION_LIMIT);
+  const parentIds = [...new Set(picked.map((thread) => thread.parentThreadId).filter((id): id is string => id !== null))];
+  const parents = new Map((await Promise.all(parentIds.map((id) => threadRef(bb, id)))).filter((ref) => ref !== null).map((ref) => [ref.threadId, ref]));
+  return picked.map((thread) => {
+    const parent = thread.parentThreadId ? parents.get(thread.parentThreadId) : undefined;
+    const name = threadName(thread);
+    return { id: thread.id, name, label: parent ? `${threadLabel(parent)} / ${name}` : name };
+  });
 }
 
 const inputText = (input: readonly { type: string; text?: string }[]) => input.map((part) => (part.type === "text" ? part.text ?? "" : "")).join("\n");
@@ -313,7 +329,7 @@ function researchHost(bb: BbPluginApi): ResearchHost {
     researchProjectId: {
       type: "project",
       label: "Research project",
-      description: "The bb project where Plan creates research threads. When unset, research uses the project of the plan's first assigned team thread.",
+      description: "The bb project where Plan creates research threads. When unset, research uses the project of the thread the priority or objective was created in, then the project of the plan's first assigned team thread.",
     },
     researchConcurrency: {
       type: "number",
@@ -391,15 +407,16 @@ export default function plugin(bb: BbPluginApi): void {
       const ids = [...new Set(overview.priorities.flatMap((priority) => priority.objectives).map((objective) => objective.assigneeThreadId).filter((id): id is string => id !== null))];
       return { ...overview, orgs: await orgsFor(bb, ids), starts: starts.active() };
     },
-    addPriority: (input) => outcome(() => service.addPriority(input)),
+    addPriority: ({ originThreadId, ...input }) => outcome(() => service.addPriority(input, originThreadId)),
     editPriority: (input) => outcome(() => service.editPriority(input)),
-    addObjective: (input) => outcome(() => service.addObjective(input)),
+    addObjective: ({ originThreadId, ...input }) => outcome(() => service.addObjective(input, originThreadId)),
     editObjective: (input) => outcome(() => service.editObjective(input)),
     approveObjective: (input) => outcome(() => service.approveObjective(input)),
     assignObjective: (input) => outcome(() => service.assignObjective(input)),
     addInvestment: (input) => outcome(() => service.addInvestment(input)),
     editInvestment: (input) => outcome(() => service.editInvestment(input)),
     startInvestment: (input) => outcome(() => starts.start(input)),
+    markInProgress: (input) => outcome(() => starts.markInProgress(input, { kind: "user" })),
     searchThreads: async ({ query }) => ({ threads: await searchThreads(bb, query) }),
     openRecord: (input) => service.setOpenRecord(input),
   });
@@ -432,6 +449,7 @@ export default function plugin(bb: BbPluginApi): void {
   } as const;
   const priorityFields = {
     metric: { type: "string", description: "Metric name from Analytics' shared definitions" },
+    format: { type: "enum", values: METRIC_FORMATS, description: "How metric values display: number, or percent (40 shows as 40%); inferred from the metric name when omitted" },
     baseline: { type: "string", placeholder: "NUMBER", description: "Value at the start" },
     now: { type: "string", placeholder: "NUMBER", description: "Value now" },
     target: { type: "string", placeholder: "NUMBER", description: "Target value" },
@@ -445,8 +463,9 @@ export default function plugin(bb: BbPluginApi): void {
     measurement: options.measurement,
     sources: options.source?.length ? options.source : undefined,
   });
-  const priorityValues = (options: { metric?: string; baseline?: string; now?: string; target?: string; by?: string; constraints?: string }) => defined({
+  const priorityValues = (options: { metric?: string; format?: (typeof METRIC_FORMATS)[number]; baseline?: string; now?: string; target?: string; by?: string; constraints?: string }) => defined({
     metric: options.metric,
+    metricFormat: options.format,
     baseline: numberOption(options.baseline, "baseline"),
     now: numberOption(options.now, "now"),
     target: numberOption(options.target, "target"),
@@ -459,19 +478,20 @@ export default function plugin(bb: BbPluginApi): void {
     summary: "Plan company priorities, objectives and investment portfolios shared with the Plan panel",
     commands: {
       show: cliCommand({
-        summary: "Show the whole plan: priorities, their objectives and investments",
+        summary: "Show the whole plan: priorities, their objectives and investments, and the record open in this thread's Plan panel",
         options: { json },
-        run: ({ options }) => guard(async () => {
+        run: ({ options }, ctx) => guard(async () => {
           const overview = await service.overview({});
-          return output(options.json, overview, () => overviewText(overview));
+          const openInPanel = ctx.threadId ? service.openRecord(ctx.threadId) : null;
+          return output(options.json, { ...overview, openInPanel }, () => overviewText(overview) + openLine(openInPanel));
         }),
       }),
       "priority add": cliCommand({
         summary: "Add a company priority; other fields can be filled in later",
         positionals: [{ name: "name", required: true, description: "The outcome, like \"Grow weekly active users\"" }],
         options: { ...priorityFields, json },
-        run: ({ positionals, options }) => guard(async () => {
-          const priority = await service.addPriority({ name: positionals.name, ...priorityValues(options) });
+        run: ({ positionals, options }, ctx) => guard(async () => {
+          const priority = await service.addPriority({ name: positionals.name, ...priorityValues(options) }, ctx.threadId ?? null);
           return output(options.json, priority, () => priorityLine(priority));
         }),
       }),
@@ -524,12 +544,12 @@ export default function plugin(bb: BbPluginApi): void {
           assign: { type: "string", placeholder: "THREAD_ID", description: "Existing org or team thread ID to assign" },
           json,
         },
-        run: ({ positionals, options }) => guard(async () => {
+        run: ({ positionals, options }, ctx) => guard(async () => {
           const objective = await service.addObjective({
             priorityId: positionals.priorityId,
             name: positionals.name,
             ...defined({ proposed: options.proposed || undefined, assigneeThreadId: options.assign }),
-          });
+          }, ctx.threadId ?? null);
           return output(options.json, objective, () => objectiveLine(objective));
         }),
       }),
@@ -636,6 +656,14 @@ export default function plugin(bb: BbPluginApi): void {
         options: { id: { type: "string", required: true, placeholder: "INVESTMENT_ID", description: "The investment to start" }, json },
         run: ({ options }) => guard(async () => {
           const investment = await starts.start({ id: options.id });
+          return output(options.json, investment, () => investmentLine(investment));
+        }),
+      }),
+      "investment mark-in-progress": cliCommand({
+        summary: "Set an existing investment that is already running to In progress without sending a brief; from the user or the team thread; one per team at a time",
+        options: { id: { type: "string", required: true, placeholder: "INVESTMENT_ID", description: "The existing investment" }, json },
+        run: ({ options }, ctx) => guard(async () => {
+          const investment = await starts.markInProgress({ id: options.id }, ctx.threadId ? { kind: "thread", threadId: ctx.threadId } : { kind: "user" });
           return output(options.json, investment, () => investmentLine(investment));
         }),
       }),
