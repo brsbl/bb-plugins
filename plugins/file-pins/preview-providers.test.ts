@@ -110,3 +110,10 @@ it("keeps the longer of a backoff and a quota pause", async () => {
   await providers.get(new URL("https://stackoverflow.com/q/1"), reply(question({ quota_remaining: 0, backoff: 60 })));
   await expect(providers.get(new URL("https://stackoverflow.com/q/2"), reply(question()))).rejects.toMatchObject({ retryAt: now + 60_000 });
 });
+
+it("previews an issue's state, labels, assignees, comments and activity as structured facts", async () => {
+  const read = reply({ number: 42, title: "Keep navigation visible", body: "The sidebar disappears.", state: "closed", state_reason: "not_planned", user: { login: "alex" }, updated_at: "2026-10-20T10:00:00Z", labels: [{ name: "bug" }], assignees: [{ login: "sam" }], comments: 3 });
+  const result = await new PreviewProviders().get(new URL("https://github.com/acme/demo/issues/42"), read);
+  expect(result).toMatchObject({ title: "Keep navigation visible", image: null, github: { kind: "issue", number: 42, state: "closed", stateReason: "not_planned", author: "alex", updatedAt: "2026-10-20T10:00:00Z", labels: ["bug"], assignees: ["sam"], comments: 3 } });
+  expect(read).toHaveBeenCalledTimes(1);
+});
