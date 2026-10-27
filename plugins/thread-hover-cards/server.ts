@@ -52,11 +52,6 @@ export type RpcDiagnostics = z.infer<typeof rpcDiagnosticsSchema>;
 
 export const threadSummarySchema = z
   .object({
-    title: z.string().optional(),
-    threadId: z.string().optional(),
-    updatedAt: z.number().optional(),
-    unread: z.boolean().optional(),
-    hasPendingInteraction: z.boolean().optional(),
     currentTurnCompletedAt: z.number().nullable(),
     currentTurnStartedAt: z.number().nullable(),
     diagnostics: rpcDiagnosticsSchema,
@@ -1005,15 +1000,6 @@ export default function plugin(bb: BbPluginApi): void {
                 ),
               ),
             );
-        const interactionsPromise = measureStage(
-          recorder,
-          "interactions",
-          () => within(
-            safely(bb.sdk.threads.interactions.list({ threadId, signal })),
-            remainingMs(),
-          ),
-          { unavailableWhenNull: true },
-        );
         const executionOptionsPromise = measureStage(
           recorder,
           "executionOptions",
@@ -1079,13 +1065,11 @@ export default function plugin(bb: BbPluginApi): void {
           projectResult,
           executionOptions,
           latestAssistantMessage,
-          interactions,
         ] = await Promise.all([
           hostPromise,
           projectPromise,
           executionOptionsPromise,
           latestAssistantMessagePromise,
-          interactionsPromise,
         ]);
         const project = projectResult.value;
         const isGitRepository =
@@ -1097,11 +1081,6 @@ export default function plugin(bb: BbPluginApi): void {
         recordDiagnostics(bb, "threadSummary", threadId, diagnostics);
 
         return {
-          title: thread.title || thread.titleFallback || "Untitled thread",
-          threadId: thread.id,
-          updatedAt: thread.updatedAt,
-          unread: (thread.lastReadAt ?? 0) < thread.latestAttentionAt,
-          hasPendingInteraction: interactions === null ? undefined : interactions.length > 0,
           currentTurnCompletedAt: null,
           currentTurnStartedAt: null,
           diagnostics,
