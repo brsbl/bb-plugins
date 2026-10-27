@@ -400,3 +400,11 @@ Run a team of bb threads from one lead: skills to delegate work, relay your deci
 [Source](plugins/delegation) · [README](plugins/delegation/README.md)
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/delegation --yes`
+
+### Plan
+
+Plan company priorities, their objectives and each objective's portfolio of investments in shared records that you and the agent beside you both edit, through the `bb plan` CLI and a native agent tool.
+
+[Source](plugins/plan) · [README](plugins/plan/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/plan --yes`
