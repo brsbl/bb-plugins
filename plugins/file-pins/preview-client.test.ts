@@ -13,6 +13,19 @@ const at = (ms: number) => vi.spyOn(Date, "now").mockReturnValue(1_000_000 + ms)
 afterEach(() => vi.restoreAllMocks());
 
 describe("hover card preview cache", () => {
+  it("refreshes GitHub facts sooner than static page metadata", async () => {
+    at(0);
+    const client = new PreviewClient();
+    const github = { kind: "issue" as const, number: 7, repository: "acme/demo", state: "open" as const,
+      stateReason: null, author: "alex", updatedAt: "2026-10-20", labels: [], assignees: [], comments: 0,
+      branch: null, checks: null, review: null, mergeability: null };
+    const call = vi.fn(async (): Promise<PreviewAnswer> => ({ preview: { ...text, github }, status: "no-image" }));
+    await client.load(key, call);
+    at(14_999); await client.load(key, call);
+    expect(call).toHaveBeenCalledTimes(1);
+    at(15_001); await client.load(key, call);
+    expect(call).toHaveBeenCalledTimes(2);
+  });
   it("shares one request across hovers and answers a repeat hover without asking again", async () => {
     at(0);
     const client = new PreviewClient();
