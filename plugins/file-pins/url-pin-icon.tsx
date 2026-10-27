@@ -12,7 +12,7 @@ const favicons = new Map<string, Promise<string | null>>();
 const faviconAnswers = new Map<string, string>();
 const SAFE_ICON = /^data:image\/png;base64,[A-Za-z0-9+/]+=*$/;
 
-// One request per PR per minute on this page, shared by the strip and the ⋯ list. Answers are kept for the page,
+// One request per PR per minute on this page. Answers are kept for the page,
 // so a remount paints the right icon at once and pin labels can name the state.
 const prStates = new Map<string, { at: number; state: Promise<PrState | null> }>();
 const answered = new Map<string, PrState | null>();
@@ -30,12 +30,6 @@ const noThreadPr = () => ({ isLoading: false, pullRequest: null });
 /** Re-renders when any pinned PR's state arrives or changes. */
 export function usePrStateAnswers(): number {
   return useSyncExternalStore((listener) => { listeners.add(listener); return () => listeners.delete(listener); }, () => answers);
-}
-
-/** True for a GitHub PR pin that shows, or may still show, a state beside its icon; false once GitHub has none to give. */
-export function showsPrState(url: string): boolean {
-  const pr = githubPullRequest(url);
-  return pr !== null && answered.get(prKey(pr)) !== null;
 }
 
 /** "merged pull request" for a pinned PR whose state is known, else "", for screen-reader labels. */
