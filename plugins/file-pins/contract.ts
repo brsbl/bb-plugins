@@ -1,5 +1,6 @@
 import { defineRpcContract } from "@get-bb/plugin-sdk";
 import { z } from "zod";
+import { githubPreviewSchema } from "./github-preview.js";
 import { PR_STATES } from "./pr-state.js";
 import { MAX_TITLE_LENGTH, MAX_URL_LENGTH, parseWebUrl } from "./url-pin.js";
 
@@ -36,7 +37,7 @@ export const PREVIEW_STATUSES = ["ready", "no-image", "blocked", "not-found", "t
 // `status`, `retryAt` and `refreshing` were added beside `preview`; older apps ignore them and older servers omit them.
 // `refreshing` marks a cached preview answered while its reload runs.
 const previewOutput = z.object({
-  preview: z.object({ title: z.string(), description: z.string(), site: z.string(), image: z.string().nullable() }).nullable(),
+  preview: z.object({ title: z.string(), description: z.string(), site: z.string(), image: z.string().nullable(), github: githubPreviewSchema.optional() }).nullable(),
   status: z.enum(PREVIEW_STATUSES).optional(),
   retryAt: z.number().optional(),
   refreshing: z.boolean().optional(),
