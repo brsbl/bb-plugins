@@ -24,7 +24,7 @@ export async function preparePreview(key: string, call: () => Promise<PreviewAns
 
 // Moss EmbedPillHoverCard's media band and compact metadata
 // panel. Keep this plugin's URL header, and use BB's opaque themed surfaces.
-// The 128px band holds the image, edge to edge; without one it holds the text itself, so nothing repeats below it.
+// Images use a 128px edge-to-edge band; text-only cards fit their content.
 export function LinkPreviewCard({ threadId, pin }: { threadId: string; pin: UrlPin }) {
   const rpc = useRpc<typeof rpcContract>();
   const key = previewKey(threadId, pin.id, pin.url);
@@ -58,7 +58,7 @@ export function LinkPreviewCard({ threadId, pin }: { threadId: string; pin: UrlP
   </>;
   // Text-only when the page answered without a usable image; unavailable when no preview has ever loaded.
   const note = preview ? description : previewProblem(failed ? undefined : answer);
-  return <div className="flex h-32 flex-col overflow-hidden px-4 py-3">
+  return <div className="flex flex-col overflow-hidden px-4 py-3">
     <div className="flex h-4 min-w-0 items-center gap-1.5 text-[11px] leading-4 text-muted-foreground [&_img]:size-3.5 [&_svg]:size-3.5">
       <span className="flex shrink-0"><UrlPinIcon threadId={threadId} pin={pin} /></span><span className="truncate">{site}</span>
     </div>
