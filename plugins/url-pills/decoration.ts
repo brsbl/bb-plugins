@@ -100,7 +100,10 @@ export function candidateForElement(element: HTMLElement, origin: string): { url
   const column = element.closest('[data-message-column]')!;
   const userMessage = element.closest('.ml-auto')?.parentElement === column;
   const preview = element.closest('[data-markdown-preview]')!;
-  if (!userMessage && !hasFollowingBoundary(element, preview)) return null;
+  // An authored label proves a Markdown link destination has closed, even at
+  // the end of a message or before punctuation. Bare streamed paths stay native.
+  const authoredFile = file && !parseLocalFile(text) && text !== destination;
+  if (!userMessage && !authoredFile && !hasFollowingBoundary(element, preview)) return null;
   return { url, composer: false };
 }
 

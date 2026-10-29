@@ -31,3 +31,8 @@ it('does not reinterpret encoded filename punctuation as navigation', () => {
   expect(parseLocalFile('file:///work/a%23b%3F.md')).toEqual({ path: '/work/a#b?.md', label: 'a#b?.md' });
   expect(parseLocalFile('./%2Fwork%2Fa%23b.md', true)).toEqual({ path: '/work/a#b.md', label: 'a#b.md' });
 });
+
+it('skips long non-link tokens and unsupported schemes without finding nested file paths', () => {
+  expect(findComposerUrls('a'.repeat(100_000))).toEqual([]);
+  expect(findComposerUrls('ftp://host/a.md moss://note/a.md')).toEqual([]);
+});

@@ -84,7 +84,7 @@ export function findComposerUrls(text: string, currentOrigin = ""): { from: numb
     offset += line.length + 1;
   }
   const ranges: { from: number; to: number }[] = [];
-  for (const match of text.matchAll(/(?:[a-z][a-z0-9+.-]*:\/\/|[A-Za-z]:[\\/]|\/(?!\/))[^\s<>"'`\u0000-\u001f]+/gi)) {
+  for (const match of text.matchAll(/(?:(?:https?|file):\/\/|[A-Za-z]:[\\/]|\/(?!\/))[^\s<>"'`\u0000-\u001f]+/gi)) {
     const from = match.index;
     if (from > 0 && /[\p{L}\p{N}_@/\\~.:]/u.test(text[from - 1])) continue;
     const candidate = trimDelimiters(match[0]);

@@ -370,3 +370,13 @@ it('shows a compact composer file source on the outer wrapper and restores its t
   expect(root.title).toBe('Existing composer hint');
   expect(editor.outerHTML).toBe(original.replace('/work/Project.md:42', '/work/Changed.md'));
 });
+
+it.each(['.', ', then continue', ''])('decorates completed authored assistant file links before %j', (following) => {
+  const anchor = message(false, following); anchor.href = 'file:///work/plan.md'; anchor.textContent = 'Plan';
+  mountUrlPills({ signal: abort.signal });
+  expect(anchor.getAttribute('data-bb-url-pill-label')).toBe('Plan');
+});
+it('leaves an unproven trailing assistant path native', () => {
+  const anchor = message(false, ''); anchor.href = 'file:///work/plan.md'; anchor.textContent = '/work/plan.md';
+  expect(candidateForElement(anchor, location.origin)).toBeNull();
+});

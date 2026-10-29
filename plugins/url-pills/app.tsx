@@ -18,14 +18,13 @@ function ComposerFileBridge() {
   const navigate = useBbNavigate();
   const { threads } = experimental_useSidebarThreads();
   const scope = composer.scope;
-  const environmentId = scope.kind === 'new-thread'
-    ? null
-    : threads.find((thread) => thread.id === scope.threadId)?.environment.id ?? null;
+  const threadId = scope.kind === 'thread' || scope.kind === 'queued-message' ? scope.threadId : null;
+  const hostId = threads.find((thread) => thread.id === threadId)?.host?.id ?? null;
   useEffect(() => {
     const root = marker.current?.closest('[data-app-composer]');
-    if (!root || !environmentId) return;
+    if (!root || !hostId) return;
     const open = (file: LocalFile) => navigate.experimental_openFilePreview({
-      target: { kind: 'workspace', environmentId, path: file.path },
+      target: { kind: 'host', hostId, path: file.path },
       location: file.location
         ? file.location.endLine !== undefined
           ? { kind: 'range', startLine: file.location.line, endLine: file.location.endLine }
@@ -38,7 +37,7 @@ function ComposerFileBridge() {
       if (fileOpeners.get(root) === open) fileOpeners.delete(root);
       document.dispatchEvent(new Event('bb-url-pills-context'));
     };
-  }, [environmentId, navigate.experimental_openFilePreview]);
+  }, [hostId, navigate.experimental_openFilePreview]);
   return <span ref={marker} hidden aria-hidden="true" />;
 }
 
