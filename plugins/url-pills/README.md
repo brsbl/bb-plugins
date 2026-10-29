@@ -4,7 +4,9 @@
 
 Paste a website URL to create a compact favicon pill in the composer. Pills also appear in sent messages and agent replies. Click a pill to open the exact URL using bb's browser preference.
 
-Copying and sending retain the original URL, including its query and fragment. Authored Markdown labels, code, quotes and native bb thread references keep their own presentation. Sent-message editing uses native text. A trailing streamed URL stays expanded when its completion cannot be established safely.
+Local file paths use document, code, image or plain-file icons in the theme’s file color. File pills open through bb’s normal file flow, including configured plugin handlers and line references. Named Markdown file links keep their labels. Paths without a known opening context stay as text. Local files never trigger website-icon requests.
+
+Copying and sending retain the original URL, including its query and fragment. Authored website-link labels, code, quotes and native bb thread references keep their own presentation. Sent-message editing uses native text. A trailing streamed URL stays expanded when its completion cannot be established safely.
 
 ![SaaS and localhost links in drafts and conversations](https://github.com/user-attachments/assets/50b2bbde-30f6-4ac2-9060-a92d04a6bc07)
 
