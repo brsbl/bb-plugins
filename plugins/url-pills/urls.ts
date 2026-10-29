@@ -125,11 +125,12 @@ export function findComposerUrls(text: string, currentOrigin = ""): { from: numb
   const ranges: { from: number; to: number }[] = [];
   let line = 0;
   const cursor = { at: 0 };
-  for (const match of text.matchAll(/(?:(?:https?|file):\/\/|[A-Za-z]:[\\/]|\/(?!\/))[^\s<>"'`\u0000-\u001f]+/gi)) {
+  // Path starts are guarded inside the pattern, so a rejected start never
+  // consumes a following web link; paths also stop where a web link begins.
+  for (const match of text.matchAll(/https?:\/\/[^\s<>"'`\u0000-\u001f]+|(?<![\p{L}\p{N}_@/\\~.:])(?:file:\/\/|[A-Za-z]:[\\/]|\/(?!\/))(?:(?!https?:\/\/)[^\s<>"'`\u0000-\u001f])+/giu)) {
     if (ranges.length + lines.length >= 512) break;
     const from = match.index;
-    // Paths also exclude ~/, ./ and scheme tails; web links keep the original guard.
-    if (from > 0 && (/^https?:/i.test(match[0]) ? /[\p{L}\p{N}_@/]/u : /[\p{L}\p{N}_@/\\~.:]/u).test(text[from - 1])) continue;
+    if (from > 0 && /^https?:/i.test(match[0]) && /[\p{L}\p{N}_@/]/u.test(text[from - 1])) continue;
     if (match[0].length > 8192) continue;
     const candidate = trimDelimiters(match[0]);
     const to = from + candidate.length;

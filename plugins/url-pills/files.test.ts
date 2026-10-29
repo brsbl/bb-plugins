@@ -54,6 +54,10 @@ it('recognizes a path containing spaces only when it is alone on its line', () =
 
 it('keeps web links after punctuation and scans hostile drafts in linear time', () => {
   expect(findComposerUrls('URL:https://example.com/a')).toEqual([{ from: 4, to: 25 }]);
+  const pick = (text: string) => findComposerUrls(text).map(({ from, to }) => text.slice(from, to));
+  expect(pick('docs/api:https://example.com/a')).toEqual(['https://example.com/a']);
+  expect(pick('and/or,https://example.com')).toEqual(['https://example.com']);
+  expect(pick('/work/a.md,https://example.com')).toEqual(['/work/a.md', 'https://example.com']);
   const started = performance.now();
   findComposerUrls('/' + ')'.repeat(50_000));
   findComposerUrls(('/a/ ' + ')'.repeat(8180) + '\n').repeat(20));

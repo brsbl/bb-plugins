@@ -294,6 +294,17 @@ describe('DOM-only URL decoration', () => {
     span.click(); expect(openUrl).toHaveBeenCalledExactlyOnceWith(URL_TEXT);
     expect(editor.outerHTML).toBe(original);
   });
+  it('keeps opening a composer URL on modifier-click, as published', async () => {
+    const span = composer(), openUrl = vi.fn(() => true);
+    mountUrlPills({ signal: abort.signal, openUrl });
+    const down = new MouseEvent('pointerdown', { bubbles: true, cancelable: true, button: 0, metaKey: true });
+    span.dispatchEvent(down); await settle();
+    expect(down.defaultPrevented).toBe(true);
+    const click = new MouseEvent('click', { bubbles: true, cancelable: true, button: 0, ctrlKey: true });
+    span.dispatchEvent(click);
+    expect(openUrl).toHaveBeenCalledExactlyOnceWith(URL_TEXT);
+    expect(click.defaultPrevented).toBe(true);
+  });
 });
 
 it.each(['file:///work/Project%20Plan.md#L4', './%2Fwork%2FProject%20Plan.md'])('preserves native file/plugin click ownership and authored labels: %s', async (href) => {

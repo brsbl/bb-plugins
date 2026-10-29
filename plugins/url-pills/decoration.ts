@@ -416,12 +416,17 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
   function pointerOut(event: PointerEvent): void {
     if (hoverTitle && !(event.relatedTarget instanceof Node && hoverTitle.pill.contains(event.relatedTarget))) clearHoverTitle();
   }
+  // File pills leave modified or already-handled clicks to the browser.
+  function leavesFileClickNative(event: MouseEvent): boolean {
+    return event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey;
+  }
   function pointerDown(event: PointerEvent): void {
     inputEdit = null;
     const range = event.target instanceof Element ? event.target.closest<HTMLElement>(`.${EFFECT_CLASS}`) : null;
     const navigable = range && entries.get(range)?.composer && !entries.get(range)?.expanded && (entries.get(range)?.url.localFile ? options.canOpenFile?.(range) : options.openUrl);
     explicitEdit = !navigable && range && entries.get(range)?.composer ? range : null;
-    if (navigable && event.button === 0 && !event.defaultPrevented && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey) event.preventDefault();
+    // Website pills keep their published modifier-click behavior.
+    if (navigable && event.button === 0 && (!entries.get(range)?.url.localFile || !leavesFileClickNative(event))) event.preventDefault();
     // Keep geometry unchanged while the browser places the caret. The next
     // frame reveals only the explicitly clicked range or actual selection.
     queue();
@@ -432,11 +437,11 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
   function click(event: MouseEvent): void {
     const pill = pillAt(event.target);
     const entry = pill ? entries.get(pill) : null;
-    if (pill && entry?.composer && !entry.expanded && pill.textContent === entry.url.text && event.button === 0 && !event.defaultPrevented && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey) {
-      const handled = entry.url.localFile
-        ? options.openFile?.(entry.url.localFile, pill)
-        : options.openUrl?.(entry.url.text);
-      if (handled) { event.preventDefault(); event.stopPropagation(); }
+    if (!pill || !entry?.composer || entry.expanded || pill.textContent !== entry.url.text || event.button !== 0) return;
+    if (!entry.url.localFile) {
+      if (options.openUrl) { event.preventDefault(); event.stopPropagation(); options.openUrl(entry.url.text); }
+    } else if (!leavesFileClickNative(event) && options.openFile?.(entry.url.localFile, pill)) {
+      event.preventDefault(); event.stopPropagation();
     }
   }
   function compositionStart(event: CompositionEvent): void { composition = revealForComposition(event.target); }
