@@ -39,7 +39,7 @@ it('skips long non-link tokens and unsupported schemes without finding nested fi
 
 it('recognizes a path containing spaces only when it is alone on its line', () => {
   const pick = (text: string) => findComposerUrls(text).map(({ from, to }) => text.slice(from, to));
-  const moss = '/Users/me/Moss/Notes/Project Plan/Project Plan.md';
+  const moss = '/workspace/Notes/Project Plan/Project Plan.md';
   expect(pick(moss)).toEqual([moss]);
   expect(pick(`Read this\n  ${moss}.\nthen /work/a.md`)).toEqual([moss, '/work/a.md']);
   expect(pick('C:\\Work\\My Project\\Plan.ts:4-6')).toEqual(['C:\\Work\\My Project\\Plan.ts:4-6']);
