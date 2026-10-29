@@ -479,14 +479,22 @@ export const HOVER_CARD_CSS = String.raw`
 }
 `;
 
+/**
+ * The section card reuses the thread card's shell and header rhythm; only the
+ * parts with no thread-card equivalent — the rollup and the thread list — get
+ * their own rules.
+ */
 export const SECTION_CARD_CSS = String.raw`
+/* Aggregates are short; the card hugs them instead of reserving thread-card width. */
+/* Counts are short; the card hugs them rather than reserving thread-card width. */
 .bb-thread-hover-card[data-bb-card="section"] {
-  width: min(20rem, calc(100vw - 1rem));
+  width: max-content;
   max-width: min(20rem, calc(100vw - 1rem));
   padding: 0.625rem 0.75rem;
+  font-size: 0.6875rem;
 }
 
-/* The projects this section spans. */
+/* Band 1 — the projects this section spans. */
 .bb-section-hover-card__band {
   display: flex;
   min-width: 0;
@@ -494,7 +502,6 @@ export const SECTION_CARD_CSS = String.raw`
   gap: 0.375rem;
   overflow: hidden;
   color: var(--muted-foreground);
-  font-size: 0.6875rem;
   white-space: nowrap;
 }
 
@@ -504,24 +511,38 @@ export const SECTION_CARD_CSS = String.raw`
   text-overflow: ellipsis;
 }
 
+.bb-section-hover-card__sep {
+  flex: none;
+  opacity: 0.45;
+}
+
 .bb-section-hover-card__more {
   flex: none;
   opacity: 0.7;
+}
+
+/* Band 2 — present only when something wants action. */
+.bb-section-hover-card__headline {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 0.875rem;
+  margin-top: 0.5rem;
+  flex-wrap: wrap;
 }
 
 .bb-section-hover-card__chip {
   display: inline-flex;
   flex: none;
   align-items: center;
-  gap: 0.3125rem;
-  font-size: 0.8125rem;
+  gap: 0.25rem;
   font-variant-numeric: tabular-nums;
   font-weight: 450;
 }
 
 .bb-section-hover-card__chip-icon {
-  width: 0.8125rem;
-  height: 0.8125rem;
+  width: 0.6875rem;
+  height: 0.6875rem;
 }
 
 /*
@@ -545,7 +566,7 @@ export const SECTION_CARD_CSS = String.raw`
   color: var(--destructive-text, var(--destructive));
 }
 
-/* Fixed positions, so the row is read rather than scanned. */
+/* Band 3 — fixed positions, so the row is read rather than scanned. */
 .bb-section-hover-card__counts {
   display: flex;
   align-items: baseline;
@@ -554,7 +575,6 @@ export const SECTION_CARD_CSS = String.raw`
   padding-top: 0.4375rem;
   border-top: 1px solid color-mix(in srgb, var(--foreground) 7%, transparent);
   color: var(--muted-foreground);
-  font-size: 0.6875rem;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -575,6 +595,5 @@ export const SECTION_CARD_CSS = String.raw`
 .bb-section-hover-card__empty {
   margin: 0;
   color: var(--muted-foreground);
-  font-size: 0.75rem;
 }
 `;
