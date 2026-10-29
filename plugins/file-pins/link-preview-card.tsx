@@ -1,9 +1,8 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { useRpc } from "@get-bb/plugin-sdk/app";
 import type { UrlPin, rpcContract } from "./contract.js";
 import { previewClient, previewKey, previewProblem, type PreviewAnswer } from "./preview-client.js";
-import { renderHoverCard, relativeTime, type HoverCardContent } from "./hover-card.js";
-import { githubReference } from "./github-preview.js";
+import { UrlPinIcon } from "./url-pin-icon.js";
 import { urlPinName } from "./url-pin.js";
 
 const SAFE_IMAGE = /^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/]+=*$/;
@@ -23,12 +22,9 @@ export async function preparePreview(key: string, call: () => Promise<PreviewAns
   if (decoded.size > 40) decoded.delete(decoded.values().next().value!);
 }
 
-function Card({ data }: { data: HoverCardContent }) {
-  const ref = useRef<HTMLDivElement>(null);
-  useLayoutEffect(() => { if (ref.current) renderHoverCard(ref.current, data); }, [data]);
-  return <div ref={ref} className="px-3 py-3" />;
-}
-
+// Moss EmbedPillHoverCard's media band and compact metadata
+// panel. Keep this plugin's URL header, and use BB's opaque themed surfaces.
+// Images use a 128px edge-to-edge band; text-only cards fit their content.
 export function LinkPreviewCard({ threadId, pin }: { threadId: string; pin: UrlPin }) {
   const rpc = useRpc<typeof rpcContract>();
   const key = previewKey(threadId, pin.id, pin.url);
@@ -44,36 +40,29 @@ export function LinkPreviewCard({ threadId, pin }: { threadId: string; pin: UrlP
   }, [rpc, key, threadId, pin.id]);
   const preview = answer?.preview ?? null;
   const [failedImage, setFailedImage] = useState<string | null>(null);
-  const reference = githubReference(pin.url);
-  const github = preview?.github;
   const site = preview?.site || new URL(pin.url).hostname.replace(/^www\./, "");
-  const title = github ? preview!.title : pin.name !== urlPinName(pin.url) ? pin.name : preview?.title || pin.name;
+  const title = pin.name !== urlPinName(pin.url) ? pin.name : preview?.title || pin.name;
   const image = preview?.image && SAFE_IMAGE.test(preview.image) && failedImage !== preview.image ? preview.image : null;
+  const description = preview?.description && preview.description !== title ? preview.description : "";
   const settled = answer !== undefined || failed;
-  const facts: string[] = [];
-  if (github?.kind === "pull-request") {
-    facts.push(github.checks ?? "Checks unavailable", github.review ?? "Review status unavailable");
-    if (github.state === "open" || github.state === "draft") facts.push(github.mergeability ?? "Mergeability unknown");
-    facts.push(github.branch ?? "Branch unavailable");
-  }
-  if (github?.kind === "issue") facts.push(github.labels.length ? `Labels: ${github.labels.join(", ")}` : "No labels", github.assignees.length ? `Assigned to ${github.assignees.map(a => `@${a}`).join(", ")}` : "Unassigned", `${github.comments} comment${github.comments === 1 ? "" : "s"}`);
-  const content: Node[] = [];
-  if (preview?.description && preview.description !== title) {
-    const description = document.createElement("p"); description.textContent = preview.description;
-    description.style.cssText = "margin:0;color:var(--muted-foreground);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:11px";
-    content.push(description);
-  }
-  const state = !settled ? "Loading" : !preview ? "Unavailable" : github ? github.state === "closed" && github.stateReason === "not_planned" ? "Not planned" : github.state[0]!.toUpperCase() + github.state.slice(1) : reference ? "Details unavailable" : "Web page";
-  return <>
-    <Card data={{
-      kind: github?.kind ?? reference?.kind ?? "link", title,
-      identifier: github ? `${github.repository} #${github.number}` : undefined,
-      state: { label: state, tone: github?.state === "merged" ? "merged" : github?.state === "open" ? "success" : "muted" },
-      facts,
-      meta: github ? [github.author ? `By @${github.author}` : "Author unavailable", relativeTime(github.updatedAt)] : [site],
-      content,
-      notice: !settled ? "Loading preview…" : !preview ? previewProblem(failed ? undefined : answer) : reference && !github ? "GitHub details are unavailable. Open the link for current status." : undefined,
-    }} />
-    {image && <img src={image} alt="" draggable={false} onError={() => setFailedImage(image)} className="h-32 w-full border-t object-cover" />}
+  if (image || !settled) return <>
+    <div className="flex h-32 items-center justify-center overflow-hidden border-b bg-muted/30">
+      {image ? <img src={image} alt="" draggable={false} onError={() => setFailedImage(image)} className="h-full w-full object-cover" />
+        : <span role="status" aria-label="Loading preview" className="h-full w-full animate-pulse bg-muted/60" />}
+    </div>
+    <div className="space-y-1 px-4 py-3">
+      <div className="truncate text-[11px] leading-4 text-muted-foreground">{site}</div>
+      <div className="line-clamp-2 text-xs font-medium leading-5">{title}</div>
+      {description && <div className="line-clamp-2 text-[11px] leading-4 text-muted-foreground">{description}</div>}
+    </div>
   </>;
+  // Text-only when the page answered without a usable image; unavailable when no preview has ever loaded.
+  const note = preview ? description : previewProblem(failed ? undefined : answer);
+  return <div className="flex flex-col overflow-hidden px-4 py-3">
+    <div className="flex h-4 min-w-0 items-center gap-1.5 text-[11px] leading-4 text-muted-foreground [&_img]:size-3.5 [&_svg]:size-3.5">
+      <span className="flex shrink-0"><UrlPinIcon threadId={threadId} pin={pin} /></span><span className="truncate">{site}</span>
+    </div>
+    <div className="mt-2 line-clamp-2 text-xs font-medium leading-5">{title}</div>
+    {note && <div className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted-foreground">{note}</div>}
+  </div>;
 }
