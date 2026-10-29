@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactElement, type RefObject } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState, type MouseEvent, type ReactElement, type RefObject } from "react";
 import { definePluginApp, experimental_FileLink as FileLink, UrlLink, useBbNavigate, useComposer, useRealtime, useRealtimeConnectionState, useRpc } from "@get-bb/plugin-sdk/app";
 import { toast } from "sonner";
 import { PIN_MENTION, isUrlPin, type FileReference, type Reference, type UrlPin, type rpcContract } from "./contract.js";
@@ -38,18 +38,6 @@ function PinIcon({ threadId, pin }: { threadId: string; pin: Reference }) {
 }
 
 const tipClass = "w-72 rounded-lg border bg-popover p-0 text-popover-foreground shadow-lg";
-function scrollPreviewAddress(event: KeyboardEvent, value: string) {
-  if (!["ArrowRight", "ArrowLeft", "End", "Home"].includes(event.key)) return;
-  const header = Array.from(document.querySelectorAll<HTMLDivElement>("[data-pin-preview-address]"))
-    .find((element) => element.title === value && !element.closest("[role=tooltip]"));
-  if (!header || header.scrollWidth <= header.clientWidth) return;
-  if (event.key === "ArrowRight") header.scrollLeft += 80;
-  else if (event.key === "ArrowLeft") header.scrollLeft -= 80;
-  else if (event.key === "End") header.scrollLeft = header.scrollWidth;
-  else if (event.key === "Home") header.scrollLeft = 0;
-  else return;
-  event.preventDefault();
-}
 /**
  * A link's preview card, opened whole: hovering or focusing the pin starts loading its preview while the tooltip
  * delay runs, and the card opens once the preview and its image are ready, or after PREVIEW_HOLD_MS with what it has.
@@ -67,7 +55,7 @@ function HeldTooltip({ prepare, trigger, address, card }: { prepare: () => Promi
     void prepare().then(() => { clearTimeout(timer); show(); });
   }
   return <Tooltip open={open} onOpenChange={onOpenChange}>
-    <TooltipTrigger asChild onPointerEnter={() => void prepare()} onFocus={() => { setFocused(true); void prepare(); }} onBlur={() => setFocused(false)} onKeyDown={(event) => scrollPreviewAddress(event, address)}>{trigger}</TooltipTrigger>
+    <TooltipTrigger asChild onPointerEnter={() => void prepare()} onFocus={() => { setFocused(true); void prepare(); }} onBlur={() => setFocused(false)}>{trigger}</TooltipTrigger>
     <TooltipContent side="top" sideOffset={6} className={tipClass}>
       <PreviewAddress value={address} focused={focused} />
       {card}
@@ -78,7 +66,7 @@ function HeldTooltip({ prepare, trigger, address, card }: { prepare: () => Promi
 function FileTooltip({ trigger, address, card }: { trigger: ReactElement; address: string; card: ReactElement }) {
   const [focused, setFocused] = useState(false);
   return <Tooltip>
-    <TooltipTrigger asChild onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} onKeyDown={(event) => scrollPreviewAddress(event, address)}>{trigger}</TooltipTrigger>
+    <TooltipTrigger asChild onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}>{trigger}</TooltipTrigger>
     <TooltipContent side="top" sideOffset={6} className={tipClass}>
       <PreviewAddress value={address} focused={focused} />
       {card}
