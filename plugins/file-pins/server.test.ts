@@ -12,18 +12,20 @@ vi.mock("@brsbl/bb-website-icons", async (original) => ({
   },
 }));
 
-// The preview cache is covered in link-preview.test.ts; here it only records which URL each RPC asked for.
-type Answer = { preview: { title: string; description: string; site: string; image: string | null } | null; status: string; retryAt?: number };
+// The preview cache is covered in preview-cache.test.ts; here it only records which URL each RPC asked for.
+type Answer = { preview: { title: string; description: string; site: string; image: string | null } | null; status: string; retryAt?: number; refreshing?: true };
 const previews = vi.hoisted(() => ({
-  calls: [] as Array<[string, boolean]>,
+  calls: [] as Array<[string, string]>,
   result: { preview: null, status: "network" } as Answer,
+  settled: { preview: null, status: "network" } as Answer,
   logger: undefined as undefined | ((diagnostic: { reason: string; status?: number; elapsedMs: number }) => void),
 }));
 vi.mock("./link-preview.js", () => ({
   LinkPreviews: class {
     constructor(options: { logger?: typeof previews.logger } = {}) { previews.logger = options.logger; }
     dispose() {}
-    async getResult(url: string, refresh = false) { previews.calls.push([url, refresh]); return previews.result; }
+    async getResult(url: string, refresh = false) { previews.calls.push([url, refresh ? "refresh" : "get"]); return previews.result; }
+    async settled(url: string) { previews.calls.push([url, "settled"]); return previews.settled; }
   },
 }));
 
@@ -233,33 +235,48 @@ describe("thread file pins", () => {
     expect(await h.behavior.callRpc("icon", { threadId: "two", pinId: link.id })).toEqual({ dataUrl: null });
     expect(icons.origins).toEqual(["https://docs.example.com"]);
   });
-  it("previews and refreshes only a URL pin's own address in its own thread, with the load's status", async () => {
+  it("scopes previews and legacy refreshes to a thread's URL pin, and lets open cards wait for reloads", async () => {
     const h = setup();
     previews.calls.length = 0;
     const file = await h.behavior.callRpc("pin", { threadId: "one", hostId: "mac", path: "/note.md" }) as { id: string };
     const link = await h.behavior.callRpc("pinUrl", { threadId: "one", url: "https://example.com/docs" }) as { id: string };
     const text = { title: "Docs", description: "Read me", site: "example.com", image: null };
+    const fresh = { title: "Docs v2", description: "Read me", site: "example.com", image: null };
     previews.result = { preview: text, status: "no-image" };
     expect(await h.behavior.callRpc("preview", { threadId: "one", pinId: link.id })).toEqual({ preview: text, status: "no-image" });
-    // A failed refresh still answers with the last useful preview the cache kept, and when to try again.
-    previews.result = { preview: text, status: "rate-limited", retryAt: 1_000_000 };
+    // Nothing is running behind a fresh answer, so waiting asks the cache once and returns it as is.
+    expect(await h.behavior.callRpc("preview", { threadId: "one", pinId: link.id, wait: true })).toEqual({ preview: text, status: "no-image" });
+    // A stale answer says a reload runs; a waiting card gets that reload's answer.
+    previews.result = { preview: text, status: "no-image", refreshing: true };
+    previews.settled = { preview: fresh, status: "no-image" };
+    expect(await h.behavior.callRpc("preview", { threadId: "one", pinId: link.id })).toEqual({ preview: text, status: "no-image", refreshing: true });
+    expect(await h.behavior.callRpc("preview", { threadId: "one", pinId: link.id, wait: true })).toEqual({ preview: fresh, status: "no-image" });
+    // A failed reload still answers with the last useful preview the cache kept, and when to try again.
+    previews.settled = { preview: text, status: "rate-limited", retryAt: 1_000_000 };
+    expect(await h.behavior.callRpc("preview", { threadId: "one", pinId: link.id, wait: true })).toEqual({ preview: text, status: "rate-limited", retryAt: 1_000_000 });
+    previews.result = previews.settled;
     expect(await h.behavior.callRpc("refreshPreview", { threadId: "one", pinId: link.id })).toEqual({ preview: text, status: "rate-limited", retryAt: 1_000_000 });
-    expect(previews.calls).toEqual([["https://example.com/docs", false], ["https://example.com/docs", true]]);
+    const url = "https://example.com/docs";
+    expect(previews.calls).toEqual([[url, "get"], [url, "get"], [url, "get"], [url, "get"], [url, "settled"], [url, "get"], [url, "settled"], [url, "refresh"]]);
     // Another thread, a file pin or an unknown pin never reaches the cache; nor can a caller name its own address.
     await expect(h.behavior.callRpc("refreshPreview", { threadId: "two", pinId: link.id })).rejects.toThrow("no longer pinned");
     await expect(h.behavior.callRpc("refreshPreview", { threadId: "one", pinId: file.id })).rejects.toThrow("no longer pinned");
     await expect(h.behavior.callRpc("refreshPreview", { threadId: "one", pinId: "missing" })).rejects.toThrow("no longer pinned");
     await expect(h.behavior.callRpc("refreshPreview", { threadId: "one", pinId: link.id, url: "https://169.254.169.254/" })).rejects.toThrow();
     await expect(h.behavior.callRpc("preview", { threadId: "one", pinId: link.id, url: "https://169.254.169.254/" })).rejects.toThrow();
-    expect(await h.behavior.callRpc("preview", { threadId: "two", pinId: link.id })).toEqual({ preview: null });
+    expect(await h.behavior.callRpc("preview", { threadId: "two", pinId: link.id, wait: true })).toEqual({ preview: null });
     expect(await h.behavior.callRpc("preview", { threadId: "one", pinId: file.id })).toEqual({ preview: null });
-    expect(previews.calls).toHaveLength(2);
+    expect(await h.behavior.callRpc("preview", { threadId: "one", pinId: "missing", wait: true })).toEqual({ preview: null });
+    expect(previews.calls).toHaveLength(8);
   });
   it("keeps the preview answer readable by older apps and logs diagnostics without the address", async () => {
     const h = setup();
     expect(rpcContract.preview.output.parse({ preview: null })).toEqual({ preview: null });
     expect(rpcContract.preview.output.parse({ preview: { title: "a", description: "", site: "a.com", image: null } })).toMatchObject({ preview: { title: "a" } });
     expect(rpcContract.preview.output.safeParse({ preview: null, status: "teapot" }).success).toBe(false);
+    expect(rpcContract.preview.input.safeParse({ threadId: "one", pinId: "p", url: "https://example.com/" }).success).toBe(false);
+    expect(rpcContract.preview.input.safeParse({ threadId: "one", pinId: "p" }).success).toBe(true);
+    expect(rpcContract.preview.output.parse({ preview: null, refreshing: true })).toEqual({ preview: null, refreshing: true });
     expect(rpcContract.refreshPreview.input.safeParse({ threadId: "one", pinId: "p", url: "https://example.com/" }).success).toBe(false);
     previews.logger?.({ reason: "blocked", status: 403, elapsedMs: 12 });
     expect(JSON.stringify(h.inspection.logEntries)).toContain("Link preview blocked (HTTP 403) in 12ms");
