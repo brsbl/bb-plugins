@@ -1,3 +1,4 @@
+import { parseLocalFile, fileIconMask, type LocalFile } from "./files";
 import { parsePillUrl, type PillUrl } from "./urls";
 import { cssString, pillStyles, STYLESHEET } from "./stylesheet";
 
@@ -21,6 +22,8 @@ export interface DecorationOptions {
   iconsEnabled?: boolean;
   fetchIcon?: (origin: string, signal: AbortSignal) => Promise<IconResult>;
   openUrl?: (url: string) => boolean;
+  canOpenFile?: (element: HTMLElement) => boolean;
+  openFile?: (file: LocalFile, element: HTMLElement) => boolean;
 }
 interface Entry { url: PillUrl; composer: boolean; visible: boolean; selector?: string; expanded?: boolean }
 
@@ -68,23 +71,39 @@ function touchesEffect(element: Element, backwards: boolean): boolean {
 export function candidateForElement(element: HTMLElement, origin: string): { url: PillUrl; composer: boolean } | null {
   if (element.closest(EXCLUDED)) return null;
   const text = element.textContent ?? '';
-  const url = parsePillUrl(text, origin);
-  if (!url) return null;
+  let url = parsePillUrl(text, origin);
   if (element.classList.contains(EFFECT_CLASS)) {
-    if (!element.closest(EDITOR) || element.querySelector('[contenteditable="false"], img, svg')) return null;
+    if (!url || !element.closest(EDITOR) || element.querySelector('[contenteditable="false"], img, svg')) return null;
     // Leave fragmented matches native instead of making a valid prefix clickable.
     if (touchesEffect(element, true) || touchesEffect(element, false)) return null;
     return { url, composer: true };
   }
-  if (!(element instanceof HTMLAnchorElement) || !element.matches(ANCHOR) || element.closest('[contenteditable]') || element.childElementCount) return null;
+  if (!(element instanceof HTMLAnchorElement) || !element.matches(ANCHOR) || element.closest('[contenteditable]')) return null;
   const destination = element.getAttribute('href');
   // Preserve authored labels and any host destination rewriting.
   if (!destination) return null;
-  try { if (new URL(text).href !== new URL(destination, origin).href) return null; } catch { return null; }
+  const file = parseLocalFile(destination, true);
+  if (file) {
+    // Core appends its opener icon to the final grapheme of a local link.
+    if (element.childElementCount) {
+      const tail = element.firstElementChild;
+      const icon = tail?.lastElementChild;
+      if (element.childElementCount !== 1 || !tail?.matches('span.whitespace-nowrap') || tail.childElementCount !== 1
+        || !icon || !(icon.matches('svg[aria-hidden], img[alt=""]')
+          || (icon.matches('span') && icon.childElementCount === 1 && icon.firstElementChild?.matches('svg[aria-hidden]')))) return null;
+    }
+    url = { text, label: parseLocalFile(text) || text === destination ? file.label : text, localFile: file, origin: '', iconOrigin: null };
+  } else {
+    if (!url || url.localFile || element.childElementCount) return null;
+    try { if (new URL(text).href !== new URL(destination, origin).href) return null; } catch { return null; }
+  }
   const column = element.closest('[data-message-column]')!;
   const userMessage = element.closest('.ml-auto')?.parentElement === column;
   const preview = element.closest('[data-markdown-preview]')!;
-  if (!userMessage && !hasFollowingBoundary(element, preview)) return null;
+  // An authored label proves a Markdown link destination has closed, even at
+  // the end of a message or before punctuation. Bare streamed paths stay native.
+  const authoredFile = file && !parseLocalFile(text) && text !== destination;
+  if (!userMessage && !authoredFile && !hasFollowingBoundary(element, preview)) return null;
   return { url, composer: false };
 }
 
@@ -127,6 +146,18 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
   let explicitEdit: HTMLElement | null = null;
   let inputEdit: HTMLElement | null = null;
   const entries = new Map<HTMLElement, Entry>();
+  const titles = new Map<HTMLElement, string>();
+  let hoverTitle: { pill: HTMLElement; root: HTMLElement; source: string; previous: string | null } | null = null;
+  function clearHoverTitle(): void {
+    if (!hoverTitle) return;
+    const { root, source, previous } = hoverTitle;
+    // Leave a title another owner changed while the pointer was here alone.
+    if (root.getAttribute('title') === source) {
+      if (previous === null) root.removeAttribute('title');
+      else root.setAttribute('title', previous);
+    }
+    hoverTitle = null;
+  }
   const cache = new Map<string, { value: string | null; expires: number }>();
   const requests = new Map<string, AbortController>();
   const composerRoots = new Map<HTMLElement, string>();
@@ -176,13 +207,21 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
     const rules = pillStyles(compact.map(({ selector }) => selector), 'var(--bb-url-pill-label)')
       + compact.map(({ selector, entry }) => {
         const icon = iconValue(entry);
-        return `${selector} { --bb-url-pill-label: ${cssString(entry.url.label)};${icon ? ` ${ICON}: url(${cssString(icon)}); ${MASK}: none; ${ICON_BACKGROUND}: #fff;` : ''} }`;
+        const local = entry.url.localFile;
+        const fileStyle = local ? ` ${MASK}: ${fileIconMask(local.path)}; ${ICON_BACKGROUND}: var(--file-accent, var(--foreground)); ${ICON}: var(--file-accent, var(--foreground));` : '';
+        return `${selector} { --bb-url-pill-label: ${cssString(entry.url.label)};${fileStyle}${icon ? ` ${ICON}: url(${cssString(icon)}); ${MASK}: none; ${ICON_BACKGROUND}: #fff;` : ''} }`;
       }).join('\n');
     if (composerStyle.textContent !== rules) composerStyle.textContent = rules;
   }
 
   function syncIcon(element: HTMLElement, entry: Entry): void {
     if (entry.composer) return;
+    if (entry.url.localFile) {
+      element.style.setProperty(MASK, fileIconMask(entry.url.localFile.path));
+      element.style.setProperty(ICON, 'var(--file-accent, var(--foreground))');
+      element.style.setProperty(ICON_BACKGROUND, 'var(--file-accent, var(--foreground))');
+      return;
+    }
     const value = iconValue(entry);
     if (value) { element.style.setProperty(ICON, `url("${value}")`); element.style.setProperty(MASK, "none"); element.style.setProperty(ICON_BACKGROUND, "#fff"); }
     else { element.style.removeProperty(ICON); element.style.removeProperty(MASK); element.style.removeProperty(ICON_BACKGROUND); }
@@ -244,10 +283,10 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
     for (const root of roots) for (const element of Array.from(root.querySelectorAll<HTMLElement>(`${EDITOR} .${EFFECT_CLASS}, ${ANCHOR}`))) candidates.add(element);
     for (const element of candidates) {
       const candidate = candidateForElement(element, location.origin);
-      if (!candidate) continue;
+      if (!candidate || (candidate.composer && candidate.url.localFile && (!options.openFile || !options.canOpenFile?.(element)))) continue;
       found.add(element);
       let entry = entries.get(element);
-      if (!entry || entry.url.text !== candidate.url.text || entry.composer !== candidate.composer) {
+      if (!entry || JSON.stringify(entry.url) !== JSON.stringify(candidate.url) || entry.composer !== candidate.composer) {
         entry = { ...candidate, visible: entry?.visible ?? (!visibility && element.getClientRects().length > 0) };
         entries.set(element, entry); visibility?.observe(element);
       }
@@ -257,12 +296,24 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
       } else {
         if (element.getAttribute(ATTR) !== 'message') element.setAttribute(ATTR, 'message');
         if (element.getAttribute(LABEL) !== entry.url.label) element.setAttribute(LABEL, entry.url.label);
+        if (entry.url.localFile && (!element.hasAttribute('title') || element.getAttribute('title') === titles.get(element))) {
+          const title = element.getAttribute('href')!;
+          element.setAttribute('title', title); titles.set(element, title);
+        }
+        if (!entry.url.localFile && titles.has(element)) {
+          if (element.getAttribute('title') === titles.get(element)) element.removeAttribute('title');
+          titles.delete(element);
+        }
         syncIcon(element, entry);
       }
     }
     for (const [element, entry] of entries) if (!element.isConnected || (!found.has(element) && roots.some((root) => root.contains(element)))) {
       if (!entry.composer) removeDecoration(element);
       else composerChanged = true;
+      if (titles.has(element)) {
+        if (element.getAttribute('title') === titles.get(element)) element.removeAttribute('title');
+        titles.delete(element);
+      }
       entries.delete(element); visibility?.unobserve(element);
     }
     for (const [root, id] of composerRoots) if (!root.isConnected || !Array.from(entries).some(([element, entry]) => entry.composer && root.contains(element))) {
@@ -290,6 +341,11 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
     const previousCount = entries.size;
     const composerChanged = scan(roots);
     const selectionChanged = updateSelection();
+    if (hoverTitle) {
+      const entry = entries.get(hoverTitle.pill);
+      if (!entry?.composer || !entry.url.localFile || entry.expanded
+        || !hoverTitle.pill.isConnected || !composerRoots.has(hoverTitle.root) || !hoverTitle.root.contains(hoverTitle.pill) || hoverTitle.pill.textContent !== hoverTitle.source) clearHoverTitle();
+    }
     if (composerChanged || selectionChanged) updateComposerStyle();
     if (roots.length || entries.size !== previousCount) syncRequests();
   }
@@ -345,12 +401,27 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
     const pill = target instanceof Element ? target.closest<HTMLElement>(`.${EFFECT_CLASS}, a[${ATTR}="message"]`) : null;
     return pill && entries.has(pill) ? pill : null;
   }
+  function pointerOver(event: PointerEvent): void {
+    const pill = pillAt(event.target);
+    if (hoverTitle?.pill === pill) return;
+    clearHoverTitle();
+    const entry = pill ? entries.get(pill) : null;
+    if (!pill || !entry?.composer || !entry.url.localFile || entry.expanded || pill.textContent !== entry.url.text) return;
+    // The outer wrapper is plugin-owned; never write into the editor tree.
+    const root = [...composerRoots.keys()].find((candidate) => candidate.contains(pill));
+    if (!root) return;
+    hoverTitle = { pill, root, source: entry.url.text, previous: root.getAttribute('title') };
+    root.setAttribute('title', entry.url.text);
+  }
+  function pointerOut(event: PointerEvent): void {
+    if (hoverTitle && !(event.relatedTarget instanceof Node && hoverTitle.pill.contains(event.relatedTarget))) clearHoverTitle();
+  }
   function pointerDown(event: PointerEvent): void {
     inputEdit = null;
     const range = event.target instanceof Element ? event.target.closest<HTMLElement>(`.${EFFECT_CLASS}`) : null;
-    const navigable = range && entries.get(range)?.composer && !entries.get(range)?.expanded && options.openUrl;
+    const navigable = range && entries.get(range)?.composer && !entries.get(range)?.expanded && (entries.get(range)?.url.localFile ? options.canOpenFile?.(range) : options.openUrl);
     explicitEdit = !navigable && range && entries.get(range)?.composer ? range : null;
-    if (navigable && event.button === 0) event.preventDefault();
+    if (navigable && event.button === 0 && !event.defaultPrevented && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey) event.preventDefault();
     // Keep geometry unchanged while the browser places the caret. The next
     // frame reveals only the explicitly clicked range or actual selection.
     queue();
@@ -361,9 +432,11 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
   function click(event: MouseEvent): void {
     const pill = pillAt(event.target);
     const entry = pill ? entries.get(pill) : null;
-    if (pill && entry?.composer && !entry.expanded && pill.textContent === entry.url.text && options.openUrl && event.button === 0) {
-      event.preventDefault(); event.stopPropagation();
-      options.openUrl(entry.url.text);
+    if (pill && entry?.composer && !entry.expanded && pill.textContent === entry.url.text && event.button === 0 && !event.defaultPrevented && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey) {
+      const handled = entry.url.localFile
+        ? options.openFile?.(entry.url.localFile, pill)
+        : options.openUrl?.(entry.url.text);
+      if (handled) { event.preventDefault(); event.stopPropagation(); }
     }
   }
   function compositionStart(event: CompositionEvent): void { composition = revealForComposition(event.target); }
@@ -385,7 +458,9 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
     queue();
   }
   const listeners: [string, EventListener][] = [
+    ['bb-url-pills-context', () => { dirtyRoots.add(document); queue(); }],
     ['selectionchange', queue], ['pointerdown', pointerDown as EventListener],
+    ['pointerover', pointerOver as EventListener], ['pointerout', pointerOut as EventListener],
     ['pointerup', queue], ['pointercancel', queue], ['keydown', keyDown as EventListener],
     ['click', click as EventListener],
     ['compositionstart', compositionStart as EventListener], ['compositionend', compositionEnd],
@@ -409,12 +484,15 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
   function dispose(): void {
     if (disposed) return;
     disposed = true;
+    clearHoverTitle();
     if (frame !== null) cancelAnimationFrame(frame);
     observer.disconnect(); visibility?.disconnect();
     for (const controller of requests.values()) controller.abort();
     requests.clear(); cache.clear();
     for (const [element, entry] of entries) if (!entry.composer) removeDecoration(element);
     for (const [root, id] of composerRoots) if (root.getAttribute(COMPOSER_ROOT) === id) root.removeAttribute(COMPOSER_ROOT);
+    for (const [element, title] of titles) if (element.getAttribute('title') === title) element.removeAttribute('title');
+    titles.clear();
     composerRoots.clear(); dirtyRoots.clear(); entries.clear(); style.remove(); composerStyle.remove();
     for (const [type, listener] of listeners) document.removeEventListener(type, listener, true);
     signal.removeEventListener('abort', dispose);
