@@ -384,7 +384,6 @@ globalThis.fetch = async (url, init) => {
     JSON.stringify({
       ok: true,
       result: {
-        title: "Improve navigation", threadId: request.threadId, updatedAt: now - 120_000, unread: true, hasPendingInteraction: false,
         currentTurnCompletedAt: null,
         currentTurnStartedAt: null,
         diagnostics: {
@@ -670,11 +669,7 @@ assert.equal(card.hasAttribute("data-bb-portaled-overlay"), true);
 assert.equal(trigger.getAttribute("aria-describedby"), "bb-thread-hover-card");
 assert.deepEqual(requestBodies, [{ threadId: "thr_1" }]);
 assert.deepEqual(pullRequestBodies, [{ threadId: "thr_1" }]);
-assert.match(card.textContent, /Agent working/);
-assert.equal(card.querySelector("[data-hover-kind]")?.dataset.hoverKind, "thread");
-assert.equal(card.querySelector("header h3")?.textContent, "Improve navigation");
-assert.match(card.querySelector("[data-card-row=facts]").textContent, /Unread update/);
-assert.match(card.querySelector("[data-card-row=meta]").textContent, /Updated 2m ago/);
+assert.doesNotMatch(card.textContent, /Agent working/);
 assert.equal(
   card.querySelector(".bb-thread-hover-card__runtime [data-time-value]")
     ?.textContent,
@@ -765,9 +760,9 @@ assert.equal(
   card.querySelector(".bb-thread-hover-card__reasoning"),
 );
 assert.deepEqual(
-  Array.from(card.querySelector("[data-hover-kind]").children).map((child) => child.dataset.cardRow || child.className || child.tagName.toLowerCase()),
+  Array.from(card.children).map((child) => child.className),
   [
-    "header", "facts", "meta",
+    "bb-thread-hover-card__header",
     "bb-thread-hover-card__summary",
     "bb-thread-hover-card__context",
   ],
@@ -1133,9 +1128,9 @@ assert.equal(
   "/Users/alex/.bb/personal-workspaces/env_pmgnprh2j6",
 );
 assert.deepEqual(
-  Array.from(card.querySelector("[data-hover-kind]").children).map((child) => child.dataset.cardRow || child.className || child.tagName.toLowerCase()),
+  Array.from(card.children).map((child) => child.className),
   [
-    "header", "facts", "meta",
+    "bb-thread-hover-card__header",
     "bb-thread-hover-card__summary",
     "bb-thread-hover-card__context",
     "bb-thread-hover-card__local",
@@ -1197,9 +1192,9 @@ assert.doesNotMatch(card.textContent, /No PR/);
 assert.equal(card.querySelector(".bb-thread-hover-card__summary"), null);
 assert.equal(card.querySelector(".bb-thread-hover-card__pr"), null);
 assert.deepEqual(
-  Array.from(card.querySelector("[data-hover-kind]").children).map((child) => child.dataset.cardRow || child.className || child.tagName.toLowerCase()),
+  Array.from(card.children).map((child) => child.className),
   [
-    "header", "facts", "meta",
+    "bb-thread-hover-card__header",
     "bb-thread-hover-card__context",
   ],
 );
@@ -1788,7 +1783,7 @@ assert.deepEqual(sectionRequestBodies.at(-1), {
   projectId: null,
   projectName: null,
 });
-// The projects the section spans, two names then +N.
+// Band 1: the projects the section spans, two names then +N.
 assert.deepEqual(
   [...sectionCard.querySelectorAll(".bb-section-hover-card__project")].map(
     (node) => node.textContent,
@@ -1800,7 +1795,7 @@ assert.equal(
   "+2",
 );
 
-// Questions and failures read as separate states.
+// Band 2: questions and failures read as separate states.
 assert.equal(
   sectionCard.querySelector(".bb-section-hover-card__chip--question")
     .textContent,
@@ -1825,7 +1820,7 @@ assert.equal(
   "the decorative glyph does not repeat the adjacent count for assistive technology",
 );
 
-// Counts stay in fixed order.
+// Band 3: counts in fixed order.
 assert.deepEqual(
   [...sectionCard.querySelectorAll(".bb-section-hover-card__count")].map(
     (node) => node.textContent,
@@ -1919,6 +1914,11 @@ assert.equal(
   sectionCard.querySelector(".bb-section-hover-card__empty").textContent,
   "No threads yet",
 );
+assert.equal(
+  sectionCard.querySelector(".bb-section-hover-card__headline"),
+  null,
+  "no headline when nothing wants action — absent, not a reassurance line",
+);
 
 // A sidebar rerender rebinds the open card, and removing the replacement
 // closes the portaled card instead of leaving a stale accessible relation.
@@ -1992,15 +1992,15 @@ assert.equal(
   "hovering a thread row does not open its section's card",
 );
 
-// A populated section with nothing wanting action: no attention chips, counts dimmed.
+// A populated section with nothing wanting action: no headline, counts dimmed.
 const quietHeader = sectionHeaderRow("Quiet");
 sectionGroup.append(quietHeader.row);
 hoverOver(quietHeader.title);
 await new Promise((resolve) => setTimeout(resolve, 170));
 assert.equal(
-  sectionCard.querySelector(".bb-section-hover-card__chip"),
+  sectionCard.querySelector(".bb-section-hover-card__headline"),
   null,
-  "a quiet section has no attention chips",
+  "the headline is absent, not an empty reassurance line",
 );
 assert.deepEqual(
   [...sectionCard.querySelectorAll(".bb-section-hover-card__count")].map(
