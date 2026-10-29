@@ -59,12 +59,14 @@ export const plural = (n: number, one: string, many: string) => `${n} ${n === 1 
 
 export function itemsOf(p: Person, x: Row): PanelItem[] {
   const it: PanelItem[] = [];
-  const eng = (p as { eng?: Engagement[] }).eng;
-  if (eng?.length) for (const e of eng) it.push({ k: e.k === "pr" ? "PR" : "Issue", t: e.t, st: e.s, u: e.u, d: e.d, opened: e.roles.includes("opened") });
-  else {
-    for (const e of p.il) it.push({ k: "Issue", t: e[0], st: e[2], u: e[3], d: e[1], opened: true });
-    for (const e of p.pl) it.push({ k: "PR", t: e[0], st: e[2], u: e[3], d: e[1], opened: true });
+  // Updates refresh only `il`/`pl`, so they win over the imported `eng` for titles and states, and any item they add is listed too.
+  const authored = new Map<string, PanelItem>();
+  for (const e of p.il) authored.set(e[3], { k: "Issue", t: e[0], st: e[2], u: e[3], d: e[1], opened: true });
+  for (const e of p.pl) authored.set(e[3], { k: "PR", t: e[0], st: e[2], u: e[3], d: e[1], opened: true });
+  for (const e of (p as { eng?: Engagement[] }).eng ?? []) {
+    if (!authored.has(e.u)) it.push({ k: e.k === "pr" ? "PR" : "Issue", t: e.t, st: e.s, u: e.u, d: e.d, opened: e.roles.includes("opened") });
   }
+  it.push(...authored.values());
   if (p.dm?.length) for (const m of p.dm) it.push({ k: "Discord", t: m.snippet || "Message", u: m.url, d: m.date });
   else if (p.d) it.push({ k: "Discord", t: p.dd?.m ? plural(p.dd.m, "message", "messages") : "Posted in Discord", u: p.dd?.u || "", d: p.dd?.l || "" });
   if (p.sl) it.push({ k: "Slack", t: "#" + (x.slack_ch || "Slack Connect channel"), u: x.slack_url || "", d: "" });
