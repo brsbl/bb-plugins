@@ -12,7 +12,6 @@
   --ac-option-py: calc(var(--ac-s) * 1.5);    /* option row: 6px + text = ~32px */
   --ac-option-px: calc(var(--ac-s) * 2.5);
   --ac-glyph: 16px;                            /* radio / check glyph */
-  --ac-context-max: 132px;                     /* context preview before "Show more" */
   --ac-radius: var(--radius-lg, .75rem);
   --ac-radius-control: var(--radius-md, .5rem);
   color: var(--foreground);

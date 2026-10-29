@@ -589,7 +589,7 @@ describe("Installed resolution", () => {
       sdk: {
         plugins: {
           list: async () => {
-            throw new Error("loopback failed at /Users/private/plugin.ts");
+            throw new Error("loopback failed at /Users/alex/plugin.ts");
           },
         },
       },

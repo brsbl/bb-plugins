@@ -9,13 +9,14 @@
 .ac-consequence { margin: 0; color: var(--muted-foreground); font-size: var(--ac-meta); line-height: 1.45; overflow-wrap: anywhere; }
 /* Context */
 .ac-context { padding: calc(var(--ac-s) * 2) calc(var(--ac-s) * 2.5); border-radius: var(--ac-radius-control); background: var(--surface-raised, var(--muted)); color: var(--muted-foreground); font-size: var(--ac-meta); line-height: 1.5; }
-.ac-context-body { max-height: var(--ac-context-max); overflow: hidden; }
-.ac-context[data-long]:not([data-open]) .ac-context-body { mask-image: linear-gradient(to bottom, #000 65%, transparent); -webkit-mask-image: linear-gradient(to bottom, #000 65%, transparent); }
-.ac-context[data-open] .ac-context-body { max-height: none; }
+.ac-context-body { min-width: 0; overflow-x: auto; }
 .ac-context-body > :first-child { margin-top: 0; } .ac-context-body > :last-child { margin-bottom: 0; }
 .ac-context-body p { margin: 0 0 calc(var(--ac-s) * 1.5); }
 .ac-context-body strong, .ac-context-body b { color: var(--foreground); font-weight: 500; }
-.ac-context .ac-link { margin-top: calc(var(--ac-s) * 1); }
+.ac-source { color: var(--muted-foreground); font-size: var(--ac-meta); overflow-wrap: anywhere; }
+.ac-source a { color: inherit; text-decoration: none; }
+.ac-source a:hover { color: var(--foreground); text-decoration: underline; }
+.ac-source a:focus-visible { outline: 1px solid var(--ring); outline-offset: 2px; }
 /* Options: bb question-form rows */
 .ac-options { display: grid; gap: calc(var(--ac-s) * 1); min-width: 0; margin: 0; padding: 0; border: 0; }
 .ac-option { position: relative; display: flex; align-items: flex-start; gap: calc(var(--ac-s) * 2); padding: calc(var(--ac-s) * 1) 0; cursor: pointer; }
@@ -59,7 +60,7 @@
 .ac-row { display: grid; gap: var(--ac-gap); padding: var(--ac-pad); border-bottom: 1px solid var(--border); }
 .ac-group-foot { padding: calc(var(--ac-s) * 2.5) var(--ac-pad); }
 /* Long unbroken text (URLs, paths) wraps instead of widening the card. */
-.ac-card, .ac-card > *, .ac-row > * { min-width: 0; }
+.ac-card, .ac-card > *, .ac-row > *, .ac-about > *, .ac-answer > * { min-width: 0; }
 .ac-context { overflow-wrap: anywhere; }
 .ac-row > .ac-note-toggle { justify-self: start; }
 /* Body: what the decision is about, then the answer, stacked like bb's question form. */
@@ -77,3 +78,22 @@
 .ac-icon-button:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
 .ac-icon-button:disabled { opacity: .5; cursor: default; }
 .ac-icon-button svg { width: 14px; height: 14px; }
+
+/* Context: one muted line under the question; "more" reveals it in full without moving the options first. */
+.ac-context-line { display: flex; align-items: baseline; gap: calc(var(--ac-s) * 1.5); min-width: 0; color: var(--muted-foreground); font-size: var(--ac-meta); line-height: 1.5; }
+/* Collapsed, the rendered context flows inline on one line: nothing is removed, only clipped. */
+.ac-context-summary { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.ac-context-summary * { display: inline; margin: 0; padding: 0; white-space: nowrap; }
+/* Rendered Markdown brings its own color and type; context stays one muted line at the small size, collapsed or open. */
+.ac-context-line * { color: inherit; font-size: inherit; line-height: inherit; }
+.ac-context-summary :is(p, li, h1, h2, h3, h4, h5, h6, blockquote, pre, tr, td, th)::after { content: " "; }
+.ac-context-summary li + li::before { content: "· "; }
+.ac-context-summary img { display: none; }
+/* A hard break disappears and the newline after it collapses to a space; the box is one line tall whatever the Markdown holds. */
+.ac-context-summary br { display: none; }
+.ac-context-summary { max-height: 1.5em; }
+.ac-context-full { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.ac-context-full > * { margin: 0; } .ac-context-full > * + * { margin-top: calc(var(--ac-s) * 1); }
+.ac-context-full ul, .ac-context-full ol { padding-left: 1.25em; }
+.ac-context-more { flex-shrink: 0; padding: 0; border: 0; background: none; color: var(--muted-foreground); font: inherit; text-decoration: underline; text-decoration-color: color-mix(in oklab, currentColor 40%, transparent); text-underline-offset: 3px; cursor: pointer; }
+.ac-context-more:hover, .ac-context-more:focus-visible { color: var(--foreground); outline: none; }

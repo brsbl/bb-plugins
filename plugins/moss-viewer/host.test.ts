@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from "node:fs/promis
 import { homedir, platform, tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { listNotes, noteVersion, openInMoss, readAsset, readNote, revealNote } from "./host-notes.js";
+import { canOpenInMoss, listNotes, noteVersion, openInMoss, readAsset, readNote, revealNote } from "./host-notes.js";
 
 vi.mock("node:child_process", () => ({ execFile: vi.fn((_file, _args, _options, callback) => callback(null)) }));
 vi.mock("node:os", async (original) => ({
@@ -44,6 +44,7 @@ it("reads a Moss note with its layout and id, and leaves other Markdown to bb", 
     markdown: "# Tweets\n\n| a | b |\n| - | - |\n",
     layout,
     noteId: "note-1",
+    canOpenInMoss: true,
     modifiedMs: expect.any(Number),
     // The version the viewer's watch reports, so the panel can tell what changed since this read.
     version: await noteVersion(tweets.path),
@@ -136,4 +137,15 @@ it("reveals only the canonical note in Finder, and only on a Mac", async () => {
   expect(execFile).toHaveBeenLastCalledWith("/usr/bin/open", ["-R", tweets.path], { timeout: 15_000 }, expect.any(Function));
   vi.mocked(platform).mockReturnValueOnce("linux");
   await expect(revealNote({ path: tweets.path })).rejects.toThrow("Mac");
+});
+
+
+it("reports Moss availability on the note host without opening the app", async () => {
+  vi.mocked(platform).mockReturnValue("linux");
+  expect(await canOpenInMoss()).toBe(false);
+  vi.mocked(platform).mockReturnValue("darwin");
+  expect(await canOpenInMoss()).toBe(true);
+  expect(execFile).toHaveBeenLastCalledWith("/usr/bin/open", ["-Ra", "Moss"], { timeout: 5_000 }, expect.any(Function));
+  vi.mocked(execFile).mockImplementationOnce(((_file: unknown, _args: unknown, _options: unknown, callback: (error: Error) => void) => callback(new Error("not installed"))) as typeof execFile);
+  expect(await canOpenInMoss()).toBe(false);
 });

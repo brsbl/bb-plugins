@@ -5,14 +5,14 @@
 <h2 class="pg-title pg-reveal">Pocket synth</h2>
 <p class="pg-subtitle pg-reveal">Two oscillators, a resonant filter and drive. Play it, or ask the agent to.</p>
 
-<div data-pg="presets" class="pg-reveal" style="--i:1; margin-top:14px"><script type="application/json">{
+<div data-pg="presets" class="pg-reveal" style="--i:1"><script type="application/json">{
   "Square lead": { "waveA": "square", "waveB": "sawtooth", "detune": 10, "mix": 0.35, "cutoff": 1500, "res": 4, "env": 0.4, "drive": 0.45, "a": 0.003, "d": 0.25, "s": 0.55, "r": 0.12, "rate": 5.5, "depth": 0.06, "lfo": "pitch", "delay": 0.22, "verb": 0.25 },
   "Riser": { "waveA": "sawtooth", "waveB": "sawtooth", "detune": 30, "mix": 0.5, "cutoff": 300, "res": 2, "env": 0.2, "drive": 0.3, "a": 0.35, "d": 1, "s": 0.9, "r": 0.7, "rate": 2, "depth": 0, "lfo": "filter", "delay": 0.3, "verb": 0.45 },
   "Big lead": { "waveA": "sawtooth", "waveB": "square", "detune": 18, "mix": 0.45, "cutoff": 3200, "res": 5, "env": 0.55, "drive": 0.75, "a": 0.003, "d": 0.3, "s": 0.6, "r": 0.14, "rate": 6, "depth": 0.08, "lfo": "pitch", "delay": 0.28, "verb": 0.3 },
   "Cross bass": { "waveA": "sawtooth", "waveB": "square", "detune": 8, "mix": 0.35, "cutoff": 190, "res": 9, "env": 0.7, "drive": 0.85, "a": 0.002, "d": 0.16, "s": 0.25, "r": 0.08, "rate": 4, "depth": 0, "lfo": "pitch", "delay": 0.05, "verb": 0.03 }
 }</script></div>
 
-<div class="pg-surface pg-reveal" style="--i:2; margin-top:12px">
+<div class="pg-surface pg-reveal" style="--i:2">
   <div data-pg="scope" id="scope"><span class="pg-label">Output</span><output></output></div>
   <div class="pg-banks" style="--cols: 1fr 1.25fr">
     <section class="pg-group"><h4 class="pg-label">Oscillators</h4><div class="pg-bank">
@@ -45,9 +45,9 @@
   </div>
 </div>
 
-<div data-pg="keyboard" class="pg-reveal" style="--i:3; margin-top:12px" data-from="60" data-count="25"></div>
+<div data-pg="keyboard" class="pg-reveal" style="--i:3" data-from="60" data-count="25"></div>
 
-<div class="pg-transport pg-reveal" style="--i:4; margin-top:12px">
+<div class="pg-transport pg-reveal" style="--i:4">
   <div><button data-pg="record" type="button"></button><button data-pg="send" data-label="Pocket synth take" type="button"></button></div>
   <span class="pg-hint">Play: <b>A–K</b> · <b>Z/X</b> octave · Record a phrase to send it to the agent</span>
   <div><button data-pg="toggle" data-param="hold" type="button">Hold</button><button data-pg="toggle" data-param="arp" type="button">Arpeggiate</button></div>

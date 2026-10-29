@@ -5,7 +5,7 @@ export default defineConfig({
     silent: "passed-only",
     testTimeout: 30_000,
     name: "bb-plugin-playgrounds",
-    include: ["**/*.test.{ts,tsx}"],
+    include: ["**/*.test.{ts,tsx,js}"],
     exclude: ["node_modules/**"],
   },
 });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { EmailReadInputSchema, EmojiSchema, ConnectionSchema, DigestDefinitionSchema, IssuePatchSchema, IssueSchema, PublishInputSchema, ScheduleSchema } from "./model";
+import { SaveDigestSchema, EmailReadInputSchema, EmojiSchema, ConnectionSchema, DigestDefinitionSchema, IssuePatchSchema, IssueSchema, PublishInputSchema, ScheduleSchema } from "./model";
 import { DIGEST_RECIPES } from "./recipes";
 import { collectionInstructions, issueTitle } from "./prompts";
 
@@ -11,9 +11,37 @@ describe("digest contracts", () => {
     });
     expect(definition).toMatchObject({
       enabled: false, schedule: null, automationId: null, providerId: null, model: null, reasoningLevel: null,
-      permissionMode: "auto", environment: { type: "project-default" }, connectionIds: [],
+      afterReading: "mark-read", permissionMode: "auto", environment: { type: "project-default" }, connectionIds: [],
     });
     expect(DigestDefinitionSchema.safeParse({ ...definition, id: "../reading" }).success).toBe(false);
+  });
+
+  it("defaults absent preferences to mark-read while partial saves preserve explicit choices", () => {
+    const input = { id: "reading", name: "Reading", projectId: "proj_test", instructions: "Read mail.", createdAt: 1 };
+    expect(DigestDefinitionSchema.parse(input).afterReading).toBe("mark-read");
+    expect(DigestDefinitionSchema.parse({ ...input, afterReading: "keep-unread" }).afterReading).toBe("keep-unread");
+    expect(SaveDigestSchema.parse({ connectionId: "gmail", name: "Reading", instructions: "Read mail.", schedule: null })).not.toHaveProperty("afterReading");
+  });
+
+  it.each(["mark-read", "keep-unread"] as const)("requires full-body collection in %s mode without unknown-state gaps", (afterReading) => {
+    const definition = DigestDefinitionSchema.parse({ id: "reading", name: "Reading", projectId: "proj_test", instructions: "Read mail.", createdAt: 1, afterReading });
+    const runtime = collectionInstructions(definition);
+    expect(runtime).toContain("every message in a multi-message thread");
+    expect(runtime).toContain("never summarize from list previews or snippets");
+    expect(runtime).toContain("Snapshot candidate thread/message IDs");
+    expect(runtime).toContain("view=pt");
+    expect(runtime).toContain("preserve authuser or the account path");
+    expect(runtime).not.toContain("do not open the thread: disclose the gap");
+    if (afterReading === "mark-read") {
+      expect(runtime).toContain("otherwise omit it");
+      expect(runtime).toContain("explicitly mark those messages read");
+      expect(runtime).toContain("once per batch");
+      expect(runtime).not.toContain("Restore each originally unread message immediately");
+    } else {
+      expect(runtime).toContain("Use read-only print access when per-message state is unknown");
+      expect(runtime).toContain("Never mark an entire mixed-state thread unread");
+      expect(runtime).not.toContain("explicitly mark those messages read");
+    }
   });
 
   it("validates schedule syntax and timezones before an automation is created", () => {
@@ -60,9 +88,43 @@ describe("digest contracts", () => {
       expect(runtime).toContain("No source is recorded as processed until publication succeeds");
       expect(runtime).toContain("read their full bodies");
       expect(runtime).toContain("digest_email_read");
-      expect(runtime).toContain("Keep unread (default)");
+      expect(runtime).toContain("Mark as read (default)");
       expect(runtime).toContain("only a user CLICK");
     }
+  });
+
+  it("lets the user's request override per-type shapes and reads newsletters for the user by default", () => {
+    const reading = DIGEST_RECIPES.find((recipe) => recipe.id === "reading")!;
+    expect(reading.instructions).not.toMatch(/worth reading|pick the 3/iu);
+    const runtime = collectionInstructions(DigestDefinitionSchema.parse({ ...reading, projectId: "proj_test", createdAt: 1 }));
+    const precedence = runtime.indexOf("The user's request wins over the plugin's shape defaults");
+    expect(precedence).toBeGreaterThan(runtime.indexOf(reading.instructions));
+    expect(precedence).toBeLessThan(runtime.indexOf("Per-type defaults, only where the user's request is silent"));
+    expect(runtime.slice(precedence)).toMatch(/^[^\n]*read-only action and approval-card rules[^\n]*never makes a link or button perform a write/u);
+    expect(runtime).not.toMatch(/three Read cards|"Read these"|reading time in context/u);
+    expect(runtime).toContain("never recommend what to read");
+    expect(runtime).toContain('tail "In brief" with one row per newsletter');
+  });
+
+  it("asks for one brief per email and task buttons instead of Read buttons", () => {
+    const inbox = DIGEST_RECIPES.find((recipe) => recipe.id === "unread-email")!;
+    const runtime = collectionInstructions(DigestDefinitionSchema.parse({ ...inbox, projectId: "proj_test", createdAt: 1 }));
+    expect(runtime).not.toMatch(/deduplicate:false|Review reply|source\/review button/u);
+    expect(runtime).toContain("digest_email_status");
+    expect(runtime).toContain("placement: shown");
+    expect(runtime).toContain("urgent:true");
+    expect(runtime).toContain("brief.elsewhere");
+    expect(runtime).toContain('"Upload receipt in Mercury"');
+    expect(runtime).toContain('secondaryAction is {label:"Open email"');
+    expect(runtime).toContain("never guess or construct a URL");
+  });
+
+  it("accepts newsletter takeaways on new rows while older rows stay valid", () => {
+    const row = { title: "Example Weekly · Issue 12", text: "Agents moved to the editor.", url: "https://example.test/news" };
+    const brief = (items: object[]) => ({ heading: "Needs you", items: [], tail: { label: "In brief", details: "One newsletter.", items } });
+    expect(PublishInputSchema.safeParse({ headline: "Nothing needs you", details: "One newsletter.", brief: brief([row]) }).success).toBe(true);
+    expect(PublishInputSchema.safeParse({ headline: "Nothing needs you", details: "One newsletter.", brief: brief([{ ...row, takeaways: ["Point one.", "Point two."] }]) }).success).toBe(true);
+    expect(PublishInputSchema.safeParse({ headline: "Nothing needs you", details: "One newsletter.", brief: brief([{ ...row, takeaways: Array(6).fill("Point.") }]) }).success).toBe(false);
   });
 
   it("exposes the journal boolean as a root tool property and keeps validation strict", () => {

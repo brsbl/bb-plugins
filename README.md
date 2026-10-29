@@ -60,6 +60,17 @@ Rewrites a rough bb composer draft into a clearer, context-complete prompt for r
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/improve-prompt --yes`
 
+### Prism Frame
+
+Adds a moving, theme-derived sheen to the app frame, navigation rail, and outer title bar, with matching glass mention pills and distinct selected states. Includes motion, intensity, and independent pill controls.
+
+![Prism Frame in light mode with a glass plugin mention](plugins/prism-frame/docs/overview.png)
+
+
+[Source](plugins/prism-frame) · [README](plugins/prism-frame/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/prism-frame --yes`
+
 ### Pull Requests
 
 See your GitHub pull requests and review requests, inspect checks and changes, and continue related work in bb. Thread links are optional and survive branch changes.
@@ -92,7 +103,7 @@ Organizes work into configurable workflow sections that agents follow, and keeps
 
 ![Thread Organizer showing the current development-phase sections in bb's sidebar](plugins/thread-organizer/docs/screenshot.png)
 
-![Thread Organizer workflow settings](https://github.com/user-attachments/assets/4dba26ce-4033-4f4a-929d-98c630e72e57)
+![Thread Organizer workflow settings](plugins/thread-organizer/docs/settings.png)
 
 [Source](plugins/thread-organizer) · [README](plugins/thread-organizer/README.md)
 
@@ -140,7 +151,7 @@ Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/i
 
 ### Inline Decisions
 
-Edit email replies and approve decisions inside agent messages. Review one item or a group in a table, and track waiting choices and results across threads in the Decision log.
+Answer everything agents need from you in Waiting on you, a drawer above the prompt box that collects decisions, email replies and plain questions from every thread, urgent first. Track past choices and results in the Decision log.
 
 ![Minimal cards](https://github.com/user-attachments/assets/692e0678-252d-47cf-8e1f-01e2b5c3fa7e)
 
@@ -166,7 +177,7 @@ Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/m
 
 Type `:` in a composer to open the picker, then choose an emoji to replace the colon. Search by name or shortcode, browse categories, and keep recent choices and a preferred skin tone close at hand.
 
-![Emoji picker with category browsing and skin tone selection](https://github.com/user-attachments/assets/a74d890d-9ad9-46e5-a7a0-2995b386e054)
+![Emoji picker with category browsing and skin tone selection](plugins/emoji-picker/docs/composer.png)
 
 [Source](plugins/emoji-picker) · [README](plugins/emoji-picker/README.md)
 
@@ -204,7 +215,7 @@ Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/c
 
 ### Compact Links
 
-Turns website URLs into compact favicon pills in the composer, sent messages and agent replies. Click a link to open it using your bb browser preference.
+Turns website URLs and local file paths into compact pills in drafts and conversations. Website links show favicons; files show their type and open through bb’s normal file flow.
 
 ![SaaS and localhost links in drafts and conversations](https://github.com/user-attachments/assets/50b2bbde-30f6-4ac2-9060-a92d04a6bc07)
 
@@ -342,13 +353,11 @@ Keep a thread's key files and links one click away in a strip above the composer
 
 ![A pull request, a Markdown file, a localhost dev server, a Linear issue and a Figma link pinned above the composer](plugins/file-pins/docs/strip.png)
 
-![Unpinned files and links in the ⋯ list above the strip](plugins/file-pins/docs/more-list.png)
-
-![A pinned file's menu with Open preview, Open externally, Copy file path, Copy file name, Unpin and Remove, in dark mode](plugins/file-pins/docs/pin-menu-dark.png)
+![A pinned file's menu with Open preview, Open externally, Copy file path, Copy file name and Unpin, in dark mode](plugins/file-pins/docs/pin-menu-dark.png)
 
 ![The Pin pill in the composer, followed by the files and link to pin](plugins/file-pins/docs/pin-files-pill.png)
 
-![Pins with whole labels on a phone, the last one shortened to fill the row, and the rest in the full-width ⋯ list](plugins/file-pins/docs/phone-more-list.png)
+![Pins on a phone in one row, scrolled partway, with fades on both sides where more pins wait](plugins/file-pins/docs/phone-strip.png)
 
 [Source](plugins/file-pins) · [README](plugins/file-pins/README.md)
 

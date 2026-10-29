@@ -8,9 +8,11 @@ import { isLocalUrl } from "./url-pin.js";
 // One lookup per origin per page; the server caches origins across clients and restarts.
 // Misses are not remembered here, so a pin mounted later asks again.
 const favicons = new Map<string, Promise<string | null>>();
+// Icons already answered, so a card or row that mounts later paints its icon in its first frame.
+const faviconAnswers = new Map<string, string>();
 const SAFE_ICON = /^data:image\/png;base64,[A-Za-z0-9+/]+=*$/;
 
-// One request per PR per minute on this page, shared by the strip and the ⋯ list. Answers are kept for the page,
+// One request per PR per minute on this page. Answers are kept for the page,
 // so a remount paints the right icon at once and pin labels can name the state.
 const prStates = new Map<string, { at: number; state: Promise<PrState | null> }>();
 const answered = new Map<string, PrState | null>();
@@ -28,12 +30,6 @@ const noThreadPr = () => ({ isLoading: false, pullRequest: null });
 /** Re-renders when any pinned PR's state arrives or changes. */
 export function usePrStateAnswers(): number {
   return useSyncExternalStore((listener) => { listeners.add(listener); return () => listeners.delete(listener); }, () => answers);
-}
-
-/** True for a GitHub PR pin that shows, or may still show, a state beside its icon; false once GitHub has none to give. */
-export function showsPrState(url: string): boolean {
-  const pr = githubPullRequest(url);
-  return pr !== null && answered.get(prKey(pr)) !== null;
 }
 
 /** "merged pull request" for a pinned PR whose state is known, else "", for screen-reader labels. */
@@ -97,8 +93,9 @@ export function UrlPinIcon({ threadId, pin }: { threadId: string; pin: UrlPin })
   const local = isLocalUrl(pin.url);
   // Ask only for icons the server would fetch: a public HTTPS site with no port.
   const origin = iconUrl(pin.url)?.origin ?? null;
-  const [icon, setIcon] = useState<string | null>(null);
+  const [icon, setIcon] = useState<string | null>(() => origin === null ? null : faviconAnswers.get(origin) ?? null);
   useEffect(() => {
+    setIcon(origin === null ? null : faviconAnswers.get(origin) ?? null);
     if (origin === null) return;
     let current = true;
     let request = favicons.get(origin);
@@ -106,10 +103,13 @@ export function UrlPinIcon({ threadId, pin }: { threadId: string; pin: UrlPin })
       request = rpc.call("icon", { threadId, pinId: pin.id }).then(({ dataUrl }) => dataUrl && SAFE_ICON.test(dataUrl) ? dataUrl : null, () => null);
       favicons.set(origin, request);
       const pending = request;
-      void pending.then((value) => { if (value === null && favicons.get(origin) === pending) favicons.delete(origin); });
+      void pending.then((value) => {
+        if (value !== null) faviconAnswers.set(origin, value);
+        else if (favicons.get(origin) === pending) favicons.delete(origin);
+      });
     }
     void request.then((value) => { if (current) setIcon(value); });
-    return () => { current = false; setIcon(null); };
+    return () => { current = false; };
   }, [rpc, threadId, pin.id, origin]);
   const site = local
     ? <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="size-3.5 shrink-0">

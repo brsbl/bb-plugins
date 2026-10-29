@@ -1,15 +1,13 @@
 ## What you get
 
-- **A strip above the composer.** Pinned files and links sit in order as quiet raised chips. Each chip is as wide as its label; labels truncate only when the strip runs out of room, and the rest wait in the **⋯** list. On touch screens pins keep whole labels while they fit, only the last pin on the strip shortens, and more pins move to **⋯** instead.
+- **A strip above the composer.** Pinned files and links sit in order as quiet raised chips with whole labels, in one row that scrolls sideways when they don't all fit. Swipe, or use the mouse wheel over the strip; fades mark the sides with more pins. Previously hand-hidden pins return to the strip automatically.
 - **Files and links together.** Files show outline icons for code, documents and images in the theme's file color. Links show their site's icon and the page title, a terminal for a dev server on localhost or a private network, and a globe for sites that have none. A public GitHub pull request also shows its state beside GitHub's icon: open, draft, merged or closed, in the theme's PR colors.
 - **Agent-assisted pinning.** The pin button adds a **Pin** pill to the composer. Type paths, file names or URLs after it and send; the agent finds each file, asks about any that are ambiguous, and pins them.
 - **Key links pinned for you.** Agents pin the PR they open, the issue or ticket, the spec they follow, and a dev site or preview they hand you, and remove a dev site's pin when its server stops.
 
 ## How it works
 
-Click a pin to open it the way bb opens files and links. Right-click a file for **Open preview**, **Open externally**, **Copy file path** and **Copy file name**, then **Unpin** to remove it with **Undo**. Hover or focus a pin for a preview card with the URL or path in its header. Web cards show a thumbnail or site icon, site name, title, and description. Pin a file back from the ⋯ list while the strip has room. Missing files stay visible with a light red tint.
-
-With Moss Viewer installed, a pinned Moss note opens in its panel, even when the note lives on another machine, and **Open in Moss** there opens it for editing.
+Click a pin to open it the way bb opens files and links. Hover or focus a pin for its **×** to unpin it. Right-click a file, or long-press a pin on a touch screen, for **Open preview**, **Open externally**, **Copy file path** and **Copy file name**, then **Unpin** to remove it with **Undo**. Hover or focus a pin for a preview card with the URL or path in its header; link cards open complete, without loading placeholders, when the page answers quickly, and a preview over an hour old updates in place while the card is open. Web cards show a thumbnail or site icon, site name, title, and description. Missing files stay visible with a light red tint.
 
 Pins persist per thread across clients and restarts. Agents and scripts can also run `bb file-pins pin`, `list` and `remove`.
 

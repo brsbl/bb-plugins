@@ -1,81 +1,81 @@
 // Higher-level component sets, composed from the base library in controls.ts.
 // Calculator set: scrubbable numbers inside a sentence, one answer, a breakdown bar.
-// Simulation set: a run bar (play, pause, scrub) driving the base chart, which
-// shows the run with a "now" marker and its events. The music set lives in controls.ts.
+// An optional run bar (play, pause, scrub) driving the base chart, which shows
+// the run with a "now" marker and its events. The music set lives in controls.ts.
 
 export const SETS_CSS = String.raw`
-.pg-sentence { margin-bottom: 0; font-size: 15px; line-height: 1.7; color: var(--pg-body); text-wrap: pretty; }
-.pg-scrub { position: relative; display: inline-block; padding: 0 2px; border-radius: 4px; color: var(--pg-accent-ink, var(--pg-ink)); font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; cursor: ew-resize; touch-action: none; user-select: none; -webkit-user-select: none; background: color-mix(in srgb, var(--pg-accent) 10%, transparent); box-shadow: inset 0 -1.5px 0 color-mix(in srgb, var(--pg-accent) 55%, transparent); transition: background .15s; }
-.pg-scrub:hover, .pg-scrub.pg-grab { background: color-mix(in srgb, var(--pg-accent) 18%, transparent); }
+.pg-sentence { margin-bottom: 0; max-width: 62ch; font-size: var(--pg-text-sentence); line-height: 1.6; color: var(--pg-body); text-wrap: pretty; }
+.pg-sentence :is(b, strong) { font-weight: 600; color: var(--pg-ink); font-variant-numeric: tabular-nums; }
+.pg-scrub { --pg-chip: color-mix(in oklab, var(--pg-series-2) 22%, transparent); position: relative; display: inline-block; padding: 1px 6px; border-radius: 6px; line-height: 1.45; color: var(--pg-ink); font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; cursor: ew-resize; touch-action: none; user-select: none; -webkit-user-select: none; background: var(--pg-chip); transition: background var(--pg-fast); }
+.pg-scrub:hover, .pg-scrub.pg-grab, .pg-scrub:focus-visible { --pg-chip: color-mix(in oklab, var(--pg-series-2) 38%, transparent); }
 .pg-scrub:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
 .pg-scrub input { width: 6ch; padding: 0; border: 0; background: none; outline: none; font: inherit; color: inherit; text-align: center; }
 .pg-scrub[data-agent]::after { top: -12px; }
 .pg-answer { display: grid; gap: 2px; }
 .pg-answer > .pg-label { margin: 0; }
-.pg-answer > strong { display: flex; align-items: center; gap: 8px; font-size: 24px; line-height: 1.2; font-weight: 600; letter-spacing: -.015em; color: var(--pg-ink); font-variant-numeric: proportional-nums; }
-.pg-answer > span { font-size: 12.5px; line-height: 1.45; color: var(--pg-body); }
-.pg-answer > .pg-label + strong { margin-top: 2px; }
-.pg-answer[data-long] > strong { font-size: 20px; letter-spacing: -.01em; }
-.pg-tone { display: inline-grid; place-items: center; flex-shrink: 0; width: 16px; height: 16px; border-radius: 50%; background: var(--t); color: var(--card); font-size: 10px; font-style: normal; font-weight: 700; letter-spacing: 0; line-height: 1; }
+.pg-answer > strong { display: flex; align-items: center; gap: 8px; font-size: var(--pg-text-hero); line-height: 1.15; font-weight: 600; letter-spacing: -.02em; color: var(--pg-ink); font-variant-numeric: proportional-nums; }
+.pg-answer > span { font-size: var(--pg-text-body); line-height: 1.45; color: var(--pg-body); }
+.pg-answer > .pg-label + strong { margin-top: 4px; }
+.pg-answer > strong + span { margin-top: 2px; }
+.pg-answer[data-long] > strong { font-size: 22px; letter-spacing: -.012em; }
+.pg-tone { display: inline-grid; place-items: center; flex-shrink: 0; width: 18px; height: 18px; border-radius: 50%; background: var(--t); color: var(--card); font-size: 11px; font-style: normal; font-weight: 700; letter-spacing: 0; line-height: 1; }
 .pg-tone[data-tone=good] { --t: var(--pg-good); } .pg-tone[data-tone=warn] { --t: var(--pg-warn); } .pg-tone[data-tone=bad] { --t: var(--pg-bad); }
-.pg-breakdown { display: grid; gap: 10px; }
-.pg-breakdown > .pg-bar { display: flex; height: 12px; gap: 2px; overflow: hidden; border-radius: 6px; background: var(--pg-hairline); }
+.pg-breakdown { display: grid; gap: 12px; }
+.pg-breakdown > .pg-bar { display: flex; height: 10px; gap: 2px; overflow: hidden; border-radius: 5px; }
 .pg-breakdown > .pg-bar > i { min-width: 2px; background: var(--seg); transition: flex-grow .35s var(--pg-ease, ease); }
 .pg-breakdown > ul { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
-.pg-breakdown li { display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; align-items: center; gap: 8px; font-size: 12px; color: var(--pg-body); }
+.pg-breakdown li { display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; align-items: center; gap: 8px; font-size: var(--pg-text-body); color: var(--pg-body); }
 .pg-breakdown li::before { content: ""; width: 10px; height: 10px; border-radius: 3px; background: var(--seg); }
 .pg-breakdown li > b { font-weight: 500; color: var(--pg-ink); font-variant-numeric: tabular-nums; }
 /* The run bar: play and the time. On its own it has a scrubber; tied to a chart (data-chart), you scrub by dragging on the chart. */
 .pg-run { display: flex; align-items: center; gap: 10px; }
 .pg-run > button { flex-shrink: 0; width: 28px; height: 28px; }
-.pg-run input[type=range] { flex: 1; min-width: 0; height: 18px; margin: 0; accent-color: var(--pg-ink); }
+.pg-run input[type=range] { flex: 1; min-width: 0; }
 .pg-run[data-chart] input[type=range] { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
-.pg-run output { font-size: 12px; font-weight: 500; color: var(--pg-ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pg-run output { font-size: var(--pg-text-label); font-weight: 500; color: var(--pg-ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .pg-run[data-chart] { gap: 8px; }
-.pg-run[data-chart] > button { width: 26px; height: 26px; }
+.pg-run[data-chart] > button { width: 28px; height: 28px; }
 .pg-run[data-chart] output { font-weight: 400; color: var(--pg-body); }
-.pg-chart-head { display: flex; align-items: center; gap: 12px; min-height: 26px; }
+.pg-chart-head { display: flex; align-items: center; gap: 12px; min-height: 28px; }
 .pg-chart-head > .pg-chart-legend { margin-left: auto; justify-content: flex-end; }
 /* Result: the answer beside what explains it (a breakdown, or a few stats). */
-.pg-result { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); column-gap: 24px; row-gap: 14px; align-items: start; }
-.pg-result.pg-surface { padding: 16px; }
+.pg-result { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); column-gap: 24px; row-gap: 16px; align-items: center; }
+.pg-result.pg-surface { padding: 18px 20px; }
 .pg-result > * { margin-top: 0 !important; }
-.pg-result > .pg-breakdown { padding-top: 3px; }
-.pg-result > .pg-notes, .pg-result > p { grid-column: 1 / -1; margin: 0; font-size: 12px; line-height: 1.45; color: var(--pg-meta); }
+.pg-result > .pg-notes, .pg-result > p { grid-column: 1 / -1; margin: 0; font-size: var(--pg-text-meta); line-height: 1.45; color: var(--pg-meta); }
 .pg-result:has(> .pg-stats) { grid-template-columns: minmax(0, 1fr) auto; align-items: end; }
 .pg-stats { display: grid; gap: 8px; margin: 0; text-align: right; }
-.pg-stats dt { font-size: 11px; font-weight: 500; color: var(--pg-meta); }
-.pg-stats dd { margin: 1px 0 0; font-size: 15px; font-weight: 500; color: var(--pg-ink); font-variant-numeric: tabular-nums; }
-@container (max-width: 420px) {
+.pg-stats dt { font-size: var(--pg-text-label); font-weight: 500; color: var(--pg-meta); }
+.pg-stats dd { margin: 2px 0 0; font-size: 16px; font-weight: 600; color: var(--pg-ink); font-variant-numeric: tabular-nums; }
+@container (max-width: 460px) {
   .pg-result, .pg-result:has(> .pg-stats) { grid-template-columns: 1fr; }
   .pg-stats { grid-template-columns: 1fr 1fr; text-align: left; }
 }
-.pg-sentence { max-width: 62ch; }
 /* Game set: whose turn it is, and a new-game button, above the board. */
-.pg-turn { max-width: 420px; display: flex; align-items: center; gap: 8px; min-height: 30px; font-size: 13px; font-weight: 500; color: var(--pg-ink); }
-.pg-turn > i { width: 10px; height: 10px; border-radius: 50%; background: var(--piece, var(--pg-meta)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--foreground) 15%, transparent); }
+.pg-turn { max-width: 440px; display: flex; align-items: center; gap: 8px; min-height: 32px; font-size: var(--pg-text-body); font-weight: 600; color: var(--pg-ink); }
+.pg-turn > i { width: 10px; height: 10px; border-radius: 50%; background: var(--piece, var(--pg-meta)); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--foreground) 15%, transparent); }
 .pg-turn[data-turn=me] > i { animation: pg-blink .9s ease-in-out infinite alternate; }
 .pg-turn > span { flex-shrink: 0; white-space: nowrap; }
-.pg-turn > small { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 400; color: var(--pg-meta); }
+.pg-turn > small { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--pg-text-meta); font-weight: 400; color: var(--pg-meta); }
 .pg-turn > button { flex-shrink: 0; white-space: nowrap; }
 .pg-turn > .pg-btn[data-primary] { background: var(--pg-ink); border-color: var(--pg-ink); color: var(--card); }
 .pg-turn > button { margin-left: auto; }
 .pg-turn > button + button { margin-left: 0; }
-.pg-turn > .pg-tone { width: 16px; height: 16px; animation: none; box-shadow: none; }
+.pg-turn > .pg-tone { width: 18px; height: 18px; animation: none; box-shadow: none; }
 /* Guide set: one step at a time, with progress and Back/Next. */
 .pg-guide { display: grid; gap: 14px; }
 .pg-guide-head { display: grid; gap: 8px; }
-.pg-guide-head > p { margin: 0; font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--pg-accent); }
+.pg-guide-head > p { margin: 0; font-size: var(--pg-text-label); font-weight: 500; color: var(--pg-meta); font-variant-numeric: tabular-nums; }
 .pg-guide-bar { display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); gap: 4px; }
 .pg-guide-bar > i { height: 4px; border-radius: 2px; background: var(--pg-hairline); }
-.pg-guide-bar > i[data-on] { background: var(--pg-accent); }
-.pg-guide > section[data-step] { display: grid; gap: 10px; }
+.pg-guide-bar > i[data-on] { background: var(--pg-ink); }
+.pg-guide > section[data-step] { display: grid; gap: 8px; }
 .pg-guide > section[data-step][hidden] { display: none; }
-.pg-guide > section > :is(h3, h4) { margin: 0; font-size: 15px; font-weight: 600; color: var(--pg-ink); }
-.pg-guide > section > p { margin: 0; font-size: 13px; line-height: 1.5; color: var(--pg-body); }
-.pg-guide > section > :is(svg, figure, .pg-figure) { display: block; width: 100%; height: auto; margin: 0; border-radius: var(--pg-radius-group); background: var(--pg-stage); }
+.pg-guide > section > :is(h3, h4) { margin: 4px 0 0; font-size: 15px; line-height: 1.3; font-weight: 600; color: var(--pg-ink); }
+.pg-guide > section > p { margin: 0; max-width: 62ch; font-size: var(--pg-text-body); line-height: 1.5; color: var(--pg-body); }
+.pg-guide > section > :is(svg, figure, .pg-figure) { display: block; width: 100%; height: auto; max-height: 260px; margin: 0; border-radius: var(--pg-radius-group); background: var(--card); box-shadow: var(--pg-edge); }
 .pg-guide-nav { display: flex; align-items: center; gap: 8px; padding-top: 12px; border-top: 1px solid var(--pg-hairline); }
-.pg-guide-nav > span { margin-right: auto; font-size: 12px; color: var(--pg-meta); font-variant-numeric: tabular-nums; }
+.pg-guide-nav > span { margin-right: auto; font-size: var(--pg-text-meta); color: var(--pg-meta); font-variant-numeric: tabular-nums; }
 .pg-guide-nav > button[data-primary] { background: var(--pg-ink); border-color: var(--pg-ink); color: var(--card); }
 /* Photos: one tall photo beside two stacked ones (or one or two). Broken links disappear. */
 [data-pg=photos] { display: grid; grid-template-columns: 3fr 2fr; grid-template-rows: 1fr 1fr; gap: 4px; height: 240px; border-radius: var(--pg-radius-panel); overflow: hidden; }
@@ -83,7 +83,10 @@ export const SETS_CSS = String.raw`
 [data-pg=photos] > img:first-child { grid-row: span 2; }
 [data-pg=photos]:has(> img:only-child) { grid-template-columns: 1fr; }
 [data-pg=photos]:has(> img:nth-child(2):last-child) > img { grid-row: span 2; }
-:where(.pg-turn + [data-pg=board]) { max-width: 420px; margin-top: 10px; }
+/* Anatomy figures (skills.wheresryan.sh/anatomy) sit in the card instead of on their own page. */
+body.iso { background: transparent; }
+body.iso .iso-page { width: 100%; margin: 0 auto; }
+:where(.pg-turn + [data-pg=board]) { max-width: 440px; margin-top: var(--pg-space-2); }
 `;
 
 // Runs inside the bridge, after controls.ts's runtime, sharing its scope.
@@ -132,7 +135,7 @@ export const SETS_RUNTIME = String.raw`
       if (String(o.value ?? "").length > 14) el.dataset.long = ""; else delete el.dataset.long;
     }
   }
-  const SEGMENTS = ["var(--pg-accent)", "color-mix(in srgb, var(--pg-accent) 62%, var(--card))", "color-mix(in srgb, var(--pg-accent) 36%, var(--card))", "color-mix(in srgb, var(--foreground) 35%, var(--card))", "color-mix(in srgb, var(--foreground) 18%, var(--card))"];
+  const SEGMENTS = [1, 2, 3, 4, 5, 6, 7].map((i) => "var(--pg-series-" + i + ")");
   // breakdown(name, [{ label, value, display }]): where a total goes, as one bar and a legend.
   function breakdown(name, parts) {
     const list = (Array.isArray(parts) ? parts : []).filter((p) => p && Number(p.value) > 0);
@@ -165,7 +168,7 @@ export const SETS_RUNTIME = String.raw`
     const REPLAY = '<svg class="pg-glyph" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5a5.5 5.5 0 1 1-5.2 3.8.8.8 0 1 1 1.5.5A4 4 0 1 0 8 4h-1l1.2 1.2-1.1 1.1L4.9 4.1 7.1 1.9l1.1 1.1L7.4 3H8Z"/></svg>';
     scrub.max = String(duration); scrub.setAttribute("aria-label", "Time");
     const r = { t: 0, playing: false, frame: 0, last: 0, visible: true, handlers: null, duration };
-    const paint = () => { scrub.value = String(r.t); out.textContent = format(Number(r.t.toFixed(1)), { step: .1 }) + " " + unit; const ended = !r.playing && r.t >= r.duration; play.innerHTML = ended ? REPLAY : icon(r.playing ? "pause" : "play"); play.setAttribute("aria-label", ended ? "Replay" : r.playing ? "Pause" : "Play"); };
+    const paint = () => { scrub.value = String(r.t); scrub.style.setProperty("--pg-fill", (clamp(r.t / r.duration, 0, 1) * 100).toFixed(1) + "%"); out.textContent = format(Number(r.t.toFixed(1)), { step: .1 }) + " " + unit; const ended = !r.playing && r.t >= r.duration; play.innerHTML = ended ? REPLAY : icon(r.playing ? "pause" : "play"); play.setAttribute("aria-label", ended ? "Replay" : r.playing ? "Pause" : "Play"); };
     const tick = (now) => {
       r.frame = 0;
       if (!r.playing || !r.visible || document.hidden) { r.last = 0; return; }

@@ -1,4 +1,4 @@
-import { Children, useCallback, useEffect, useRef, useState, useLayoutEffect, useSyncExternalStore, type ReactNode, useId } from "react";
+import { Children, Fragment, useCallback, useEffect, useRef, useState, useLayoutEffect, useSyncExternalStore, type ReactNode, useId } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
@@ -15,6 +15,7 @@ import {
 import type { rpcContract } from "./contracts.js";
 import type { Connection, DigestDefinition, Issue, SaveDigest } from "./model.js";
 import { digestEmoji } from "./emoji.js";
+import { isEmailUrl, linkDomain } from "./links.js";
 import { expectedAccount } from "./sites.js";
 import { Button } from "./components/ui/button.js";
 import { Switch } from "./components/ui/switch.js";
@@ -260,7 +261,8 @@ function emailKind(item: EmailRow): string | undefined {
 
 function EmailList({ items, label, issueDate }: { items: EmailRow[]; label: string; issueDate: number }) {
   const navigate = useBbNavigate();
-  return <div className="digest-email-scroll" role="region" aria-label={label} tabIndex={0}>
+  const takeaways = items.some((item) => item.takeaways?.length);
+  return <div className={takeaways ? "digest-email-scroll digest-email-scroll-tall" : "digest-email-scroll"} role="region" aria-label={label} tabIndex={0}>
     <table className="digest-email-table">
       <colgroup><col className="digest-col-sender" /><col className="digest-col-subject" /><col className="digest-col-detail" /><col className="digest-col-kind" /><col className="digest-col-date" /></colgroup>
       <thead><tr><th scope="col">Sender</th><th scope="col">Subject</th><th scope="col">Summary</th><th scope="col">Type</th><th scope="col">Received</th></tr></thead>
@@ -270,20 +272,26 @@ function EmailList({ items, label, issueDate }: { items: EmailRow[]; label: stri
         const date = item.receivedAt === undefined ? null : new Date(item.receivedAt);
         const sameDay = date?.toDateString() === new Date(issueDate).toDateString();
         const dateLabel = date ? new Intl.DateTimeFormat(undefined, sameDay ? { hour: "numeric", minute: "2-digit" } : { month: "short", day: "numeric" }).format(date) : "";
-        return <tr key={index} className="digest-email-row" onClick={(event) => {
+        return <Fragment key={index}><tr className="digest-email-row" onClick={(event) => {
           if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
           event.preventDefault();
           if (safeLink(item.url)) navigate.openUrl(item.url);
         }}>
           <td className="digest-email-sender" title={sender}><a href={safeLink(item.url)} aria-label={[sender, subject, item.text].filter(Boolean).join(" · ")}>{sender || "Email"}</a></td>
-          <td title={subject}>{subject}</td>
+          <td title={subject}>{item.copies?.length ? <span className="digest-email-copies" title={item.copies.map((copy) => copy.label).join(", ")}>{item.copies.length + 1} inboxes</span> : null}{subject}</td>
           <td className="digest-email-detail" title={item.text}><span>{item.text}</span></td>
           <td>{kind && <span className="digest-email-kind" data-kind={kind}>{kind[0]!.toUpperCase() + kind.slice(1)}</span>}</td>
           <td className="digest-email-date">{date && <time dateTime={date.toISOString()} title={date.toLocaleString()}>{dateLabel}</time>}</td>
-        </tr>;
+        </tr>{item.takeaways?.length ? <tr className="digest-email-takeaways"><td colSpan={5}><ul aria-label={`Takeaways from ${sender || subject}`}>{item.takeaways.map((takeaway, point) => <li key={point}>{takeaway}</li>)}</ul></td></tr> : null}</Fragment>;
       })}</tbody>
     </table>
   </div>;
+}
+
+/** The site a task button opens, shown beside it. Gmail buttons need no label. */
+function ActionDomain({ url }: { url: string }) {
+  const link = isEmailUrl(url) ? null : linkDomain(url);
+  return link ? <span className="digest-action-domain" title={link.host}>{link.domain}</span> : null;
 }
 
 function sectionLabel(label: string): string {
@@ -318,10 +326,21 @@ function BriefCards({ brief, headline, prefix, issueDate, expanded, setExpanded 
           {deadline && !repeatsHeadline && <span className="digest-urgency">{deadline}</span>}
           {item.secondaryAction && <Button variant="ghost" onClick={() => open(item.secondaryAction!.url)}>{item.secondaryAction.label}</Button>}
           <Button variant="outline" onClick={() => open(item.action.url)}>{item.action.label}</Button>
+          <ActionDomain url={item.action.url} />
         </div>
       </li>; })}
     </ol></section>}
-    {brief.later.length > 0 && <section className="digest-group digest-later"><h3 id={`${prefix}-later`} className="digest-section-heading" data-tone="neutral" tabIndex={-1}><CountLabel label={brief.laterLabel} count={brief.later.length} /></h3><ul>{brief.later.map((item, index) => <li key={index}><span>{item.title}</span>{item.action && <Button variant="ghost" onClick={() => open(item.action!.url)}>{item.action.label}</Button>}</li>)}</ul></section>}
+    {brief.later.length > 0 && <section className="digest-group digest-later"><h3 id={`${prefix}-later`} className="digest-section-heading" data-tone="neutral" tabIndex={-1}><CountLabel label={brief.laterLabel} count={brief.later.length} /></h3><ul>{brief.later.map((item, index) => <li key={index}><span>{item.title}</span>
+      {(item.action || item.secondaryAction) && <span className="digest-later-actions">
+        {item.secondaryAction && <Button variant="ghost" onClick={() => open(item.secondaryAction!.url)}>{item.secondaryAction.label}</Button>}
+        {item.action && <><Button variant="ghost" onClick={() => open(item.action!.url)}>{item.action.label}</Button><ActionDomain url={item.action.url} /></>}
+      </span>}
+    </li>)}</ul></section>}
+    {brief.elsewhere?.length ? <p className="digest-elsewhere">Also: {brief.elsewhere.map((entry, index) => <Fragment key={index}>
+      {index > 0 && " · "}{entry.threadId
+        ? <a href="#" onClick={(event) => { event.preventDefault(); navigate.toThread(entry.threadId!); }}>{entry.label}</a>
+        : entry.label}
+    </Fragment>)}</p> : null}
     {brief.tail && <details className="digest-more" id={`${prefix}-tail`} data-tone="neutral" open={expanded === "tail"}><summary onClick={(event) => { event.preventDefault(); setExpanded(expanded === "tail" ? null : "tail"); }}>
       <Icon name="ChevronRight" className="digest-chevron" aria-hidden /><CountLabel label={sectionLabel(brief.tail.label)} count={brief.tail.items?.length} />
     </summary>{brief.tail.items?.length ? <EmailList items={brief.tail.items} label={sectionLabel(brief.tail.label)} issueDate={issueDate} /> : <NewsletterText content={brief.tail.details} />}</details>}
@@ -450,6 +469,7 @@ function DigestForm({ connection, definition, pending, onCancel, onSave }: {
   onSave: (input: SaveDigest) => Promise<void>;
 }) {
   const formId = useId();
+  const gmail = connection.url ? new URL(connection.url).hostname === "mail.google.com" : connection.id === "gmail";
   const rpc = useRpc<typeof rpcContract>();
   const [execution, setExecution] = useState(definition?.execution ?? null);
   const [options, setOptions] = useState<{ projects: Array<{ id: string; name: string; kind: string }>; hosts: Array<{ id: string; name: string }>; environments: Array<{ id: string; name: string; projectId: string; hostId: string | null }> } | null>(null);
@@ -458,7 +478,7 @@ function DigestForm({ connection, definition, pending, onCancel, onSave }: {
   const [name, setName] = useState(definition?.name ?? "");
   const [emoji, setEmoji] = useState(digestEmoji(definition ?? { id: "digest-new", connectionIds: [connection.id] }));
   const [instructions, setInstructions] = useState(definition?.instructions ?? "");
-  const [afterReading, setAfterReading] = useState<NonNullable<DigestDefinition["afterReading"]>>(definition?.afterReading ?? "keep-unread");
+  const [afterReading, setAfterReading] = useState<NonNullable<DigestDefinition["afterReading"]>>(definition?.afterReading ?? "mark-read");
   const [minute = "0", hour = "10", day = "*", month = "*", weekday = "1-5"] = definition?.schedule?.cron.split(/\s+/u) ?? [];
   const simpleSchedule = day === "*" && month === "*" && DAYS.some(([value]) => value === weekday) && /^\d+$/u.test(hour) && /^\d+$/u.test(minute);
   const [frequency, setFrequency] = useState(simpleSchedule ? weekday : "custom");
@@ -470,7 +490,7 @@ function DigestForm({ connection, definition, pending, onCancel, onSave }: {
     event.preventDefault();
     const [hours, minutes] = time.split(":");
     void onSave({ ...(definition ? { id: definition.id } : {}), connectionId: connection.id, name, ...(emoji.trim() ? { emoji: emoji.trim() } : {}), instructions, ...(execution || definition?.execution ? { execution } : {}),
-      ...(connection.id === "gmail" ? { afterReading } : {}),
+      ...(gmail ? { afterReading } : {}),
       schedule: publishOnly ? null : frequency === "custom" ? definition!.schedule : { cron: `${Number(minutes)} ${Number(hours)} * * ${frequency}`, timezone: definition?.schedule?.timezone ?? "America/Los_Angeles" } });
   }}>
     <div className="digest-name-fields">
@@ -478,17 +498,17 @@ function DigestForm({ connection, definition, pending, onCancel, onSave }: {
       <label htmlFor={`${formId}-emoji`}>Emoji<input id={`${formId}-emoji`} maxLength={32} value={emoji} onChange={(event) => setEmoji(event.target.value)} placeholder="📰" /></label>
     </div>
     <label htmlFor={`${formId}-prompt`}>What should it tell you?</label>
-    <textarea id={`${formId}-prompt`} required maxLength={30000} rows={4} value={instructions} onChange={(event) => setInstructions(event.target.value)} placeholder={`e.g. ${connection.id === "gmail" ? "Unread emails that need a reply, newest first. Skip newsletters and recruiting." : `The updates from ${connection.name} that need my attention.`}`} />
+    <textarea id={`${formId}-prompt`} required maxLength={30000} rows={4} value={instructions} onChange={(event) => setInstructions(event.target.value)} placeholder={`e.g. ${gmail ? "Unread emails that need a reply, newest first. Skip newsletters and recruiting." : `The updates from ${connection.name} that need my attention.`}`} />
     {!publishOnly && <div className="digest-schedule-fields"><label htmlFor={`${formId}-days`}>When</label>
       <select id={`${formId}-days`} value={frequency} onChange={(event) => setFrequency(event.target.value)}>
         {!simpleSchedule && <option value="custom">Keep current schedule</option>}{DAYS.map(([value, label]) => <option value={value} key={value}>{label}</option>)}
       </select>
       {frequency !== "custom" && <><span>at</span><select aria-label="Time" value={time} onChange={(event) => setTime(event.target.value)}>{times.sort().map((value) => { const [h, m] = value.split(":"); const n = Number(h); return <option key={value} value={value}>{n % 12 || 12}:{m} {n < 12 ? "AM" : "PM"}</option>; })}</select><span>{definition?.schedule?.timezone && definition.schedule.timezone !== "America/Los_Angeles" ? definition.schedule.timezone : "PT"}</span></>}
     </div>}
-    {connection.id === "gmail" && <><label htmlFor={`${formId}-after-reading`}>After reading</label>
+    {gmail && <><label htmlFor={`${formId}-after-reading`}>After reading</label>
       <select id={`${formId}-after-reading`} value={afterReading} onChange={(event) => setAfterReading(event.target.value as typeof afterReading)}>
-        <option value="keep-unread">Keep unread (default)</option><option value="mark-read">Mark as read</option>
-      </select><p className="digest-muted">Reads the full email and needed thread context. Keep unread restores messages that were unread before the run; already-read mail stays read.</p></>}
+        <option value="mark-read">Mark as read (default)</option><option value="keep-unread">Keep unread</option>
+      </select><p className="digest-muted">Reads every email in full, including every message in a thread, and leaves it read. Keep unread preserves each message’s original state.</p></>}
     <details className="digest-execution" onToggle={(event) => { if (event.currentTarget.open && !options) loadExecution(); }}>
       <summary>Where it runs</summary>
       <p className="digest-muted">Uses a Personal workspace on the computer with your browser sign-ins.</p>

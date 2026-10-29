@@ -1,6 +1,6 @@
 // Action Cards components. Presentational only: they take values and callbacks and never call RPC.
 // Hierarchy, top to bottom: question → what happens → evidence → answer → note + submit → outcome.
-import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
 import { Button } from "../components/ui/button.js";
 import { cn } from "../lib/utils.js";
 import "./tokens.css";
@@ -9,8 +9,8 @@ import "./components.css";
 export type Option = { id: string; label: string; hint?: string; destructive?: boolean };
 
 /** The card surface. A single decision is a form; a group is one form holding several decisions. */
-export function DecisionCard({ children, onSubmit, label, className }: { children: ReactNode; onSubmit?: () => void; label: string; className?: string }) {
-  return <form className={cn("ac ac-card", className)} aria-label={label} onSubmit={(event: FormEvent) => { event.preventDefault(); onSubmit?.(); }}>{children}</form>;
+export function DecisionCard({ children, onSubmit, onKeyDown, label, className }: { children: ReactNode; onSubmit?: () => void; onKeyDown?: (event: KeyboardEvent<HTMLFormElement>) => void; label: string; className?: string }) {
+  return <form className={cn("ac ac-card", className)} aria-label={label} onKeyDown={onKeyDown} onSubmit={(event: FormEvent) => { event.preventDefault(); onSubmit?.(); }}>{children}</form>;
 }
 
 /** Question first; consequence is the quiet line that says what the answer does. */
@@ -26,31 +26,42 @@ export function DecisionBody({ about, answer }: { about: ReactNode; answer: Reac
   return <div className="ac-body"><div className="ac-about">{about}</div><div className="ac-answer">{answer}</div></div>;
 }
 
-/** Evidence sits in a recessed block below the question; a long one previews and opens in place. */
-export function ContextBlock({ children }: { children: ReactNode }) {
-  const ref = useRef<HTMLDivElement>(null);
+/** Optional context: the original text on one muted line under the question, with a quiet "more" whenever any of it is hidden. */
+export function ContextLine({ media, children }: { media?: boolean; children: ReactNode }) {
+  const line = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
-  const [long, setLong] = useState(false);
-  useLayoutEffect(() => { const node = ref.current; if (node && !open) setLong(node.scrollHeight > node.clientHeight + 1); }, [open, children]);
-  return <div className="ac-context" data-open={open || undefined} data-long={long || undefined}>
-    <div className="ac-context-body" ref={ref}>{children}</div>
-    {long && !open && <button type="button" className="ac-link" onClick={() => setOpen(true)}>Show more</button>}
+  const [clipped, setClipped] = useState(false);
+  useLayoutEffect(() => {
+    const node = line.current;
+    if (!node || open) return;
+    // Hidden when it overflows the line in either direction, or holds images or line breaks the one-line view folds away.
+    const measure = () => setClipped(!!media || node.scrollWidth > node.clientWidth + 1 || node.scrollHeight > node.clientHeight + 1
+      || !!node.querySelector("img, video, picture, br"));
+    measure();
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
+    observer?.observe(node);
+    return () => observer?.disconnect();
+  }, [open, media, children]);
+  return <div className="ac-context-line" data-open={open || undefined}>
+    <div ref={line} className={open ? "ac-context-full" : "ac-context-summary"}>{children}</div>
+    {(open || clipped) && <button type="button" className="ac-context-more" aria-expanded={open} aria-label={open ? "Show less context" : "Show all context"} onClick={() => setOpen(!open)}>{open ? "less" : "more"}</button>}
   </div>;
 }
 
 /** bb's question-form option row, with a real radio underneath for keyboard and screen readers. */
-export function OptionList({ name, label, options, value, recommended, disabled, onChange }: {
-  name: string; label: string; options: Option[]; value: string | null; recommended?: string | null; disabled?: boolean; onChange: (id: string) => void;
+export function OptionList({ name, label, options, value, recommended, disabled, onChange, shortcuts }: {
+  name: string; label: string; options: Option[]; value: string | null; recommended?: string | null; disabled?: boolean; onChange: (id: string) => void; shortcuts?: boolean;
 }) {
   return <fieldset className="ac-options" disabled={disabled}>
     <legend className="ac-sr">{label}</legend>
-    {options.map((option) => <label key={option.id} className="ac-option" data-destructive={option.destructive || undefined}>
+    {options.map((option, index) => <label key={option.id} className="ac-option" data-destructive={option.destructive || undefined}>
       <input type="radio" name={name} value={option.id} checked={value === option.id} onChange={() => onChange(option.id)} />
       <span className="ac-glyph" aria-hidden="true" />
       <span className="ac-option-text">
         <span className="ac-option-label">{option.label}{recommended === option.id && <span className="ac-tag">Recommended</span>}</span>
         {option.hint && <span className="ac-option-hint">{option.hint}</span>}
       </span>
+      {shortcuts && index < 9 && <kbd className="ac-option-key" aria-hidden="true">{index + 1}</kbd>}
     </label>)}
   </fieldset>;
 }

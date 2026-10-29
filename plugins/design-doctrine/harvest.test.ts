@@ -21,6 +21,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   allocateRuleId,
+  createHarvest,
+  directRuleInputSchema,
   harvestProposalSchema,
   harvestVerdictSchema,
   isHarvestableThread,
@@ -29,6 +31,7 @@ import {
   ruleRelativePath,
   type HarvestProposal,
 } from "./harvest";
+import * as corpus from "./corpus";
 import plugin from "./server";
 import { loadDoctrine } from "./server";
 
@@ -206,7 +209,7 @@ async function startPlugin(root: string, script: AgentScript) {
   const host = createFakePluginHost({
     pluginId: "design-doctrine",
     settings: { doctrinePath: root },
-    sdk: { threads: { list: async () => [] } },
+    sdk: { threads: { list: async () => [], get: async ({ threadId }) => makeThreadResponse({ id: threadId, projectId: "proj_test" }) } },
     agentSkillIds: ["design-doctrine"],
   });
   const { bb, harness } = host;
@@ -443,7 +446,7 @@ describe("harvest pure helpers", () => {
     ] as const;
     for (const field of scalarFields) {
       expect(
-        harvestProposalSchema.safeParse({ ...base, [field]: "contains thr_private123" })
+        harvestProposalSchema.safeParse({ ...base, [field]: "contains thr_example002" })
           .success,
         field,
       ).toBe(false);
@@ -1431,6 +1434,151 @@ describe("harvest activity feed", () => {
     ).toBeGreaterThanOrEqual(2);
     const activity = (await harness.behavior.callRpc("getHarvestActivity", {})) as ActivityPage;
     expect(activity.items).toEqual([]);
+    await harness.lifecycle.dispose();
+  });
+});
+
+
+describe("direct rule recording", () => {
+  function directInput(overrides: Record<string, unknown> = {}) {
+    return {
+      ...makeProposal(),
+      evidence: {
+        thread: "@thread:thr_direct",
+        quote: "Reserve red for real errors; keep attention states neutral.",
+        summary: "Asked to reserve red for errors and keep attention states neutral.",
+      },
+      originThreadId: "thr_origin",
+      ...overrides,
+    };
+  }
+
+  async function settle(harness: Awaited<ReturnType<typeof startPlugin>>["harness"]) {
+    await waitFor(async () => {
+      const status = await harness.behavior.runCli(["harvest", "status", "--thread", "thr_direct"]);
+      return JSON.parse(status.stdout!).thread?.processedAt != null;
+    }, "direct rule did not settle");
+    const status = await harness.behavior.runCli(["harvest", "status", "--thread", "thr_direct"]);
+    return JSON.parse(status.stdout!).proposals;
+  }
+
+  it("records via CLI, skips extraction, reviews provenance, and commits through corpus validation", async () => {
+    const root = await makeDoctrineRoot();
+    const script: AgentScript = { propose: () => [], review: () => ({ approve: true, reason: "Direct design feedback supports this scope" }), reviewerPrompts: [], harvesterPrompts: [] };
+    const { harness } = await startPlugin(root, script);
+    const result = await harness.behavior.runCli(["add", "--json", JSON.stringify(directInput({ strength: "required" }))]);
+    expect(result.exitCode).toBe(0);
+    const proposals = await settle(harness);
+    expect(proposals[0].written_path).toBe("rules/visual/ddr_002.md");
+    expect(script.harvesterPrompts).toEqual([]);
+    expect(script.reviewerPrompts[0]).toContain("@thread:thr_direct");
+    expect(script.reviewerPrompts[0]).toContain("verify this exact quote occurs in a user message");
+    expect(script.reviewerPrompts[0]).toContain(directInput().evidence.quote);
+    const library = await loadDoctrine(root);
+    const rule = library.rules.find((rule) => rule.id === "ddr_002")!;
+    expect(rule.strength).toBe("default");
+    expect(rule.confidence).toBe("low");
+    const markdown = await readFile(join(root, proposals[0].written_path), "utf8");
+    expect(markdown).not.toContain("thr_direct");
+    expect(markdown).not.toContain(directInput().evidence.quote);
+    await harness.lifecycle.dispose();
+  });
+
+  it.each([false, true])("publishes from a configured GitHub repository (pending parent: %s)", async (stacked) => {
+    const root = await makeDoctrineRoot();
+    const script: AgentScript = { propose: () => [], review: () => ({ approve: true, reason: "Direct design feedback supports this scope" }), reviewerPrompts: [], harvesterPrompts: [] };
+    const { harness } = await startPlugin(root, script);
+    const github = vi.spyOn(corpus, "resolveGitHubRepository").mockResolvedValue("owner/rules");
+    const data = vi.spyOn(corpus, "pluginDataDirectory").mockReturnValue(join(tmpdir(), "private-doctrine-data"));
+    const parent = { url: "https://github.com/owner/rules/pull/42", branch: "doctrine/parent", baseBranch: "main", ageHours: 1, mergeStateStatus: "CLEAN" };
+    if (stacked) {
+      await commitRule(root, makeProposal({ title: "Pending typography guidance", evidence: ["Requested a distinct typography correction."] }), "ddr_002");
+    }
+    const open = vi.spyOn(corpus, "readOpenPublications").mockResolvedValue(stacked ? [parent] : []);
+    const publication = vi.spyOn(corpus, "openPublication").mockResolvedValue({ root, finish: async () => null });
+    try {
+      await harness.behavior.callRpc("experimental_addRule", directInput());
+      const proposals = await settle(harness);
+      expect(proposals[0].written_path).toBe(stacked ? "rules/visual/ddr_003.md" : "rules/visual/ddr_002.md");
+      if (stacked) expect(script.reviewerPrompts[0]).toContain("ddr_002");
+      expect(publication).toHaveBeenCalledWith(
+        expect.objectContaining({ repositoryRoot: root, prefix: "", baseBranch: stacked ? parent.branch : "main" }), undefined,
+        { originThreadId: "thr_origin", title: directInput().title, parents: stacked ? [parent.url] : [], trustedBranch: "main" },
+      );
+      expect(open).toHaveBeenCalled();
+      const status = await harness.behavior.runCli(["status", "--json"]);
+      expect(JSON.parse(status.stdout!).root).toBe(root);
+    } finally {
+      await harness.lifecycle.dispose();
+      github.mockRestore(); data.mockRestore(); open.mockRestore(); publication.mockRestore();
+    }
+  });
+
+  it("prioritizes direct recording over archives waiting on an open publication", async () => {
+    const { bb, harness } = createFakePluginHost({ pluginId: "design-doctrine" });
+    const harvest = createHarvest({
+      bb, openPublication: async () => null, listRuleIds: async () => [],
+      describeExistingRules: async () => "", validateRules: async () => {}, runAgent: async () => {},
+    });
+    harvest.enqueue({ id: "thr_older", projectId: "proj_test", title: "Older feedback", visibility: "visible" });
+    harvest.addRule(directRuleInputSchema.parse(directInput()), "proj_test");
+    expect(harvest.pendingThreads().map((t) => t.threadId)).toEqual(["thr_direct", "thr_older"]);
+    expect(harvest.hasPendingDirectRule("thr_direct")).toBe(true);
+    expect(harvest.hasPendingDirectRule("thr_older")).toBe(false);
+    await harness.lifecycle.dispose();
+  });
+
+  it.each([
+    { evidence: { thread: "@thread:thr_direct", summary: "A summary without a direct quote." } },
+    { evidence: { thread: "@thread:thr_direct", quote: "  ", summary: "A summary without a direct quote." } },
+    { evidence: { thread: "https://example.com", quote: "A user quote", summary: "A rule without a source thread." } },
+    { statement: "short" },
+  ])("rejects malformed input before persistence: %j", async (invalid) => {
+    const root = await makeDoctrineRoot();
+    const script: AgentScript = { propose: () => [], reviewerPrompts: [], harvesterPrompts: [] };
+    const { harness } = await startPlugin(root, script);
+    expect(directRuleInputSchema.safeParse(directInput(invalid)).success).toBe(false);
+    const result = await harness.behavior.runCli(["add", "--json", JSON.stringify(directInput(invalid))]);
+    expect(result.exitCode).not.toBe(0);
+    const status = await harness.behavior.runCli(["harvest", "status", "--thread", "thr_direct"]);
+    expect(JSON.parse(status.stdout!).proposals).toEqual([]);
+    expect(script.reviewerPrompts).toEqual([]);
+    await harness.lifecycle.dispose();
+  });
+
+  it.each(["duplicate of existing rule", "conflicts with existing rule", "quote is not in a user message"])(
+    "uses the shared reviewer to reject: %s", async (reason) => {
+      const root = await makeDoctrineRoot();
+      const script: AgentScript = { propose: () => [], review: (_id, prompt) => {
+        expect(prompt).toContain("ddr_001");
+        expect(prompt).toContain("not a duplicate or restatement");
+        expect(prompt).toContain("does not contradict an existing rule");
+        return { approve: false, reason };
+      }, reviewerPrompts: [], harvesterPrompts: [] };
+      const { harness } = await startPlugin(root, script);
+      const result = await harness.behavior.callRpc("experimental_addRule", directInput());
+      const proposals = await settle(harness);
+      expect(proposals[0]).toMatchObject({ verdict: "rejected", reason, written_path: null });
+      expect((await loadDoctrine(root)).rules).toHaveLength(1);
+      const repeated = await harness.behavior.callRpc("experimental_addRule", directInput());
+      expect(repeated).toMatchObject({ proposalId: (result as { proposalId: number }).proposalId, verdict: "rejected" });
+      expect(script.reviewerPrompts).toHaveLength(1);
+      await harness.lifecycle.dispose();
+    },
+  );
+
+  it("adds another rule from a processed thread and keeps the first approval intact", async () => {
+    const root = await makeDoctrineRoot();
+    const script: AgentScript = { propose: () => [], review: () => ({ approve: true, reason: "Direct design feedback supports this scope" }), reviewerPrompts: [], harvesterPrompts: [] };
+    const { harness } = await startPlugin(root, script);
+    await harness.behavior.callRpc("experimental_addRule", directInput());
+    await settle(harness);
+    const repeated = await harness.behavior.callRpc("experimental_addRule", directInput());
+    expect(repeated).toMatchObject({ verdict: "approved" });
+    await harness.behavior.callRpc("experimental_addRule", directInput({ title: "Keep toolbar actions compact", evidence: { ...directInput().evidence, summary: "Asked for compact toolbar actions in a separate design correction." } }));
+    const proposals = await settle(harness);
+    expect(proposals.map((p: { written_path: string }) => p.written_path)).toEqual(["rules/visual/ddr_002.md", "rules/visual/ddr_003.md"]);
+    expect(script.reviewerPrompts).toHaveLength(2);
     await harness.lifecycle.dispose();
   });
 });
