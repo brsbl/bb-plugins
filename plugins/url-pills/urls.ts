@@ -30,12 +30,21 @@ export function parsePillUrl(text: string, currentOrigin = ""): PillUrl | null {
   };
 }
 
+// A trailing-anchored regex backtracks quadratically on long punctuation runs.
+function trimPunctuation(text: string): string {
+  let end = text.length;
+  while (end > 0 && ".,!?;:".includes(text[end - 1]!)) end--;
+  return text.slice(0, end);
+}
+
 function trimDelimiters(raw: string): string {
-  let text = raw.replace(/[.,!?;:]+$/u, "");
+  let text = trimPunctuation(raw);
   for (const [open, close] of [["(", ")"], ["[", "]"], ["{", "}"]]) {
-    while (text.endsWith(close) && text.split(close).length > text.split(open).length) text = text.slice(0, -1);
+    // Count once; recounting per trimmed character is quadratic on long runs.
+    let surplus = text.split(close).length - text.split(open).length;
+    while (surplus-- > 0 && text.endsWith(close)) text = text.slice(0, -1);
   }
-  return text.replace(/[.,!?;:]+$/u, "");
+  return trimPunctuation(text);
 }
 
 /** Conservative exclusions for plain-text composers; rendered code is excluded again in the DOM adapter. */
@@ -83,10 +92,21 @@ export function findComposerUrls(text: string, currentOrigin = ""): { from: numb
     afterBlank = blank;
     offset += line.length + 1;
   }
+  // Merged in document order, exclusions are checked with forward cursors below.
+  const blocked: [number, number][] = [];
+  for (const [start, end] of excluded.sort((a, b) => a[0] - b[0])) {
+    const last = blocked.at(-1);
+    if (last && start <= last[1]) last[1] = Math.max(last[1], end); else blocked.push([start, end]);
+  }
+  const isBlocked = (cursor: { at: number }, from: number, to: number) => {
+    while (cursor.at < blocked.length && blocked[cursor.at]![1] <= from) cursor.at++;
+    return cursor.at < blocked.length && blocked[cursor.at]![0] < to;
+  };
   // A path alone on its line has an unambiguous end, so it may contain spaces.
   // Its first directory must not, which keeps slash commands and prose as text.
   const lines: { from: number; to: number }[] = [];
   offset = 0;
+  const lineCursor = { at: 0 };
   for (const source of text.split('\n')) {
     const lineStart = offset;
     offset += source.length + 1;
@@ -95,23 +115,28 @@ export function findComposerUrls(text: string, currentOrigin = ""): { from: numb
     const candidate = trimDelimiters(path[1]);
     const from = lineStart + path[0].length - path[1].length;
     const to = from + candidate.length;
+    // A leading complete file path followed by words is prose, not one filename.
+    if (parseLocalFile(path[1].split(/[ \t]/u)[0]!)) continue;
     if (!/\.[\p{L}\p{N}]+(?::\d+(?:-\d+|:\d+)?|#L\d+(?:C\d+)?(?:-L?\d+(?:C\d+)?)?)?$/u.test(candidate)) continue;
-    if (excluded.some(([start, end]) => from < end && to > start)) continue;
+    if (isBlocked(lineCursor, from, to)) continue;
     if (parsePillUrl(candidate, currentOrigin)?.localFile) lines.push({ from, to });
     if (lines.length === 512) break;
   }
   const ranges: { from: number; to: number }[] = [];
   let line = 0;
+  const cursor = { at: 0 };
   for (const match of text.matchAll(/(?:(?:https?|file):\/\/|[A-Za-z]:[\\/]|\/(?!\/))[^\s<>"'`\u0000-\u001f]+/gi)) {
     if (ranges.length + lines.length >= 512) break;
     const from = match.index;
-    if (from > 0 && /[\p{L}\p{N}_@/\\~.:]/u.test(text[from - 1])) continue;
+    // Paths also exclude ~/, ./ and scheme tails; web links keep the original guard.
+    if (from > 0 && (/^https?:/i.test(match[0]) ? /[\p{L}\p{N}_@/]/u : /[\p{L}\p{N}_@/\\~.:]/u).test(text[from - 1])) continue;
+    if (match[0].length > 8192) continue;
     const candidate = trimDelimiters(match[0]);
     const to = from + candidate.length;
     // Both scans run in document order, so one cursor finds a containing line.
     while (line < lines.length && lines[line]!.to <= from) line++;
     if (line < lines.length && lines[line]!.from < to) continue;
-    if (excluded.some(([start, end]) => from < end && to > start)) continue;
+    if (isBlocked(cursor, from, to)) continue;
     // A large paste must not monopolize the editor; the remainder stays text.
     if (parsePillUrl(candidate, currentOrigin)) ranges.push({ from, to });
   }

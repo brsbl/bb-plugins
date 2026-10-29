@@ -47,5 +47,16 @@ it('recognizes a path containing spaces only when it is alone on its line', () =
   expect(pick('/review the change in src/app.ts')).toEqual([]);
   expect(pick('/work/My Notes/draft v2')).toEqual([]);
   expect(pick('/work/a b.md /work/c.md')).toEqual(['/work/c.md']);
+  expect(pick('/tmp/out.log shows errors from app.ts')).toEqual(['/tmp/out.log']);
+  expect(pick('C:\\Work\\a.ts fails on node 20.1')).toEqual(['C:\\Work\\a.ts']);
   expect(pick(`[Plan](<${moss}>)\n> ${moss}\n\`\`\`\n${moss}\n\`\`\``)).toEqual([]);
+});
+
+it('keeps web links after punctuation and scans hostile drafts in linear time', () => {
+  expect(findComposerUrls('URL:https://example.com/a')).toEqual([{ from: 4, to: 25 }]);
+  const started = performance.now();
+  findComposerUrls('/' + ')'.repeat(50_000));
+  findComposerUrls(('/a/ ' + ')'.repeat(8180) + '\n').repeat(20));
+  findComposerUrls('/a' + '.,'.repeat(4000) + 'x');
+  expect(performance.now() - started).toBeLessThan(1000);
 });
