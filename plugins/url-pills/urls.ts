@@ -132,6 +132,9 @@ export function findComposerUrls(text: string, currentOrigin = ""): { from: numb
     const from = match.index;
     if (from > 0 && /^https?:/i.test(match[0]) && /[\p{L}\p{N}_@/]/u.test(text[from - 1])) continue;
     if (match[0].length > 8192) continue;
+    // A bare path is a file only when its name has a dot; skip the trimming
+    // and parsing for routes, directories and other dotless tokens.
+    if (!/^(?:https?|file):/i.test(match[0]) && !match[0].slice(Math.max(match[0].lastIndexOf('/'), match[0].lastIndexOf('\\')) + 1).includes('.')) continue;
     const candidate = trimDelimiters(match[0]);
     const to = from + candidate.length;
     // Both scans run in document order, so one cursor finds a containing line.
