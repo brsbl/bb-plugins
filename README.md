@@ -102,6 +102,8 @@ Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/t
 
 Shows which companies use bb, from their people's GitHub issues and PRs, Discord posts and Slack Connect channels, with filters, search and sortable counts. The table updates daily and stays on screen while it does.
 
+![Companies using bb table with filters, sortable counts and one company's issues open](plugins/companies-using-bb/docs/screenshot.png)
+
 [Source](plugins/companies-using-bb) · [README](plugins/companies-using-bb/README.md)
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/companies-using-bb --yes`

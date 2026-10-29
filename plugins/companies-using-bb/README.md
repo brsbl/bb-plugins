@@ -2,6 +2,8 @@
 
 See which companies use bb, from public GitHub and Discord activity, updated daily.
 
+![Companies using bb table with filters, sortable counts and one company's issues open](docs/screenshot.png)
+
 ## Install
 
 ```bash
