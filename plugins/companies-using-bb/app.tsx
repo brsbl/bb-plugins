@@ -121,13 +121,14 @@ function CompaniesPage({ snapshot }: { snapshot: Snapshot }) {
       {options.map(([value, text]) => <option key={value} value={value}>{text}</option>)}
     </select></label>;
 
+  const users = rows.reduce((sum, x) => sum + x.n, 0);
   return <div ref={root} className="cub-body">
     <div className="controls">
       {select("bb plan", "plan", PLANS)}
       {select("Region", "reg", regs)}
       <input type="search" placeholder="Search company or person" aria-label="Search company or person" value={view.q} onChange={(event) => setView({ ...view, q: event.target.value })} />
     </div>
-    <p className="sum"><b>{rows.length}</b> companies · <b>{rows.reduce((sum, x) => sum + x.n, 0)}</b> users</p>
+    <p className="sum"><b>{rows.length}</b> {rows.length === 1 ? "company" : "companies"} · <b>{users}</b> {users === 1 ? "user" : "users"}</p>
     <Table rows={rows} all={all} view={view} setView={setView} open={openRow ? open : null}
       onCount={(c, s) => open?.c === c && open.s === s ? close() : setOpen({ c, s })} />
     {open && openRow ? <CountPanel key={`${open.c}|${open.s}`} row={openRow} sig={open.s}

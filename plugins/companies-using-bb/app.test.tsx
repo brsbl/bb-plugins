@@ -58,7 +58,7 @@ it("renders the saved table sorted by Users with totals, filters, search and sor
 
   fireEvent.change(screen.getByLabelText("bb plan"), { target: { value: "Enterprise" } });
   expect(companyOrder()).toEqual(["Globex"]);
-  expect(document.querySelector(".sum")!.textContent).toBe("1 companies · 1 users");
+  expect(document.querySelector(".sum")!.textContent).toBe("1 company · 1 user");
   fireEvent.change(screen.getByLabelText("bb plan"), { target: { value: "all" } });
   const regions = Array.from((screen.getByLabelText("Region") as HTMLSelectElement).options).map((o) => o.text);
   expect(regions).toEqual(["All", "North America", "Europe"]);
@@ -70,7 +70,7 @@ it("renders the saved table sorted by Users with totals, filters, search and sor
   expect(companyOrder()).toEqual(["Globex"]);
   fireEvent.change(screen.getByLabelText("Search company or person"), { target: { value: "bo example" } });
   expect(companyOrder()).toEqual(["Acme"]);
-  expect(document.querySelector(".sum")!.textContent).toBe("1 companies · 2 users");
+  expect(document.querySelector(".sum")!.textContent).toBe("1 company · 2 users");
   fireEvent.change(screen.getByLabelText("Search company or person"), { target: { value: "" } });
   fireEvent.click(screen.getByRole("button", { name: /Employees/ }));
   fireEvent.click(screen.getByRole("button", { name: "Users" }));

@@ -42,6 +42,10 @@ export function createUpdater(options: UpdaterOptions) {
 
   return {
     status: (): Status => status,
+    /** Drops a failure once a new table is imported, so its banner doesn't sit over data it no longer describes. */
+    clearFailure(): void {
+      if (status.state === "failed") set({ state: "idle", ...(status.lastAttemptAt ? { lastAttemptAt: status.lastAttemptAt } : {}) });
+    },
     /** Starts an update unless one is running; resolves when that update ends. Never rejects. */
     run(): Promise<void> {
       if (running) return running;

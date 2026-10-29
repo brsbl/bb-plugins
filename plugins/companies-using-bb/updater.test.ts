@@ -99,4 +99,12 @@ describe("updater", () => {
     expect(updater.status()).toMatchObject({ state: "failed", error: NO_TABLE });
     expect(await store.read()).toBeNull();
   });
+
+  it("drops a failure once a table is imported", async () => {
+    const updater = createUpdater({ store, loadSources: async () => sources(), onChange: () => {}, log, signal: new AbortController().signal });
+    await updater.run();
+    expect(updater.status().state).toBe("failed");
+    updater.clearFailure();
+    expect(updater.status().state).toBe("idle");
+  });
 });

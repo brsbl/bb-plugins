@@ -31,6 +31,7 @@ export function createCli(store: SnapshotStore, updater: Updater, changed: () =>
             throw new PluginCliError("Not a valid snapshot: " + issues.join("; "), { code: "invalid_input" });
           }
           await store.write(parsed.data);
+          updater.clearFailure();
           changed();
           const result = {
             companies: parsed.data.rows.length,
