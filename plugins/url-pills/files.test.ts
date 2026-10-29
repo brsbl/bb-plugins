@@ -63,5 +63,7 @@ it('keeps web links after punctuation and scans hostile drafts in linear time', 
   findComposerUrls(('/a/ ' + ')'.repeat(8180) + '\n').repeat(20));
   findComposerUrls('/a' + '.,'.repeat(4000) + 'x');
   findComposerUrls('/usr/local/bin '.repeat(20_000));
+  findComposerUrls('/a/b c\n'.repeat(100_000));
+  expect(findComposerUrls('```\n' + '/usr/lib/a b/x.so\n'.repeat(50_000) + '```')).toEqual([]);
   expect(performance.now() - started).toBeLessThan(1000);
 });

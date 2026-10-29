@@ -102,21 +102,29 @@ export function findComposerUrls(text: string, currentOrigin = ""): { from: numb
     while (cursor.at < blocked.length && blocked[cursor.at]![1] <= from) cursor.at++;
     return cursor.at < blocked.length && blocked[cursor.at]![0] < to;
   };
+  // Skips excluded text, such as a pasted log in a fence, before trimming it.
+  const startsBlocked = (cursor: { at: number }, from: number) => isBlocked(cursor, from, from + 1);
   // A path alone on its line has an unambiguous end, so it may contain spaces.
   // Its first directory must not, which keeps slash commands and prose as text.
   const lines: { from: number; to: number }[] = [];
   offset = 0;
   const lineCursor = { at: 0 };
+  let examinedLines = 0;
   for (const source of text.split('\n')) {
     const lineStart = offset;
     offset += source.length + 1;
     const path = /^[ \t]{0,3}((?:\/|[A-Za-z]:[\\/])[^\s\\/]+[\\/].*\S)/u.exec(source.length <= 8192 ? source : '');
     if (!path || !/[ \t]/u.test(path[1]) || /[<>"'`\u0000-\u001f]|[ \t](?:\/|[A-Za-z]:[\\/]|(?:https?|file):)/iu.test(path[1])) continue;
-    const candidate = trimDelimiters(path[1]);
-    const from = lineStart + path[0].length - path[1].length;
-    const to = from + candidate.length;
+    // Rejected lines never reach the cap, so bound how many a large paste costs.
+    if (++examinedLines > 4096) break;
+    const raw = path[1];
+    const from = lineStart + path[0].length - raw.length;
+    if (startsBlocked(lineCursor, from)) continue;
+    if (!raw.slice(Math.max(raw.lastIndexOf('/'), raw.lastIndexOf('\\')) + 1).includes('.')) continue;
     // A leading complete file path followed by words is prose, not one filename.
-    if (parseLocalFile(path[1].split(/[ \t]/u)[0]!)) continue;
+    if (parseLocalFile(raw.slice(0, raw.search(/[ \t]/u)))) continue;
+    const candidate = trimDelimiters(raw);
+    const to = from + candidate.length;
     if (!/\.[\p{L}\p{N}]+(?::\d+(?:-\d+|:\d+)?|#L\d+(?:C\d+)?(?:-L?\d+(?:C\d+)?)?)?$/u.test(candidate)) continue;
     if (isBlocked(lineCursor, from, to)) continue;
     if (parsePillUrl(candidate, currentOrigin)?.localFile) lines.push({ from, to });
@@ -135,6 +143,7 @@ export function findComposerUrls(text: string, currentOrigin = ""): { from: numb
     // A bare path is a file only when its name has a dot; skip the trimming
     // and parsing for routes, directories and other dotless tokens.
     if (!/^(?:https?|file):/i.test(match[0]) && !match[0].slice(Math.max(match[0].lastIndexOf('/'), match[0].lastIndexOf('\\')) + 1).includes('.')) continue;
+    if (startsBlocked(cursor, from)) continue;
     const candidate = trimDelimiters(match[0]);
     const to = from + candidate.length;
     // Both scans run in document order, so one cursor finds a containing line.
