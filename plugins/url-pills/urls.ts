@@ -1,12 +1,16 @@
+import { parseLocalFile, type LocalFile } from "./files";
 /** URL parsing never changes the authored text or the host's href. */
 export interface PillUrl {
   text: string;
+  localFile?: LocalFile;
   label: string;
   origin: string;
   iconOrigin: string | null;
 }
 
 export function parsePillUrl(text: string, currentOrigin = ""): PillUrl | null {
+  const localFile = parseLocalFile(text);
+  if (localFile) return { text, label: localFile.label, localFile, origin: "", iconOrigin: null };
   if (text.length > 8192 || !/^https?:\/\//i.test(text) || /[\s<>"'`\u0000-\u001f\u007f\\]/u.test(text)) return null;
   let url: URL;
   try { url = new URL(text); } catch { return null; }
@@ -80,9 +84,9 @@ export function findComposerUrls(text: string, currentOrigin = ""): { from: numb
     offset += line.length + 1;
   }
   const ranges: { from: number; to: number }[] = [];
-  for (const match of text.matchAll(/https?:\/\/[^\s<>"'`\u0000-\u001f]+/gi)) {
+  for (const match of text.matchAll(/(?:[a-z][a-z0-9+.-]*:\/\/|[A-Za-z]:[\\/]|\/(?!\/))[^\s<>"'`\u0000-\u001f]+/gi)) {
     const from = match.index;
-    if (from > 0 && /[\p{L}\p{N}_@/]/u.test(text[from - 1])) continue;
+    if (from > 0 && /[\p{L}\p{N}_@/\\~.:]/u.test(text[from - 1])) continue;
     const candidate = trimDelimiters(match[0]);
     const to = from + candidate.length;
     if (excluded.some(([start, end]) => from < end && to > start)) continue;
