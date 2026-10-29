@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import { parseLocalFile, fileIconMask } from './files';
-import { findComposerUrls } from './urls';
+import { findComposerUrls, parsePillUrl } from './urls';
 
 it.each([
   ['/work/plan.md', '/work/plan.md', 'plan.md'],
@@ -35,4 +35,30 @@ it('does not reinterpret encoded filename punctuation as navigation', () => {
 it('skips long non-link tokens and unsupported schemes without finding nested file paths', () => {
   expect(findComposerUrls('a'.repeat(100_000))).toEqual([]);
   expect(findComposerUrls('ftp://host/a.md moss://note/a.md')).toEqual([]);
+});
+
+it.each([
+  ['/workspace/Notes/Project Plan/Project Plan.md', 'Project Plan.md'],
+  ['[Project Plan](</workspace/Notes/Project Plan/Project Plan.md>)', 'Project Plan'],
+  ['"/workspace/Notes/Project Plan/Project Plan.md"', 'Project Plan.md'],
+  ['</workspace/Notes/Project Plan/Project Plan.md>', 'Project Plan.md'],
+])('recognizes a complete pasted local link: %s', (source, label) => {
+  expect(findComposerUrls(source)).toEqual([{ from: 0, to: source.length }]);
+  expect(parsePillUrl(source)).toMatchObject({ text: source, label, localFile: { path: '/workspace/Notes/Project Plan/Project Plan.md' } });
+});
+
+it('recognizes named local links in prose while preserving surrounding source', () => {
+  const source = 'Review [Project Plan](</workspace/Project Plan.md>) and [source](/workspace/app.ts:42).';
+  expect(findComposerUrls(source).map(({from,to}) => source.slice(from,to))).toEqual([
+    '[Project Plan](</workspace/Project Plan.md>)', '[source](/workspace/app.ts:42)',
+  ]);
+  expect(parsePillUrl('[source](/workspace/app.ts:42)')).toMatchObject({ label: 'source', localFile: { path: '/workspace/app.ts', location: { line: 42 } } });
+});
+
+it('keeps code, quoted blocks, images, website labels and relative links native', () => {
+  for (const source of ['`[Plan](/workspace/plan.md)`', '> [Plan](/workspace/plan.md)', '![Plan](/workspace/plan.md)', '[Plan](https://example.com/plan.md)', '[Plan](./plan.md)', '    /workspace/Project Plan.md']) {
+    expect(findComposerUrls(source)).toEqual([]);
+  }
+  const source = '/workspace/a.md and /workspace/b.md';
+  expect(findComposerUrls(source).map(({from,to}) => source.slice(from,to))).toEqual(['/workspace/a.md', '/workspace/b.md']);
 });
