@@ -28,10 +28,38 @@ describe("thread-status CLI", () => {
     expect(await list(harness)).toEqual({ thr_a: expect.objectContaining({ label: "CI red", tone: "danger" }) });
   });
 
-  it("targets another thread with --thread and defaults to neutral", async () => {
+  it("targets another thread with --thread", async () => {
     const harness = load();
-    await harness.runCli(["set", "Drafting", "--thread", "thr_b"], { threadId: "thr_a" });
-    expect(await list(harness)).toEqual({ thr_b: expect.objectContaining({ label: "Drafting", tone: "neutral" }) });
+    await harness.runCli(["set", "Drafting", "--tone", "info", "--thread", "thr_b"], { threadId: "thr_a" });
+    expect(await list(harness)).toEqual({ thr_b: expect.objectContaining({ label: "Drafting", tone: "info" }) });
+  });
+
+  it("gives presets their own color and canonical spelling", async () => {
+    const harness = load();
+    await harness.runCli(["set", "needs", "INPUT"], { threadId: "thr_a" });
+    expect(await list(harness)).toEqual({ thr_a: expect.objectContaining({ label: "Needs input", tone: "warning" }) });
+  });
+
+  it("rejects a preset with a different color", async () => {
+    const harness = load();
+    const result = await harness.runCli(["set", "Done", "--tone", "danger"], { threadId: "thr_a" });
+    expect(result.exitCode).not.toBe(0);
+    expect(result.stderr).toContain("always success");
+    expect(await list(harness)).toEqual({});
+  });
+
+  it("requires a color for custom labels", async () => {
+    const harness = load();
+    const result = await harness.runCli(["set", "Lint", "red"], { threadId: "thr_a" });
+    expect(result.exitCode).not.toBe(0);
+    expect(result.stderr).toContain("needs --tone");
+    expect(await list(harness)).toEqual({});
+  });
+
+  it("lists presets", async () => {
+    const harness = load();
+    const result = await harness.runCli(["presets", "--json"]);
+    expect(JSON.parse(result.stdout)).toContainEqual(expect.objectContaining({ label: "Blocked", tone: "danger" }));
   });
 
   it("rejects labels over two words or 18 characters without storing them", async () => {
@@ -46,7 +74,7 @@ describe("thread-status CLI", () => {
 
   it("rejects unknown tones", async () => {
     const harness = load();
-    const result = await harness.runCli(["set", "Done", "--tone", "purple"], { threadId: "thr_a" });
+    const result = await harness.runCli(["set", "Lint", "red", "--tone", "purple"], { threadId: "thr_a" });
     expect(result.exitCode).not.toBe(0);
     expect(await list(harness)).toEqual({});
   });
@@ -60,7 +88,7 @@ describe("thread-status CLI", () => {
 
   it("clears and reports the pill", async () => {
     const harness = load();
-    await harness.runCli(["set", "Done", "--tone", "success"], { threadId: "thr_a" });
+    await harness.runCli(["set", "Done"], { threadId: "thr_a" });
     expect((await harness.runCli(["get"], { threadId: "thr_a" })).stdout).toBe("Done (success)\n");
     expect((await harness.runCli(["clear"], { threadId: "thr_a" })).stdout).toBe("thr_a: cleared\n");
     expect((await harness.runCli(["get", "--json"], { threadId: "thr_a" })).stdout).toBe('{"threadId":"thr_a","status":null}\n');
@@ -81,7 +109,7 @@ describe("thread lifecycle", () => {
   it.each(["thread.archived", "thread.deleted"] as const)("clears the pill on %s", async (event) => {
     const harness = load();
     await harness.runCli(["set", "Done"], { threadId: "thr_a" });
-    await harness.runCli(["set", "Drafting"], { threadId: "thr_b" });
+    await harness.runCli(["set", "Paused"], { threadId: "thr_b" });
     const { errors } = await harness.emitThreadEvent(event, { thread: { id: "thr_a" } } as never);
     expect(errors).toEqual([]);
     expect(Object.keys(await list(harness))).toEqual(["thr_b"]);
@@ -92,6 +120,7 @@ describe("agent instructions", () => {
   it("tells agents to complement Thread Organizer stages", () => {
     expect(AGENT_INSTRUCTIONS).toContain("bb thread-status set");
     expect(AGENT_INSTRUCTIONS).toContain("Never repeat the section or stage name");
+    expect(AGENT_INSTRUCTIONS).toContain("Needs input (warning");
     expect(AGENT_INSTRUCTIONS).toContain("bb organizer phase");
   });
 });

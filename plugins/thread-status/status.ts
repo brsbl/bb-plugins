@@ -29,3 +29,40 @@ export function normalizeLabel(raw: string): LabelResult {
   }
   return { ok: true, label };
 }
+
+export const PRESETS: ReadonlyArray<{ label: string; tone: Tone; use: string }> = [
+  { label: "Blocked", tone: "danger", use: "cannot continue without something outside this thread" },
+  { label: "Failing", tone: "danger", use: "tests, CI, or the build are red" },
+  { label: "Needs input", tone: "warning", use: "waiting on a user decision or answer" },
+  { label: "In review", tone: "info", use: "work is done and under review" },
+  { label: "Working", tone: "info", use: "actively implementing or investigating" },
+  { label: "Passing", tone: "success", use: "tests and checks are green" },
+  { label: "Done", tone: "success", use: "the thread's work is complete" },
+  { label: "Paused", tone: "neutral", use: "intentionally on hold" },
+];
+
+export type StatusResult = { ok: true; label: string; tone: Tone } | { ok: false; error: string; hint: string };
+
+export function resolveStatus(raw: string, tone: Tone | undefined): StatusResult {
+  const label = normalizeLabel(raw);
+  if (!label.ok) return { ok: false, error: label.error, hint: "Use 1-2 short words, for example \"Needs input\"." };
+  const preset = PRESETS.find((candidate) => candidate.label.toLowerCase() === label.label.toLowerCase());
+  if (preset) {
+    if (tone !== undefined && tone !== preset.tone) {
+      return {
+        ok: false,
+        error: `"${preset.label}" is a preset and is always ${preset.tone}`,
+        hint: `Drop --tone, or use a custom label if ${tone} fits better.`,
+      };
+    }
+    return { ok: true, label: preset.label, tone: preset.tone };
+  }
+  if (tone === undefined) {
+    return {
+      ok: false,
+      error: `"${label.label}" is a custom label and needs --tone`,
+      hint: `Pass --tone ${TONES.join("|")}, or use a preset (bb thread-status presets).`,
+    };
+  }
+  return { ok: true, label: label.label, tone };
+}

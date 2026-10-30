@@ -18,13 +18,16 @@ Agents receive instructions to keep their thread's pill current. Set it from
 any agent thread:
 
 ```bash
-bb thread-status set "CI red" --tone danger
+bb thread-status set "Needs input"
+bb thread-status set "Lint red" --tone danger
 bb thread-status clear
-bb thread-status get --json
+bb thread-status presets
 ```
 
-Tones are `neutral`, `info`, `success`, `warning` and `danger`, drawn from the
-theme's semantic colors. Labels are 1-2 words, at most 18 characters.
+Presets (`Blocked`, `Failing`, `Needs input`, `In review`, `Working`,
+`Passing`, `Done`, `Paused`) carry their own color. Custom labels are 1-2 words,
+at most 18 characters, and choose one of `neutral`, `info`, `success`,
+`warning` or `danger`, drawn from the theme's semantic colors.
 Archiving or deleting a thread clears its pill.
 
 The pill complements Thread Organizer: the section names the workflow stage and

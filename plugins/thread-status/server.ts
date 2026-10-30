@@ -1,7 +1,7 @@
 import { cliCommand, defineCli, defineRpcContract, PluginCliError, type BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
 
-import { normalizeLabel, statusSchema, TONES, MAX_LABEL_LENGTH, type ThreadStatus, type Tone } from "./status.js";
+import { PRESETS, resolveStatus, statusSchema, TONES, MAX_LABEL_LENGTH, type ThreadStatus } from "./status.js";
 
 export const rpcContract = defineRpcContract({
   list: {
@@ -12,10 +12,10 @@ export const rpcContract = defineRpcContract({
 
 export const AGENT_INSTRUCTIONS = [
   "Thread Status: this thread's sidebar row shows a short status pill that you keep current.",
-  "- Set it with `bb thread-status set \"<1-2 words>\" --tone <tone>` and remove it with `bb thread-status clear`.",
-  `- Tones: ${TONES.join(", ")}. Use danger when broken or blocked, warning when it needs attention soon, success when done or passing, info for active work, neutral otherwise.`,
-  "- Update it when the state of your work changes in a way the user would want to see at a glance (for example: Drafting, Tests red, Needs input, CI green, Done). Keep it current; never leave a stale pill.",
-  "- When Thread Organizer is in use, the pill sits inside its workflow section, which already names the stage. Never repeat the section or stage name; say what is true within it (in Building: \"CI red\", not \"Building\"). When you move stages with `bb organizer phase`, update or clear the pill in the same step.",
+  `- Prefer a preset, which carries its own color: ${PRESETS.map((preset) => `${preset.label} (${preset.tone}: ${preset.use})`).join("; ")}. Set one with \`bb thread-status set "<preset>"\`.`,
+  `- When no preset fits, write a custom 1-2 word label and choose its color: \`bb thread-status set "<label>" --tone <${TONES.join("|")}>\`. Danger means broken or blocked, warning needs attention soon, success done or passing, info active work, neutral anything else.`,
+  "- Remove it with `bb thread-status clear`. Update it when the state of your work changes in a way the user would want to see at a glance, and never leave a stale pill.",
+  "- When Thread Organizer is in use, the pill sits inside its workflow section, which already names the stage. Never repeat the section or stage name; say what is true within it (in Building: \"Failing\", not \"Building\"). When you move stages with `bb organizer phase`, update or clear the pill in the same step.",
 ].join("\n");
 
 function requireThreadId(threadId: string | undefined, ctxThreadId: string | undefined): string {
@@ -77,26 +77,33 @@ export default function plugin(bb: BbPluginApi): void {
       summary: "Set the short status pill beside this thread's title in the sidebar",
       commands: {
         set: cliCommand({
-          summary: `Set the status pill (1-2 words, at most ${MAX_LABEL_LENGTH} characters)`,
-          positionals: [{ name: "label", description: "1-2 words, for example \"CI red\"", required: true, variadic: true }],
+          summary: `Set the status pill to a preset, or a custom label (1-2 words, at most ${MAX_LABEL_LENGTH} characters) with --tone`,
+          positionals: [{ name: "label", description: "A preset such as \"Needs input\", or a custom label such as \"Lint red\"", required: true, variadic: true }],
           options: {
             tone: {
               type: "enum",
               values: TONES,
-              default: "neutral",
               aliases: ["color", "colour"],
-              description: `Semantic color: ${TONES.join(", ")}`,
+              description: `Semantic color for a custom label: ${TONES.join(", ")}. Presets carry their own.`,
             },
             thread: threadOption,
           },
           async run(input, ctx) {
             const threadId = requireThreadId(input.options.thread, ctx.threadId);
-            const label = normalizeLabel(input.positionals.label.join(" "));
-            if (!label.ok) throw new PluginCliError(label.error, { code: "invalid_label", hint: "Use 1-2 short words, for example \"Needs input\"." });
-            const tone: Tone = input.options.tone;
-            const status: ThreadStatus = { label: label.label, tone, updatedAt: Date.now() };
+            const resolved = resolveStatus(input.positionals.label.join(" "), input.options.tone);
+            if (!resolved.ok) throw new PluginCliError(resolved.error, { code: "invalid_status", hint: resolved.hint });
+            const status: ThreadStatus = { label: resolved.label, tone: resolved.tone, updatedAt: Date.now() };
             upsert.run(threadId, status.label, status.tone, status.updatedAt);
-                    return { exitCode: 0, stdout: `${threadId}: ${status.label} (${status.tone})\n` };
+            return { exitCode: 0, stdout: `${threadId}: ${status.label} (${status.tone})\n` };
+          },
+        }),
+        presets: cliCommand({
+          summary: "List preset labels and their colors",
+          options: { json: { type: "boolean", description: "Emit JSON" } },
+          async run(input) {
+            if (input.options.json) return { exitCode: 0, stdout: `${JSON.stringify(PRESETS)}\n` };
+            const width = Math.max(...PRESETS.map((preset) => preset.label.length));
+            return { exitCode: 0, stdout: PRESETS.map((preset) => `${preset.label.padEnd(width)}  ${preset.tone.padEnd(7)}  ${preset.use}`).join("\n") + "\n" };
           },
         }),
         clear: cliCommand({
