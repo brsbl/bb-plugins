@@ -3,8 +3,6 @@ import { z } from "zod";
 
 import { normalizeLabel, statusSchema, TONES, MAX_LABEL_LENGTH, type ThreadStatus, type Tone } from "./status.js";
 
-const STATUS_PREFIX = "status:";
-
 export const rpcContract = defineRpcContract({
   list: {
     input: z.null(),
@@ -20,10 +18,6 @@ export const AGENT_INSTRUCTIONS = [
   "- When Thread Organizer is in use, the pill sits inside its workflow section, which already names the stage. Never repeat the section or stage name; say what is true within it (in Building: \"CI red\", not \"Building\"). When you move stages with `bb organizer phase`, update or clear the pill in the same step.",
 ].join("\n");
 
-function statusKey(threadId: string): string {
-  return `${STATUS_PREFIX}${threadId}`;
-}
-
 function requireThreadId(threadId: string | undefined, ctxThreadId: string | undefined): string {
   const resolved = threadId ?? ctxThreadId;
   if (!resolved) {
@@ -36,30 +30,38 @@ function requireThreadId(threadId: string | undefined, ctxThreadId: string | und
 }
 
 export default function plugin(bb: BbPluginApi): void {
-  async function readStatus(threadId: string): Promise<ThreadStatus | null> {
-    const parsed = statusSchema.safeParse(await bb.storage.kv.get<unknown>(statusKey(threadId)));
+  const db = bb.storage.database();
+  bb.storage.migrate(db, [
+    `CREATE TABLE IF NOT EXISTS thread_status (thread_id TEXT PRIMARY KEY, label TEXT NOT NULL, tone TEXT NOT NULL, updated_at INTEGER NOT NULL)`,
+  ]);
+  const selectOne = db.prepare("SELECT label, tone, updated_at AS updatedAt FROM thread_status WHERE thread_id = ?");
+  const selectAll = db.prepare("SELECT thread_id AS threadId, label, tone, updated_at AS updatedAt FROM thread_status");
+  const upsert = db.prepare(
+    "INSERT INTO thread_status (thread_id, label, tone, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(thread_id) DO UPDATE SET label = excluded.label, tone = excluded.tone, updated_at = excluded.updated_at",
+  );
+  const remove = db.prepare("DELETE FROM thread_status WHERE thread_id = ?");
+
+  function readStatus(threadId: string): ThreadStatus | null {
+    const parsed = statusSchema.safeParse(selectOne.get(threadId));
     return parsed.success ? parsed.data : null;
   }
 
-  async function listStatuses(): Promise<Record<string, ThreadStatus>> {
+  function listStatuses(): Record<string, ThreadStatus> {
     const statuses: Record<string, ThreadStatus> = {};
-    for (const key of await bb.storage.kv.list(STATUS_PREFIX)) {
-      const threadId = key.slice(STATUS_PREFIX.length);
-      const status = await readStatus(threadId);
-      if (status !== null) statuses[threadId] = status;
+    for (const row of selectAll.all() as Array<{ threadId: string }>) {
+      const parsed = statusSchema.safeParse(row);
+      if (parsed.success) statuses[row.threadId] = parsed.data;
     }
     return statuses;
   }
 
-  async function clearStatus(threadId: string): Promise<boolean> {
-    const existed = (await readStatus(threadId)) !== null;
-    await bb.storage.kv.delete(statusKey(threadId));
-    return existed;
+  function clearStatus(threadId: string): boolean {
+    return remove.run(threadId).changes > 0;
   }
 
   bb.rpc.register(rpcContract, {
-    async list() {
-      return { statuses: await listStatuses() };
+    list() {
+      return { statuses: listStatuses() };
     },
   });
 
@@ -93,7 +95,7 @@ export default function plugin(bb: BbPluginApi): void {
             if (!label.ok) throw new PluginCliError(label.error, { code: "invalid_label", hint: "Use 1-2 short words, for example \"Needs input\"." });
             const tone: Tone = input.options.tone;
             const status: ThreadStatus = { label: label.label, tone, updatedAt: Date.now() };
-            await bb.storage.kv.set(statusKey(threadId), status);
+            upsert.run(threadId, status.label, status.tone, status.updatedAt);
                     return { exitCode: 0, stdout: `${threadId}: ${status.label} (${status.tone})\n` };
           },
         }),
@@ -102,7 +104,7 @@ export default function plugin(bb: BbPluginApi): void {
           options: { thread: threadOption },
           async run(input, ctx) {
             const threadId = requireThreadId(input.options.thread, ctx.threadId);
-            const existed = await clearStatus(threadId);
+            const existed = clearStatus(threadId);
             return { exitCode: 0, stdout: existed ? `${threadId}: cleared\n` : `${threadId}: no status\n` };
           },
         }),
@@ -111,7 +113,7 @@ export default function plugin(bb: BbPluginApi): void {
           options: { thread: threadOption, json: { type: "boolean", description: "Emit JSON" } },
           async run(input, ctx) {
             const threadId = requireThreadId(input.options.thread, ctx.threadId);
-            const status = await readStatus(threadId);
+            const status = readStatus(threadId);
             if (input.options.json) return { exitCode: 0, stdout: `${JSON.stringify({ threadId, status })}\n` };
             return { exitCode: 0, stdout: status ? `${status.label} (${status.tone})\n` : "no status\n" };
           },
@@ -126,8 +128,8 @@ export default function plugin(bb: BbPluginApi): void {
   });
 
   for (const event of ["thread.archived", "thread.deleted"] as const) {
-    bb.events.on(event, async ({ thread }) => {
-      await clearStatus(thread.id);
+    bb.events.on(event, ({ thread }) => {
+      clearStatus(thread.id);
     });
   }
 }

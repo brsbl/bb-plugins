@@ -67,6 +67,16 @@ describe("thread-status CLI", () => {
   });
 });
 
+describe("storage", () => {
+  it("keeps statuses across a plugin reload", async () => {
+    const harness = load();
+    await harness.runCli(["set", "CI", "red", "--tone", "danger"], { threadId: "thr_a" });
+    const reloaded = await harness.lifecycle.reload(plugin);
+    hosts.push(reloaded.harness.lifecycle);
+    expect(await list(reloaded.harness)).toEqual({ thr_a: expect.objectContaining({ label: "CI red", tone: "danger" }) });
+  });
+});
+
 describe("thread lifecycle", () => {
   it.each(["thread.archived", "thread.deleted"] as const)("clears the pill on %s", async (event) => {
     const harness = load();
