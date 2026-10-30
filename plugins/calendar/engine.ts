@@ -47,13 +47,13 @@ export type ThreadState = { state: "busy" } | { state: "gone" } | { state: "idle
 
 export interface ThreadPort {
   /** A new Calendar thread whose first turn replies with the prompt's text. Notifies only when `notify`. */
-  spawn(input: { title: string; prompt: string; eventId: string | null; sortKey: number; notify: boolean }): Promise<string>;
+  spawn(input: { title: string; prompt: string; eventId: string | null; notify: boolean }): Promise<string>;
   /** The live Calendar thread already made for this event, if any. */
   find(eventId: string): Promise<string | null>;
   state(threadId: string): Promise<ThreadState>;
   /** One notifying turn on an idle thread. */
   send(threadId: string, prompt: string): Promise<void>;
-  update(threadId: string, input: { title: string; sortKey: number }): Promise<void>;
+  retitle(threadId: string, title: string): Promise<void>;
   archive(threadId: string): Promise<void>;
 }
 
@@ -81,7 +81,7 @@ export function createEngine(deps: EngineDeps) {
     const lines = details(record.event, config.timeZone);
     const prompt = replyPrompt(notify ? [notices.added(record.event, config.timeZone), ...lines] : lines);
     // A record without a thread is either new or an interrupted spawn; adopt the thread an interrupted spawn made.
-    record.threadId = (await threads.find(record.event.id)) ?? (await threads.spawn({ title: record.title, prompt, eventId: record.event.id, sortKey: record.event.startMs, notify }));
+    record.threadId = (await threads.find(record.event.id)) ?? (await threads.spawn({ title: record.title, prompt, eventId: record.event.id, notify }));
     record.sentAt = deps.now();
     await deps.save(state);
   }
@@ -111,12 +111,12 @@ export function createEngine(deps: EngineDeps) {
       record.pending = [notices.moved(event.startMs, config.timeZone), ...details(event, config.timeZone)];
       record.reminded = event.startMs - now <= REMINDER_LEAD;
     }
-    const retitle = title !== record.title || moved;
+    const retitle = title !== record.title;
     if (!retitle && JSON.stringify(event) === JSON.stringify(record.event)) return;
     record.event = event;
     record.title = title;
     await deps.save(state);
-    if (retitle && record.threadId) await threads.update(record.threadId, { title, sortKey: event.startMs });
+    if (retitle && record.threadId) await threads.retitle(record.threadId, title);
   }
 
   /** A listed event no longer appears on its calendar: ask Google whether it was canceled or moved past the window. */
@@ -248,7 +248,6 @@ export function createEngine(deps: EngineDeps) {
         `Last error: ${state.lastError ?? "unknown"}. Ask an agent in bb to check the Calendar plugin's settings.`,
       ]),
       eventId: null,
-      sortKey: now,
       notify: true,
     });
     await deps.save(state);
