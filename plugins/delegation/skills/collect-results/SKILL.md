@@ -17,8 +17,8 @@ This skill uses `retryLimit` from its output.
 
 ## Wait without polling
 
-- bb tells a parent when its worker finishes, fails, or is interrupted. If
-  nothing else needs doing, end the turn and let that notification wake you.
+- bb tells you when a thread under you finishes, fails, or is interrupted.
+  If nothing else needs doing, end the turn and let that notification wake you.
 - Only when your next step needs a result in this turn, block on it once:
   `bb thread wait <id> --timeout 20m`.
 - Never loop on `sleep`, `bb thread show`, or `bb thread log`, and never message

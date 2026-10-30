@@ -85,8 +85,8 @@ interface Role {
 }
 
 const ROLES: Role[] = [
-  { id: "lead", label: "Lead", when: "Only when you ask", keys: { provider: "leadProvider", model: "leadModel", reasoning: "leadReasoningLevel" }, inherit: "Same as workers" },
-  { id: "parent", label: "Parent", when: "When a worker will have its own reports", keys: { provider: "parentProvider", model: "parentModel", reasoning: "parentReasoningLevel" }, inherit: "Same as workers" },
+  { id: "lead", label: "Org lead", when: "Only when you ask", keys: { provider: "leadProvider", model: "leadModel", reasoning: "leadReasoningLevel" }, inherit: "Same as workers" },
+  { id: "parent", label: "Lead", when: "When a worker will have threads under it", keys: { provider: "parentProvider", model: "parentModel", reasoning: "parentReasoningLevel" }, inherit: "Same as workers" },
   { id: "worker", label: "Worker", when: null, keys: { provider: "provider", model: "model", reasoning: "reasoningLevel" }, inherit: "Provider's default" },
   { id: "qa", label: "QA", when: "QA and smoke checks on approved work", keys: { provider: "qaProvider", model: "qaModel", reasoning: "qaReasoningLevel" }, inherit: "Same as workers" },
 ];
