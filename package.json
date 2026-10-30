@@ -1,0 +1,25 @@
+{
+  "name": "bb-plugin-calendar",
+  "version": "0.1.0",
+  "description": "Upcoming Google Calendar events in a sidebar section, with notifications when they change and before they start.",
+  "type": "module",
+  "license": "UNLICENSED",
+  "files": [
+    "dist",
+    "README.md",
+    "docs"
+  ],
+  "engines": {
+    "bb": ">=0.0.34",
+    "bbPluginSdk": "^0.5.9"
+  },
+  "bb": {
+    "name": "Calendar",
+    "description": "Upcoming Google Calendar events in a sidebar section, with notifications when they change and before they start.",
+    "branding": {
+      "icon": "Clock"
+    },
+    "server": "./dist/install-server.mjs",
+    "skills": []
+  }
+}
