@@ -109,6 +109,16 @@ Organizes work into configurable workflow sections that agents follow, and keeps
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/thread-organizer --yes`
 
+### Thread Status
+
+Shows a short, color-coded status pill beside each sidebar thread title that agents keep current with `bb thread-status`, and moves the caret for child threads to the left of the row. Pills complement Thread Organizer: the section names the stage and the pill says what is true within it.
+
+![Thread Status pills in five tones beside sidebar thread titles, with child-thread carets on the left](plugins/thread-status/docs/screenshot.jpg)
+
+[Source](plugins/thread-status) · [README](plugins/thread-status/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/thread-status --yes`
+
 ### Content Calendar
 
 Plans deliverables on a month or week calendar stored on a dedicated Google calendar, with drag-and-drop rescheduling, Evergreen and Later trays, gates, and attached Moss notes. Agents manage it through `bb content-calendar` and show it live inline in chat.
