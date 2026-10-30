@@ -1073,9 +1073,11 @@ body[data-ambient-glass] .bbd-icon:not([aria-selected="true"]) .bbd-icon-label {
 }
 
 /* Desktop has no compact homepage content; its empty section must not push Recent away from the composer. */
-[data-testid="root-compose-compact-home"]
-  [data-testid="plugin-homepage-sections"]:has(> [id="plugin-homepage:desktop:desktop"]:only-child) {
-  display: none;
+@media (max-width: 767px) {
+  [data-testid="root-compose-compact-home"]
+    [data-testid="plugin-homepage-sections"]:has(> [id="plugin-homepage:desktop:desktop"]:only-child) {
+    display: none;
+  }
 }
 
 .bbd-notes-layer {
