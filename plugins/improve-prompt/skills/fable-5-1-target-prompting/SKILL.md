@@ -26,6 +26,10 @@ A short prompt such as "cont", "ok", or "try again" translates to "resume the op
 
 Never show the translation unless the owner asks for it. Keep their intent and their voice. Do not widen, narrow, or swap the request.
 
+## Don't ask for written-out reasoning
+
+Fable 5.1 may decline prompts, skills, and tool descriptions that ask it to write out its thinking or reasoning (the `reasoning_extraction` refusal category). Ask for a short explanation of the result or a summary of the actions taken instead.
+
 ## Write plainly
 
 The guidance names the anti-pattern. Quoted from the source:
@@ -84,4 +88,4 @@ Do not draft a long document in reasoning and then write it again as the reply. 
 
 ## Source
 
-`references/prompting-claude-fable-5-1.md` is the page's prose as fetched on 2026-09-02, without the SDK code sample. The live page is https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1. Re-fetch it when a rule here looks out of date; the page changes.
+`references/prompting-claude-fable-5-1.md` is the page's prose as fetched on 2026-10-30, without the SDK code sample. The live page is https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1. Re-fetch it when a rule here looks out of date; the page changes.
