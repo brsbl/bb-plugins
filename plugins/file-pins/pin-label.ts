@@ -2,8 +2,8 @@ import { isUrlPin, type Reference } from "./contract.js";
 import { urlLabel } from "./url-pin.js";
 
 /**
- * How long a pin's label may be on the strip and in the ⋯ list, in characters, by kind of pin.
- * The full name stays in the pin's tooltip and accessible label. Change a limit here; the strip measures the result.
+ * How long a pin's label may be on the strip, in characters, by kind of pin.
+ * The full name stays in the pin's tooltip and accessible label.
  *
  * - `file`: a file name. The middle of the name goes first; the extension always stays.
  * - `title`: a URL pin with its own title. The end goes first, at a word break when one is close.
@@ -30,6 +30,27 @@ export function cutMiddle(value: string, max: number): string {
   const keep = Math.max(0, max - 1);
   const head = Math.ceil(keep / 2);
   return `${chars.slice(0, head).join("")}${ELLIPSIS}${chars.slice(chars.length - (keep - head)).join("")}`;
+}
+
+/** A preview header keeps the beginning of an address and its final file or page name. */
+export function previewAddressLabel(value: string, max = 44): string {
+  let shown = value;
+  let last: string | undefined;
+  if (/^https?:\/\//iu.test(value)) {
+    try {
+      const url = new URL(value);
+      // A query or fragment can contain slashes, but cannot name the destination page.
+      shown = value.split(/[?#]/u, 1)[0]!;
+      last = url.pathname.split("/").at(-1);
+    } catch { /* Keep an unparseable address as written. */ }
+  }
+  if ([...shown].length <= max) return shown;
+  const start = [...shown].slice(0, Math.min(12, max - 4)).join("");
+  const lastSlash = shown.lastIndexOf("/");
+  last ??= shown.slice(lastSlash + 1);
+  const room = max - [...start].length - 2; // ellipsis and slash
+  if (lastSlash > start.length && last && room >= 4) return `${start}${ELLIPSIS}/${fileLabel(last, room)}`;
+  return cutMiddle(shown, max);
 }
 
 export function fileLabel(name: string, max: number = PIN_LABEL_LIMITS.file): string {

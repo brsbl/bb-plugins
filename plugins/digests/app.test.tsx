@@ -237,7 +237,7 @@ describe("Digests app", () => {
     expect(slot.getByText("@me")).toBeDefined();
   });
 
-  it("creates a prompt digest at 10am and edits the same nested row", async () => {
+  it.each(["gmail", "gmail-personal", "gmail-work", "work-mail"])("creates and edits Gmail preferences under %s", async (connectionId) => {
     const app = await loadPluginApp(() => import("./app.js"));
     const resolved = Intl.DateTimeFormat.prototype.resolvedOptions;
     vi.spyOn(Intl.DateTimeFormat.prototype, "resolvedOptions").mockImplementation(function (this: Intl.DateTimeFormat) {
@@ -245,10 +245,10 @@ describe("Digests app", () => {
     });
     let definitions: typeof definition[] = [];
     const slot = renderSlot(app.settingsSections[0]!, {}, { rpc: {
-      overview: () => ({ definitions, connections: [{ id: "gmail", name: "Gmail", status: "signed-in" }], organizerReady: true, actionCardsAvailable: false }),
+      overview: () => ({ definitions, connections: [{ id: connectionId, name: "Gmail", url: "https://mail.google.com/mail/?authuser=reader@example.com", status: "signed-in" }], organizerReady: true, actionCardsAvailable: false }),
       saveDigest: (input) => {
         const value = input as { name: string; instructions: string; schedule: typeof definition.schedule };
-        const saved = { ...definition, ...value, id: "digest-new", emoji: "💌", enabled: true };
+        const saved = { ...definition, ...value, connectionIds: [connectionId], id: "digest-new", emoji: "💌", enabled: true };
         definitions = [saved]; return saved;
       },
     } });
@@ -257,22 +257,40 @@ describe("Digests app", () => {
     const name = slot.getByLabelText("Name");
     expect(document.activeElement).toBe(name);
     expect(slot.getByLabelText("Emoji")).toBeDefined();
-    expect((slot.getByLabelText("After reading") as HTMLSelectElement).value).toBe("keep-unread");
+    expect((slot.getByLabelText("After reading") as HTMLSelectElement).value).toBe("mark-read");
     fireEvent.change(name, { target: { value: "My inbox" } });
     fireEvent.change(slot.getByLabelText("What should it tell you?"), { target: { value: "Only messages that need a reply." } });
     fireEvent.click(slot.getByRole("button", { name: "Create brief" }));
     expect(await slot.findByText("Run now to preview")).toBeDefined();
-    expect(slot.inspection.rpcCalls).toContainEqual({ method: "saveDigest", input: { name: "My inbox", emoji: "📰", instructions: "Only messages that need a reply.", connectionId: "gmail", afterReading: "keep-unread", schedule: { cron: "0 10 * * 1-5", timezone: "Europe/Paris" } } });
+    expect(slot.inspection.rpcCalls).toContainEqual({ method: "saveDigest", input: { name: "My inbox", emoji: "📰", instructions: "Only messages that need a reply.", connectionId, afterReading: "mark-read", schedule: { cron: "0 10 * * 1-5", timezone: "Europe/Paris" } } });
     expect(slot.getByText("Only messages that need a reply.").className).toContain("digest-prompt-preview");
     expect(slot.getByRole("heading", { name: "My inbox" }).textContent).toBe("My inbox");
     fireEvent.click(slot.getByRole("button", { name: "Edit My inbox" }));
     expect(slot.getByLabelText("Emoji")).toBeDefined();
     fireEvent.change(slot.getByLabelText("Name"), { target: { value: "Replies" } });
     fireEvent.change(slot.getByLabelText("Emoji"), { target: { value: "📮" } });
-    fireEvent.change(slot.getByLabelText("After reading"), { target: { value: "mark-read" } });
+    fireEvent.change(slot.getByLabelText("After reading"), { target: { value: "keep-unread" } });
     fireEvent.click(slot.getByRole("button", { name: "Save changes" }));
     expect(await slot.findByRole("button", { name: "Edit Replies" })).toBeDefined();
-    expect(slot.inspection.rpcCalls.filter((call) => call.method === "saveDigest").at(-1)?.input).toMatchObject({ id: "digest-new", name: "Replies", emoji: "📮", afterReading: "mark-read" });
+    expect(slot.inspection.rpcCalls.filter((call) => call.method === "saveDigest").at(-1)?.input).toMatchObject({ id: "digest-new", name: "Replies", emoji: "📮", afterReading: "keep-unread" });
+  });
+
+  it.each([undefined, "keep-unread"])("edits legacy Gmail definitions with preference %s", async (afterReading) => {
+    const app = await loadPluginApp(() => import("./app.js"));
+    const slot = renderSlot(app.settingsSections[0]!, {}, { rpc: {
+      overview: () => ({ definitions: [{ ...definition, ...(afterReading ? { afterReading } : {}), connectionIds: ["work-mail"] }], connections: [{ id: "work-mail", name: "Work mail", url: "https://mail.google.com/mail/u/1/", status: "signed-in" }], organizerReady: true }),
+    } });
+    fireEvent.click(await slot.findByRole("button", { name: "Edit Reading" }));
+    expect((slot.getByLabelText("After reading") as HTMLSelectElement).value).toBe(afterReading ?? "mark-read");
+  });
+
+  it("does not offer Gmail read preferences for another site", async () => {
+    const app = await loadPluginApp(() => import("./app.js"));
+    const slot = renderSlot(app.settingsSections[0]!, {}, { rpc: {
+      overview: () => ({ definitions: [], connections: [{ id: "gmail-lookalike", name: "Other site", url: "https://example.com/", status: "signed-in" }], organizerReady: true }),
+    } });
+    fireEvent.click(await slot.findByRole("button", { name: "+ Add brief" }));
+    expect(slot.queryByLabelText("After reading")).toBeNull();
   });
 
   it("keeps a saved timezone and prompt when editing on a computer in another timezone", async () => {

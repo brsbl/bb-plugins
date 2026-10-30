@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import type { Reference } from "./contract.js";
-import { addressLabel, cutMiddle, fileLabel, PIN_LABEL_LIMITS, pinLabel, titleLabel } from "./pin-label.js";
+import { addressLabel, cutMiddle, fileLabel, PIN_LABEL_LIMITS, pinLabel, previewAddressLabel, titleLabel } from "./pin-label.js";
 import { urlPinName } from "./url-pin.js";
 
 const length = (value: string) => [...value].length;
@@ -59,4 +59,19 @@ it("picks the rule by kind of pin, never longer than its limit", () => {
 
 it("never splits a surrogate pair", () => {
   expect(cutMiddle("😀".repeat(40), 9)).toBe(`${"😀".repeat(4)}…${"😀".repeat(4)}`);
+});
+
+it("keeps the start and destination name in a one-line preview address", () => {
+  const path = "/Users/alex/Notes/Planning Notes/Planning Notes.md";
+  const url = "https://example.com/guides/very/deep/Planning-Notes.html";
+  expect(previewAddressLabel(path)).toBe("/Users/alex/…/Planning Notes.md");
+  expect(previewAddressLabel(url)).toBe("https://exam…/Planning-Notes.html");
+  expect(length(previewAddressLabel(path))).toBeLessThanOrEqual(44);
+  expect(previewAddressLabel("/docs/readme.md")).toBe("/docs/readme.md");
+});
+
+it("keeps the URL pathname's page name when query and fragment contain slashes", () => {
+  const url = "https://example.com/guides/very/deep/Planning-Notes.html?next=/other#chapter/2";
+  expect(previewAddressLabel(url)).toBe("https://exam…/Planning-Notes.html");
+  expect(previewAddressLabel("https://example.com/page?next=/other#part/2")).toBe("https://example.com/page");
 });

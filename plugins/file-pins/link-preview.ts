@@ -3,11 +3,13 @@ import { iconUrl } from "@brsbl/bb-website-icons/url";
 import { metadataCandidates, pageMetadata } from "./preview-metadata.js";
 import { PreviewProviders, ProviderRateLimited } from "./preview-providers.js";
 
+import type { GitHubPreview } from "./github-preview.js";
 export { pageMetadata };
-export type LinkPreview = { title: string; description: string; site: string; image: string | null };
+export type LinkPreview = { title: string; description: string; site: string; image: string | null; github?: GitHubPreview };
 /** How the latest load for a URL ended. `preview` may still hold earlier useful content after a failure. */
 export type PreviewStatus = "ready" | "no-image" | "blocked" | "not-found" | "timeout" | "rate-limited" | "unsupported" | "invalid-image" | "network" | "busy";
-export type PreviewResult = { preview: LinkPreview | null; status: PreviewStatus; retryAt?: number };
+/** `refreshing` marks a cached preview answered while a reload of that URL runs behind it. */
+export type PreviewResult = { preview: LinkPreview | null; status: PreviewStatus; retryAt?: number; refreshing?: true };
 /** Bounded diagnostics only: never the URL, image data or a remote response body. */
 export type PreviewDiagnostic = { reason: PreviewStatus; status?: number; elapsedMs: number };
 export type PreviewLogger = (diagnostic: PreviewDiagnostic) => void;
@@ -185,7 +187,7 @@ export class LinkPreviews {
     return (await this.getResult(value)).preview;
   }
 
-  /** A stale useful preview returns at once while one refresh runs; `refresh` waits, but never overrides a server-directed pause. */
+  /** Stale content returns at once, marked `refreshing`; a manual refresh waits but never overrides a server-directed pause. */
   getResult(value: string, refresh = false): Promise<PreviewResult> {
     const url = iconUrl(value);
     if (!url) return Promise.resolve({ preview: null, status: "unsupported" });
@@ -198,7 +200,7 @@ export class LinkPreviews {
     if (!entry && saturated) return Promise.resolve({ preview: null, status: "busy" });
     if (entry) this.cache.delete(key);
     this.cache.set(key, entry ??= { freshUntil: 0, bytes: 0 });
-    if (entry.inflight) return entry.good && !refresh ? Promise.resolve(this.snapshot(entry)) : entry.inflight;
+    if (entry.inflight) return entry.good && !refresh ? Promise.resolve(this.behind(entry)) : entry.inflight;
     if (entry.retryAt && entry.retryAt > now) return Promise.resolve(this.snapshot(entry));
     if (!refresh && entry.freshUntil > now) return Promise.resolve(this.snapshot(entry));
     if (refresh && entry.refreshedAt !== undefined && now - entry.refreshedAt < PREVIEW_LIMITS.refreshDebounceMs) return Promise.resolve(this.snapshot(entry));
@@ -206,7 +208,19 @@ export class LinkPreviews {
     if (refresh) entry.refreshedAt = now;
     const result = this.start(key, url, entry);
     entry.inflight = result;
-    return entry.good && !refresh ? Promise.resolve(this.snapshot(entry)) : result;
+    return entry.good && !refresh ? Promise.resolve(this.behind(entry)) : result;
+  }
+
+  /** The reload already running for a URL, or its current answer. Never starts a load. */
+  settled(value: string): Promise<PreviewResult> {
+    const url = iconUrl(value);
+    const entry = url ? this.cache.get(url.href) : undefined;
+    if (!entry) return Promise.resolve({ preview: null, status: url ? "busy" : "unsupported" });
+    return entry.inflight ?? Promise.resolve(this.snapshot(entry));
+  }
+
+  private behind(entry: Entry): PreviewResult {
+    return { ...this.snapshot(entry), refreshing: true };
   }
 
   private snapshot(entry: Entry): PreviewResult {
@@ -264,8 +278,8 @@ export class LinkPreviews {
     if (preview) entry.good = preview;
     entry.status = outcome.status;
     entry.retryAt = outcome.retryAt && outcome.retryAt > now ? Math.min(outcome.retryAt, now + PREVIEW_LIMITS.backoffMs) : undefined;
-    entry.freshUntil = Math.max(now + ttl(outcome.status), entry.retryAt ?? 0);
-    entry.bytes = entry.good ? entry.good.title.length + entry.good.description.length + entry.good.site.length + (entry.good.image?.length ?? 0) : 0;
+    entry.freshUntil = Math.max(now + (preview?.github ? 30_000 : ttl(outcome.status)), entry.retryAt ?? 0);
+    entry.bytes = entry.good ? entry.good.title.length + entry.good.description.length + entry.good.site.length + (entry.good.image?.length ?? 0) + (entry.good.github ? JSON.stringify(entry.good.github).length : 0) : 0;
     if (this.cache.get(key) === entry) this.trim();
     return this.snapshot(entry);
   }

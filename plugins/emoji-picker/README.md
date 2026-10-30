@@ -2,7 +2,7 @@
 
 Type `:` in a composer to open the emoji picker. Pick an emoji to replace that colon, keeping the rest of your draft. Search by name, keyword, shortcode, or emoji; browse eight categories; choose a skin tone; and return to recently used emojis.
 
-![Emoji picker with category browsing and skin tone selection](https://github.com/user-attachments/assets/a74d890d-9ad9-46e5-a7a0-2995b386e054)
+![Emoji picker with category browsing and skin tone selection](docs/composer.png)
 
 ## Install
 

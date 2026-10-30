@@ -65,9 +65,9 @@ No cookie copying or permanently open tab is needed. A computer or workspace tha
 update-needed brief. Signed-out connections show Reconnect; unavailable or
 interrupted runs show Retry. A missed run is reported when bb resumes.
 
-Gmail collection reads the full email and needed reply-chain context. **After reading** defaults to **Keep unread**: each originally unread message is restored and checked immediately after reading. Choose **Mark as read** to leave opened mail read. Already-read mail stays read. The only explicit Gmail write allowed is restoring unread state; Briefs never sends, archives, labels, or deletes mail. A saved per-message journal makes failed or unverified restoration visible in the brief, including after interruption. Other sites are read-only. Reading records Gmail message
-IDs in plugin-owned SQLite only after successful publication, so newsletters
-are summarized once without marking them read. Emails are read in full; the brief reports any unread state it could not restore.
+Gmail collection reads every matching email in full, including every message in a thread, and never summarizes from list previews. **After reading** defaults to **Mark as read**, including saved definitions without a preference. Read messages are left read, with their final state checked in bounded batches. Choose **Keep unread** to preserve each message’s original state; full-body print access avoids changing mixed or unknown read states. The picker is available under every Gmail account. Explicit saved preferences are retained.
+
+Briefs may mark fully read messages read or restore their original unread state. It never sends, archives, labels, or deletes mail. A per-message journal tracks read-state changes across interruptions; incomplete reading or unverified state is reported. Other sites are read-only. Gmail message IDs are recorded as processed only after successful publication, so each email appears in one brief.
 Optional Inline Decisions provide click-approved proposals; without that
 plugin, actions are plain text and nothing is executed.
 

@@ -146,11 +146,21 @@ describe("digest issue lifecycle", () => {
     expect(next.sessions).toHaveLength(1);
   });
 
+  it("preserves an explicit keep-unread choice when editing without a read preference", async () => {
+    const { service } = setup();
+    const previous = service.requiredDefinition("reading");
+    service.store.definitions.put({ ...previous, afterReading: "keep-unread" });
+    const saved = await service.saveDigest({ id: previous.id, connectionId: "gmail", name: previous.name, instructions: previous.instructions, schedule: previous.schedule });
+    expect(saved.afterReading).toBe("keep-unread");
+  });
+
   it("journals unread state before opening and retains it across retry and publication", async () => {
     const { service } = setup();
+    service.store.definitions.put({ ...service.requiredDefinition("reading"), afterReading: "keep-unread" });
     const { issue } = await service.begin("reading", "thr_journal");
     const initial = service.emailRead("thr_journal", { messageId: "mail1", status: "opening", wasUnread: true });
     expect(initial.afterReading).toBe("keep-unread");
+    expect(() => service.emailRead("thr_journal", { messageId: "unknown", status: "opening" })).toThrow("wasUnread");
     expect(() => service.emailRead("thr_journal", { messageId: "mail1", status: "left-read" })).toThrow("Restore");
     await service.fail(issue, "Browser connection lost.");
     expect(service.requiredIssue("thr_journal").emailReads?.[0]).toMatchObject({ wasUnread: true, status: "opening" });
@@ -162,10 +172,14 @@ describe("digest issue lifecycle", () => {
     expect(result.issue.emailReads?.[0]?.status).toBe("restored-unread");
   });
 
-  it("permits leaving opened mail read only by explicit preference and never changes originally read state", async () => {
+  it("leaves opened mail read by default and never changes originally read state", async () => {
     const { service } = setup();
-    service.store.definitions.put({ ...service.requiredDefinition("reading"), afterReading: "mark-read" });
     await service.begin("reading", "thr_mark_read");
+    expect(service.requiredDefinition("reading").afterReading).toBe("mark-read");
+    service.emailRead("thr_mark_read", { messageId: "unknown", status: "opening" });
+    expect(() => service.emailRead("thr_mark_read", { messageId: "unknown", status: "unchanged-read" })).toThrow("known originally read");
+    expect(() => service.emailRead("thr_mark_read", { messageId: "unknown", status: "restored-unread" })).toThrow("originally read");
+    expect(service.emailRead("thr_mark_read", { messageId: "unknown", status: "left-read" })).toMatchObject({ status: "left-read", afterReading: "mark-read" });
     service.emailRead("thr_mark_read", { messageId: "mail1", status: "opening", wasUnread: true });
     expect(service.emailRead("thr_mark_read", { messageId: "mail1", status: "left-read" }).status).toBe("left-read");
     service.emailRead("thr_mark_read", { messageId: "mail2", status: "opening", wasUnread: false });
@@ -308,7 +322,7 @@ describe("digest issue lifecycle", () => {
     const { service, harness } = setup();
     const input = { connectionId: "gmail", name: "Replies", emoji: "💌", instructions: "Only messages needing a reply.", schedule: { cron: "0 10 * * 1-5", timezone: "America/Los_Angeles" } };
     const created = await service.saveDigest(input);
-    expect(created).toMatchObject({ enabled: true, emoji: "💌", instructions: input.instructions, automationId: "auto_digest_new", connectionIds: ["gmail"] });
+    expect(created).toMatchObject({ afterReading: "mark-read", enabled: true, emoji: "💌", instructions: input.instructions, automationId: "auto_digest_new", connectionIds: ["gmail"] });
     expect(service.requiredDefinition("reading").enabled).toBe(false);
     const updated = await service.saveDigest({ ...input, id: created.id, name: "Reply list", emoji: "📮", schedule: { cron: "0 11 * * 1-5", timezone: "America/Los_Angeles" } });
     expect(updated).toMatchObject({ id: created.id, automationId: created.automationId, enabled: true, name: "Reply list", emoji: "📮", instructions: input.instructions });

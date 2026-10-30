@@ -356,9 +356,58 @@ it("preserves Prompt Improver's marketplace prefix and package subdirectory", as
   const { prepareVersionedRelease } = await import(moduleUrl);
   await run(process.execPath, [resolve(pluginRepository, "tooling/build-plugin.mjs"), resolve(pluginRepository, "plugins/improve-prompt")]);
   const release = await prepareVersionedRelease("improve-prompt");
-  expect(release.tag).toBe("prompt-shaper/v0.1.4");
+  expect(release.tag).toBe("prompt-shaper/v0.1.5");
   const manifest = JSON.parse(await git(pluginRepository, ["show", `${release.commit}:plugins/improve-prompt/package.json`]));
   expect(manifest.name).toBe("bb-plugin-prompt-shaper");
   expect(manifest.bb.app).toBe("./dist/install-app.mjs");
   expect(manifest.dependencies).toBeUndefined();
 });
+
+
+it("installs the latest File Pins tag at the marketplace root", async () => {
+  if (!pluginRepository) throw new Error("BB_PLUGIN_COMPAT_REPOSITORY is required");
+  const repository = pluginRepository;
+  const moduleUrl = pathToFileURL(resolve(repository, "tooling/publish-install-refs.mjs")).href;
+  const { prepareVersionedRelease, assertVersionTagUnchanged } = await import(moduleUrl);
+  await run(process.execPath, [resolve(repository, "tooling/build-plugin.mjs"), resolve(repository, "plugins/file-pins")]);
+  const release = await prepareVersionedRelease("file-pins");
+  expect(release.tag).toBe(`file-pins/v${release.plugin.manifest.version}`);
+  expect(release.subdirectory).toBe("");
+  expect(await git(repository, ["rev-parse", `${release.commit}^{tree}`])).toBe(release.packageTree);
+  expect((await prepareVersionedRelease("file-pins")).commit).toBe(release.commit);
+  expect(() => assertVersionTagUnchanged(release, release.commit)).not.toThrow();
+  expect(() => assertVersionTagUnchanged(release, release.sourceRevision))
+    .toThrow(/already exists with different contents/);
+
+  const fixture = await mkdtemp(join(tmpdir(), "file-pins-version-install-"));
+  let server: Awaited<ReturnType<typeof startTestServer>> | undefined;
+  try {
+    const remote = join(fixture, "release.git");
+    await git(repository, ["init", "--bare", remote]);
+    await git(remote, ["fetch", "--depth=1", "--no-tags", repository, release.commit]);
+    await git(remote, ["tag", release.tag, release.commit]);
+    const previousRevision = "80b3e89e31da407b84e9de8bee777b16eacead44";
+    await git(remote, ["fetch", "--depth=1", "--no-tags", "https://github.com/brsbl/bb-plugins.git", previousRevision]);
+    await git(remote, ["tag", "file-pins/v0.1.8", previousRevision]);
+
+    server = await startTestServer({ appVersion: "0.43.4" });
+    server.pluginService.bindSdk({ baseUrl: server.baseUrl });
+    await server.pluginService.install(`git:${remote}@semver:file-pins/:^0.1.2`, { kind: "root" });
+    const installed = server.pluginService.list().find((entry) => entry.id === "file-pins")!;
+    expect(installed).toMatchObject({ version: release.plugin.manifest.version, status: "running" });
+    expect(getInstalledPluginRegistration(server.db, "file-pins"))
+      .toMatchObject({ gitResolvedCommit: release.commit });
+    const manifest = JSON.parse(await readFile(join(installed.rootDir, "package.json"), "utf8"));
+    expect(manifest.bb.host).toBe("./dist/install-host.mjs");
+    expect(manifest.dependencies).toBeUndefined();
+    expect(manifest.devDependencies).toBeUndefined();
+    expect(await readFile(join(installed.rootDir, "dist/app.css"), "utf8"))
+      .toContain("bb-plugin-release-style");
+  } finally {
+    if (server) {
+      await server.pluginService.stop();
+      await server.close();
+    }
+    await rm(fixture, { recursive: true, force: true });
+  }
+}, 180_000);

@@ -26,9 +26,11 @@ const productionDependencyFields = [
   "peerDependencies",
 ];
 // Opt in per plugin so existing release histories are never rewritten.
-const versionTaggedPlugins = new Set(["thread-organizer", "context-katamari", "ambient", "server-switcher", "improve-prompt", "desktop", "content-calendar", "pull-requests", "digests", "inline-action-cards"]);
+const versionTaggedPlugins = new Set(["thread-organizer", "context-katamari", "ambient", "server-switcher", "improve-prompt", "desktop", "content-calendar", "pull-requests", "digests", "inline-action-cards", "file-pins", "thread-hover-cards"]);
 // Preserve the published prefix when a workspace directory differs from its stable ID.
 const versionTagPrefixes = { "improve-prompt": "prompt-shaper" };
+// File Pins was published at the repository root, with no marketplace subdirectory.
+const versionTagSubdirectories = { "file-pins": "" };
 const explicitlyRetiredInstallRefs = Object.freeze([
   "plugin/omegacode",
   "plugin/saved-places",
@@ -267,32 +269,38 @@ export async function prepareVersionedRelease(slug) {
     throw new Error(`${slug}: stable release version required`);
   }
   const tag = `${versionTagPrefixes[slug] ?? slug}/v${version}`;
+  const subdirectory = versionTagSubdirectories[slug] ?? plugin.source;
   const temporary = await mkdtemp(resolve(tmpdir(), "bb-plugin-tag-"));
   const indexPath = resolve(temporary, "index");
   try {
-    git(["read-tree", sourceRevision], { env: { GIT_INDEX_FILE: indexPath } });
-    const paths = git(["ls-files", "-z", "--", plugin.source], {
-      env: { GIT_INDEX_FILE: indexPath },
-    });
-    git(["update-index", "--force-remove", "-z", "--stdin"], {
-      env: { GIT_INDEX_FILE: indexPath }, input: paths,
-    });
-    git(["read-tree", `--prefix=${plugin.source}/`, packageTree], {
-      env: { GIT_INDEX_FILE: indexPath },
-    });
-    const readJson = async (path) => JSON.parse(await readFile(resolve(root, path), "utf8"));
-    const provenance = {
-      sourceCommit: sourceRevision,
-      plugin: slug,
-      version,
-      packageTree,
-      lockfileSha256: createHash("sha256")
-        .update(await readFile(resolve(root, "package-lock.json"))).digest("hex"),
-      sdk: await readJson("tooling/vendor/sdk-provenance.json"),
-      builder: await readJson("tooling/vendor/plugin-build-provenance.json"),
-    };
-    addBlob(indexPath, "plugin-release.json", `${JSON.stringify(provenance, null, 2)}\n`);
-    const tree = git(["write-tree"], { env: { GIT_INDEX_FILE: indexPath } });
+    // Root-shaped tags use the install package unchanged; only nested tags
+    // need a repository tree and a separate provenance file.
+    let tree = packageTree;
+    if (subdirectory) {
+      git(["read-tree", sourceRevision], { env: { GIT_INDEX_FILE: indexPath } });
+      const paths = git(["ls-files", "-z", "--", plugin.source], {
+        env: { GIT_INDEX_FILE: indexPath },
+      });
+      git(["update-index", "--force-remove", "-z", "--stdin"], {
+        env: { GIT_INDEX_FILE: indexPath }, input: paths,
+      });
+      git(["read-tree", `--prefix=${plugin.source}/`, packageTree], {
+        env: { GIT_INDEX_FILE: indexPath },
+      });
+      const readJson = async (path) => JSON.parse(await readFile(resolve(root, path), "utf8"));
+      const provenance = {
+        sourceCommit: sourceRevision,
+        plugin: slug,
+        version,
+        packageTree,
+        lockfileSha256: createHash("sha256")
+          .update(await readFile(resolve(root, "package-lock.json"))).digest("hex"),
+        sdk: await readJson("tooling/vendor/sdk-provenance.json"),
+        builder: await readJson("tooling/vendor/plugin-build-provenance.json"),
+      };
+      addBlob(indexPath, "plugin-release.json", `${JSON.stringify(provenance, null, 2)}\n`);
+      tree = git(["write-tree"], { env: { GIT_INDEX_FILE: indexPath } });
+    }
     const sourceDate = git(["show", "-s", "--format=%cI", sourceRevision]);
     const commit = git([
       "commit-tree", tree, "-p", sourceRevision,
@@ -305,7 +313,7 @@ export async function prepareVersionedRelease(slug) {
       GIT_AUTHOR_DATE: sourceDate,
       GIT_COMMITTER_DATE: sourceDate,
     } });
-    return { plugin, tag, commit, packageTree, sourceRevision };
+    return { plugin, tag, commit, packageTree, sourceRevision, subdirectory };
   } finally {
     await rm(temporary, { recursive: true, force: true });
   }
@@ -313,7 +321,9 @@ export async function prepareVersionedRelease(slug) {
 
 export function assertVersionTagUnchanged(release, existingCommit) {
   const existingPackageTree = git([
-    "rev-parse", `${existingCommit}:${release.plugin.source}`,
+    "rev-parse", release.subdirectory
+      ? `${existingCommit}:${release.subdirectory}`
+      : `${existingCommit}^{tree}`,
   ], { allowFailure: true });
   if (existingPackageTree !== release.packageTree) {
     throw new Error(`${release.tag} already exists with different contents; bump the plugin version`);
@@ -335,7 +345,7 @@ async function publishVersionTag(release, push) {
     console.log(`${release.tag} ${existingCommit} already published and unchanged`);
     return;
   }
-  await verifyReleaseCommit(release.plugin, release.commit, release.plugin.source);
+  await verifyReleaseCommit(release.plugin, release.commit, release.subdirectory);
   if (push) {
     // A normal tag push cannot overwrite an existing release, including a
     // concurrent publisher that won the race after the lookup above.
