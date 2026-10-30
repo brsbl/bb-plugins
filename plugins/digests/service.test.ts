@@ -192,8 +192,13 @@ describe("digest issue lifecycle", () => {
     const { service } = setup();
     service.store.definitions.put({ ...service.requiredDefinition("reading"), afterReading });
     const begun = await service.begin("reading", "thr_fixture");
-    expect(begun.instructions).toContain("preserve mixed read/unread states per message");
-    expect(begun.instructions).toContain("without reopening it");
+    expect(begun.instructions).toContain("including every message in a multi-message thread");
+    if (afterReading === "keep-unread") {
+      expect(begun.instructions).toContain("Never mark an entire mixed-state thread unread");
+      expect(begun.instructions).toContain("verify without reopening");
+    } else {
+      expect(begun.instructions).toContain("Do not restore unread state in this mode");
+    }
     // The mailbox models opening and restoration separately from the journal.
     // The production agent performs those browser actions; emailRead does not.
     const mailbox = new Map([["fixture_unread", true], ["fixture_read", false]]);
@@ -217,7 +222,7 @@ describe("digest issue lifecycle", () => {
   it.each(["opening", "restore-failed"] as const)("retains %s after an interrupted scheduled run and repairs the same journal on retry", async (status) => {
     const runs = [{ id: "run_fixture", threadId: "thr_fixture", status: "running", scheduledFor: Date.now(), startedAt: Date.now(), error: null, skipReason: null }];
     const { service, bb, harness } = setup({ runs });
-    service.store.definitions.put({ ...service.requiredDefinition("reading"), automationId: "auto_fixture" });
+    service.store.definitions.put({ ...service.requiredDefinition("reading"), afterReading: "keep-unread", automationId: "auto_fixture" });
     const { issue } = await service.begin("reading", "thr_fixture");
     service.emailRead("thr_fixture", { messageId: "fixture_unread", wasUnread: true, status: "opening" });
     if (status === "restore-failed") service.emailRead("thr_fixture", { messageId: "fixture_unread", status });
@@ -233,7 +238,7 @@ describe("digest issue lifecycle", () => {
     await restarted.retry("thr_fixture", issue.id);
     const resumed = await restarted.begin("reading", "thr_fixture");
     expect(resumed.issue.id).toBe(issue.id);
-    expect(resumed.instructions).toContain("repair any opening/restore-failed records");
+    expect(resumed.issue.emailReads).toMatchObject([{ status, wasUnread: true, afterReading: "keep-unread" }]);
     expect(resumed.sessions[0]?.tabId).toBe("tab_2");
     restarted.emailRead("thr_fixture", { messageId: "fixture_unread", wasUnread: false, status: "opening" });
     expect(() => restarted.emailRead("thr_fixture", { messageId: "fixture_unread", status: "left-read" })).toThrow("Restore");
