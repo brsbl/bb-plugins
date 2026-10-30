@@ -34,8 +34,9 @@ export interface GoogleEvent {
 export interface CalEvent {
   id: string;
   calendarId: string;
-  /** The name half of the title: the guest for booked calls, else the event's own title. */
+  /** The name half of the thread title: the guest for booked calls, else the event's own title. Never sent to the agent. */
   name: string;
+  /** The event's title, reduced to plain() for agent replies. */
   summary: string;
   booking: boolean;
   startMs: number;
@@ -61,6 +62,21 @@ export function clean(value: string | undefined | null, max = MAX_TEXT): string 
   return text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text;
 }
 
+const MAX_NAME = 60;
+const EMAIL = /^[\w.+-]+@[\w-]+(\.[\w-]+)+$/;
+const MEETING_HOSTS = /(^|\.)(meet\.google\.com|zoom\.us|teams\.microsoft\.com)$/;
+
+/**
+ * Text other people control (titles, names) that goes into an agent prompt: letters, numbers,
+ * spaces and light punctuation only, so it can't fake the prompt's fence or spell out commands or URLs.
+ */
+export function plain(value: string | undefined | null): string {
+  return clean(clean(value).replace(/[^\p{L}\p{N}\p{M} .,'&+-]/gu, ""), MAX_NAME);
+}
+
+const person = (attendee: GoogleAttendee | undefined) =>
+  plain(attendee?.displayName) || (attendee?.email && EMAIL.test(attendee.email) ? attendee.email : "");
+
 const htmlText = (html: string | undefined) =>
   (html ?? "")
     .replace(/<br\s*\/?>/gi, "\n")
@@ -73,11 +89,12 @@ const htmlText = (html: string | undefined) =>
     .replace(/&#39;/g, "'")
     .replace(/&quot;/g, '"');
 
-const httpsUrl = (value: string | undefined | null): string | null => {
+const httpsUrl = (value: string | undefined | null, hosts?: RegExp): string | null => {
   if (!value) return null;
   try {
     const url = new URL(value.trim());
-    return url.protocol === "https:" ? url.toString() : null;
+    if (url.protocol !== "https:" || (hosts && !hosts.test(url.hostname))) return null;
+    return url.toString().replace(/[()[\]]/g, (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`);
   } catch {
     return null;
   }
@@ -91,9 +108,8 @@ function guestName(event: GoogleEvent): string | null {
   const lines = htmlText(event.description).split("\n").map((line) => line.trim());
   const index = lines.findIndex((line) => /^Booked by$/i.test(line));
   const named = index >= 0 ? lines.slice(index + 1).find(Boolean) : undefined;
-  if (named && !named.includes("@")) return clean(named);
-  const other = (event.attendees ?? []).find((attendee) => !attendee.self && !attendee.resource);
-  return clean(other?.displayName || other?.email) || null;
+  if (named && !named.includes("@")) return plain(named) || null;
+  return person((event.attendees ?? []).find((attendee) => !attendee.self && !attendee.resource)) || null;
 }
 
 /** The event as the section shows it, or null when the section skips it (all-day, birthdays, canceled). */
@@ -103,23 +119,23 @@ export function toCalEvent(event: GoogleEvent, calendarId: string): CalEvent | n
   const startMs = Date.parse(event.start.dateTime);
   const endMs = Date.parse(event.end.dateTime);
   if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return null;
-  const summary = clean(event.summary) || "Busy";
+  const title = clean(event.summary) || "Busy";
   const booking = isBooking(event);
   const video = event.conferenceData?.entryPoints?.find((entry) => entry.entryPointType === "video")?.uri;
   return {
     id: event.id,
     calendarId,
-    name: (booking ? guestName(event) : null) ?? summary,
-    summary,
+    name: (booking ? guestName(event) : null) ?? title,
+    summary: plain(event.summary) || "Busy",
     booking,
     startMs,
     endMs,
     createdMs: Date.parse(event.created ?? "") || 0,
-    htmlLink: httpsUrl(event.htmlLink),
-    meetLink: httpsUrl(event.hangoutLink) ?? httpsUrl(video) ?? httpsUrl(event.location),
+    htmlLink: httpsUrl(event.htmlLink, /(^|\.)google\.com$/),
+    meetLink: httpsUrl(event.hangoutLink, MEETING_HOSTS) ?? httpsUrl(video, MEETING_HOSTS),
     attendees: (event.attendees ?? [])
       .filter((attendee) => !attendee.self && !attendee.resource)
-      .map((attendee) => clean(attendee.displayName || attendee.email))
+      .map(person)
       .filter(Boolean)
       .slice(0, MAX_ATTENDEES),
   };

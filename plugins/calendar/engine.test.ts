@@ -56,11 +56,12 @@ function setup() {
     },
   };
   let saved: CalendarState = emptyState();
+  let onSave = () => {};
   const engine = () => createEngine({
     google: createGoogleClient({ fetch: google.fetch, endpoints: google.endpoints, now: () => now, credentials: async () => ({ clientId: "id", clientSecret: "secret", refreshToken: "refresh" }) }),
     threads: port,
     load: async () => structuredClone(saved),
-    save: async (state) => { saved = structuredClone(state); },
+    save: async (state) => { saved = structuredClone(state); onSave(); },
     now: () => now,
     log: { warn: () => undefined },
   });
@@ -75,6 +76,7 @@ function setup() {
     get now() { return now; },
     tick: (fetch = true) => current.tick(config, { fetch }),
     restart() { current = engine(); },
+    onSave(listener: () => void) { onSave = listener; },
     /** Lets a sent notice settle, then runs a state-only pass. */
     async settle() { now += SETTLE; await current.tick(config, { fetch: false }); },
   };
@@ -176,6 +178,28 @@ describe("notices", () => {
     expect(replies("thr_1").at(-1)).toBe("Moved to Tue 10am");
     await t.settle();
     expect(t.threads.get("thr_1")!.archived).toBe(true);
+  });
+
+  it("lists an event again when it moves back into the next 7 days", async () => {
+    t.google.move("primary", "e", "2026-11-05T10:00:00-08:00");
+    await t.tick();
+    await t.settle();
+    expect(t.threads.get("thr_1")!.archived).toBe(true);
+    t.advance(Date.parse("2026-10-29T12:00:00-07:00") - t.now);
+    await t.tick();
+    expect(t.spawned.map((thread) => [thread.title, thread.notify])).toEqual([["Event e · Wed 12pm", false], ["Event e · Thu 10am", false]]);
+    t.advance(Date.parse("2026-11-05T09:50:00-08:00") - t.now);
+    await t.tick();
+    expect(replies("thr_2").at(-1)).toBe("Starts in 10 min.");
+  });
+
+  it("does not rewrite state when nothing changed", async () => {
+    let saves = 0;
+    const before = JSON.stringify(t.state);
+    t.onSave(() => { saves += 1; });
+    await t.tick();
+    expect(saves).toBeLessThanOrEqual(2);
+    expect(JSON.stringify(t.state.events)).toBe(JSON.stringify(JSON.parse(before).events));
   });
 
   it("reminds once, 10 minutes before the start", async () => {

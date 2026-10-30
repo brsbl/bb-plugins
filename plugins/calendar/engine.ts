@@ -27,6 +27,8 @@ export interface EventRecord {
   pending: string[] | null;
   /** When the last notice was sent. */
   sentAt: number | null;
+  /** Closed because it moved past the window; listed again if it comes back. */
+  movedOut?: boolean;
 }
 
 export interface CalendarState {
@@ -110,6 +112,7 @@ export function createEngine(deps: EngineDeps) {
       record.reminded = event.startMs - now <= REMINDER_LEAD;
     }
     const retitle = title !== record.title || moved;
+    if (!retitle && JSON.stringify(event) === JSON.stringify(record.event)) return;
     record.event = event;
     record.title = title;
     await deps.save(state);
@@ -126,9 +129,9 @@ export function createEngine(deps: EngineDeps) {
     }
     if (!event) return close(state, record, null);
     if (event.startMs < now + WINDOW) return; // Still listed next sync.
-    const lines = [notices.moved(event.startMs, config.timeZone), ...details(event, config.timeZone)];
-    record.event = event;
-    return close(state, record, lines);
+    // The record keeps the old time so it is pruned soon; sync lists the event again if it returns.
+    record.movedOut = true;
+    return close(state, record, [notices.moved(event.startMs, config.timeZone), ...details(event, config.timeZone)]);
   }
 
   async function close(state: CalendarState, record: EventRecord, lines: string[] | null) {
@@ -170,7 +173,7 @@ export function createEngine(deps: EngineDeps) {
     for (const event of listed.values()) {
       const record = state.events[event.id];
       try {
-        if (!record) await added(state, event, now, config);
+        if (!record || (record.phase === "done" && record.movedOut)) await added(state, event, now, config);
         else if (record.phase === "live") await changed(state, record, event, now, config);
       } catch (error) {
         deps.log.warn(`Calendar event ${event.id}: ${message(error)}`);
