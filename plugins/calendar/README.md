@@ -1,6 +1,6 @@
 # Calendar
 
-Lists your upcoming Google Calendar events in a **📅 Calendar** section of the sidebar, soonest first, and sends a bb notification when an event is added, moved or canceled, and 10 minutes before it starts.
+Lists your upcoming Google Calendar events in a **📅 Calendar** section of the sidebar and sends a bb notification when an event is added, moved or canceled, and 10 minutes before it starts.
 
 ![Calendar section above Pinned with upcoming events](docs/calendar-section.png)
 
@@ -25,7 +25,6 @@ bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/calendar --
 - **Notifications:** when an event is added, moved ("Moved to Thu 2pm") or canceled, and 10 minutes before it starts. Each one is a short agent reply on its thread, so it reaches your phone and open bb windows through bb's push notifications. Events already on the calendar when the plugin starts are listed without a notification.
 - **Clean-up:** an entry leaves 30 minutes after its event ends, or right after its cancellation notice.
 - **Section:** the plugin adds a Thread Organizer inbox named 📅 Calendar, first in the workflow, and places it above Pinned once. Drag it anywhere afterwards.
-- **Order:** each thread carries its event's start time as `sidebarSortKey` in its plugin metadata, for thread lists that sort a section by it.
 
 `bb calendar status` shows the last sync and the listed events; `bb calendar sync` reads Google now. When Google can't be read for an hour, a thread says so.
 

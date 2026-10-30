@@ -19,7 +19,7 @@ const event = (id: string, startIso: string, overrides: Partial<GoogleEvent> = {
   ...overrides,
 });
 
-interface FakeThread { id: string; title: string; sortKey: number; eventId: string | null; notify: boolean; replies: string[]; archived: boolean; status: ThreadState }
+interface FakeThread { id: string; title: string; eventId: string | null; notify: boolean; replies: string[]; archived: boolean; status: ThreadState }
 
 function setup() {
   let now = START;
@@ -30,8 +30,8 @@ function setup() {
   const spawned: FakeThread[] = [];
   const reply = (prompt: string) => prompt.split("<<<CALENDAR\n")[1]!.split("\nCALENDAR>>>")[0]!;
   const port: ThreadPort = {
-    async spawn({ title, prompt, eventId, sortKey, notify }) {
-      const thread: FakeThread = { id: `thr_${threads.size + 1}`, title, sortKey, eventId, notify, replies: [reply(prompt)], archived: false, status: { state: "idle", settledAt: now } };
+    async spawn({ title, prompt, eventId, notify }) {
+      const thread: FakeThread = { id: `thr_${threads.size + 1}`, title, eventId, notify, replies: [reply(prompt)], archived: false, status: { state: "idle", settledAt: now } };
       threads.set(thread.id, thread);
       spawned.push(thread);
       return thread.id;
@@ -48,8 +48,8 @@ function setup() {
       thread.replies.push(reply(prompt));
       thread.status = { state: "idle", settledAt: now };
     },
-    async update(threadId, { title, sortKey }) {
-      Object.assign(threads.get(threadId)!, { title, sortKey });
+    async retitle(threadId, title) {
+      threads.get(threadId)!.title = title;
     },
     async archive(threadId) {
       threads.get(threadId)!.archived = true;
@@ -88,14 +88,13 @@ beforeEach(() => { t = setup(); });
 const replies = (id: string) => t.threads.get(id)!.replies.map((reply) => reply.split("\n")[0]);
 
 describe("listing", () => {
-  it("lists existing events quietly on the first sync, soonest first, and skips all-day events", async () => {
+  it("lists existing events quietly on the first sync and skips all-day events", async () => {
     t.google.put("primary", event("b", "2026-10-29T14:00:00-07:00"));
     t.google.put("primary", event("a", "2026-10-28T12:00:00-07:00"));
     t.google.put("primary", { id: "allday", summary: "Holiday", start: { date: "2026-10-29" }, end: { date: "2026-10-30" } });
     t.google.put("primary", event("far", "2026-11-06T09:00:00-08:00"));
     await t.tick();
     expect(t.spawned.map((thread) => [thread.title, thread.notify])).toEqual([["Event a · Wed 12pm", false], ["Event b · Thu 2pm", false]]);
-    expect(t.spawned.map((thread) => thread.sortKey)).toEqual([Date.parse("2026-10-28T12:00:00-07:00"), Date.parse("2026-10-29T14:00:00-07:00")]);
     expect(t.spawned[0]!.replies[0]).toMatch(/^When: Wed, Oct 28, 12–12:30pm PT/);
   });
 
@@ -135,7 +134,7 @@ describe("notices", () => {
   it("moves the entry and notifies once with the new time", async () => {
     t.google.move("primary", "e", "2026-10-29T14:00:00-07:00");
     await t.tick();
-    expect(t.threads.get("thr_1")).toMatchObject({ title: "Event e · Thu 2pm", sortKey: Date.parse("2026-10-29T14:00:00-07:00") });
+    expect(t.threads.get("thr_1")).toMatchObject({ title: "Event e · Thu 2pm" });
     expect(replies("thr_1")).toEqual(["When: Wed, Oct 28, 12–12:30pm PT", "Moved to Thu 2pm"]);
     await t.tick();
     await t.settle();

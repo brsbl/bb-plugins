@@ -109,7 +109,7 @@ export default function plugin(bb: BbPluginApi): void {
   const input = (prompt: string) => [{ type: "text" as const, text: prompt, mentions: [], visibility: "agent-only" as const }];
 
   const threads: ThreadPort = {
-    async spawn({ title, prompt, eventId, sortKey, notify }) {
+    async spawn({ title, prompt, eventId, notify }) {
       const sectionId = await ensureSection();
       const thread = await bb.sdk.threads.spawn({
         ...(await execution()),
@@ -117,7 +117,7 @@ export default function plugin(bb: BbPluginApi): void {
         title,
         input: input(prompt),
         sectionId,
-        pluginMetadata: { inbox: true, sidebarSortKey: sortKey, ...(eventId ? { eventId } : {}) },
+        pluginMetadata: { inbox: true, ...(eventId ? { eventId } : {}) },
       });
       await setLevel(thread.id, notify ? "all" : "muted");
       return thread.id;
@@ -142,9 +142,8 @@ export default function plugin(bb: BbPluginApi): void {
       const { model, reasoningLevel } = await execution();
       await bb.sdk.threads.send({ threadId, input: input(prompt), mode: "queue-if-active", model, reasoningLevel });
     },
-    async update(threadId, { title, sortKey }) {
+    async retitle(threadId, title) {
       await bb.sdk.threads.update({ threadId, title });
-      await bb.sdk.threads.updatePluginMetadata({ threadId, set: { sidebarSortKey: sortKey } });
     },
     async archive(threadId) {
       await bb.sdk.threads.archive({ threadId });

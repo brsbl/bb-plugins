@@ -111,7 +111,7 @@ Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/t
 
 ### Calendar
 
-Lists upcoming events from your Google calendars as threads in a Calendar section above Pinned, soonest first, and sends bb notifications when an event is added, moved or canceled, and 10 minutes before it starts.
+Lists upcoming events from your Google calendars as threads in a Calendar section above Pinned and sends bb notifications when an event is added, moved or canceled, and 10 minutes before it starts.
 
 ![Calendar section above Pinned with two upcoming events](plugins/calendar/docs/calendar-section.png)
 
