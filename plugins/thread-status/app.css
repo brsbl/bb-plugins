@@ -1,0 +1,39 @@
+[data-sidebar="sidebar"] a[data-sidebar-thread-id] ~ button[aria-expanded],
+[data-sidebar="sidebar"] a[data-sidebar-thread-id] ~ span > button[aria-expanded] {
+  order: -1;
+  width: 1rem;
+  margin-left: -1rem;
+  margin-right: -0.375rem;
+}
+
+[data-sidebar="sidebar"] [data-thread-status]::after {
+  --thread-status-tone: var(--muted-foreground);
+  content: attr(data-thread-status);
+  flex: none;
+  align-self: center;
+  margin-left: var(--thread-status-offset, 0.375rem);
+  padding: 0 0.375rem;
+  border-radius: 9999px;
+  font-size: var(--text-2xs);
+  line-height: 1.125rem;
+  font-weight: 500;
+  white-space: nowrap;
+  color: color-mix(in oklch, var(--thread-status-tone) 80%, var(--ink));
+  background: color-mix(in oklab, var(--thread-status-tone) 16%, transparent);
+}
+
+[data-sidebar="sidebar"] [data-thread-status-tone="info"]::after {
+  --thread-status-tone: var(--timeline-accent);
+}
+
+[data-sidebar="sidebar"] [data-thread-status-tone="success"]::after {
+  --thread-status-tone: var(--success);
+}
+
+[data-sidebar="sidebar"] [data-thread-status-tone="warning"]::after {
+  --thread-status-tone: var(--warning);
+}
+
+[data-sidebar="sidebar"] [data-thread-status-tone="danger"]::after {
+  --thread-status-tone: var(--destructive);
+}

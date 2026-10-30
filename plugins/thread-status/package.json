@@ -1,0 +1,50 @@
+{
+  "name": "bb-plugin-thread-status",
+  "version": "0.1.0",
+  "description": "Short, color-coded status pills that agents keep current beside sidebar thread titles, with child-thread carets on the left.",
+  "type": "module",
+  "license": "UNLICENSED",
+  "files": [
+    "assets",
+    "dist",
+    "docs",
+    "README.md",
+    "skills"
+  ],
+  "scripts": {
+    "build": "node ../../tooling/build-plugin.mjs",
+    "check": "npm run typecheck && npm run build && npm test",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "bb": ">=0.0.34",
+    "bbPluginSdk": "^0.5.9"
+  },
+  "bb": {
+    "name": "Thread Status",
+    "description": "Short, color-coded status pills that agents keep current beside sidebar thread titles, with child-thread carets on the left.",
+    "branding": {
+      "icon": "./assets/thread-status.svg"
+    },
+    "server": "./server.ts",
+    "skills": [
+      "skills"
+    ],
+    "app": "./app.tsx"
+  },
+  "devDependencies": {
+    "@get-bb/plugin-sdk": "file:../../tooling/vendor/get-bb-plugin-sdk-0.5.9.tgz",
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/node": "^22.0.0",
+    "better-sqlite3": "^12.10.0",
+    "cron-parser": "^5.5.0",
+    "hono": "^4.11.9",
+    "typescript": "^5.7.0",
+    "vitest": "^4.1.8",
+    "jsdom": "^29.0.1"
+  },
+  "dependencies": {
+    "zod": "^4.3.6"
+  }
+}
