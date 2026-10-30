@@ -83,6 +83,9 @@ const HEADER_FIRST = `${ROOT} [data-testid="app-page-header-content-row"] > :fir
 const RIGHT_PANEL_BUTTON = 'button[aria-label*="right panel" i]';
 const SIDEBAR_CARDS = `${ROOT} :is([data-testid="sidebar-navigation-region"], [data-sidebar="content"], [data-sidebar="footer"])`;
 const SIDEBAR_FOOTER = `${ROOT} [data-sidebar="footer"]`;
+/** bb's default icon rail: its scrolling icon column, and Settings in the rail's footer cell. */
+const RAIL = `${ROOT} [data-testid="app-nav-rail"] > :first-child`;
+const RAIL_SETTINGS = `${ROOT} [data-testid="sidebar-navigation-rail"] ~ div > button[aria-label^="Settings"]`;
 /** Plugins, Settings and Skills put "Back to app" above the section card; it joins the card as its first row. */
 const SECTION_BACK = `${ROOT} [data-testid$="-sidebar-top-reserve-row"] + div:has(+ [data-sidebar="content"])`;
 const SIDEBAR_OPEN = `${ROOT} .peer[data-state="expanded"][data-side="left"] + [data-sidebar="inset"]`;
@@ -166,7 +169,8 @@ ${ROOT} [data-testid="plugin-interaction-shell"] [data-bb-plugin="secrets"] form
 ${ROOT} [data-testid="plugin-interaction-shell"] [data-bb-plugin="secrets"] form > .sticky > button { width: auto; }
 ${ROOT} header.bg-surface-scrim { border-color: transparent; }
 ${COMPACT_HOME} > [data-testid="root-compose-compact-scroll-viewport"] { top: auto !important; bottom: 6px; left: ${COMPACT_INSET}; right: ${COMPACT_INSET}; max-height: min(calc(100% - 68px), 594px); border-radius: 20px; }
-${COMPACT_HOME} [data-testid="root-compose-compact-recents-offset"] { ${HIDE} }
+/* bb pads the compact home so Recent rests a few rows above the composer; Ambient bounds that pane itself. */
+${COMPACT_HOME} [data-testid="root-compose-compact-leading-spacer"] { ${HIDE} }
 ${COMPACT_HOME} [data-testid="root-compose-compact-bottom-spacer"] { margin-block-start: -6px; }
 ${COMPACT_HOME} [data-testid="root-compose-compact-scroll-content"] > .px-4 { padding-inline: 0; }
 ${ROOT} [data-root-compose-mobile-recents] { ${GLASS_SURFACE} border-radius: 20px; padding-block: 0 6px; }
@@ -177,7 +181,8 @@ ${COMPACT_COMPOSER} > .bg-background { background: ${SHEEN}, var(--ambient-glass
 /* Recent and the compact composer meet as one glass surface, without a double edge at the join. */
 ${COMPACT_HOME} [data-root-compose-mobile-recents] { border-radius: 20px 20px 0 0; border-block-end: 0; box-shadow: inset 0 1px 0 ${mix("var(--canvas)", "60%")}; }
 ${COMPACT_HOME} [data-testid="root-compose-compact-composer"] > .bg-background { background: var(--ambient-glass-fill); border-radius: 0 0 20px 20px; border-block-start: 0; box-shadow: 0 12px 32px -16px ${mix("var(--ink)", "35%")}; }
-${ROOT} [data-app-composer]:has([data-new-thread-footer]):not([data-testid="root-compose-compact-composer"] *) { ${GLASS_SURFACE} border-radius: 20px; padding: 10px 10px 4px; }
+/* bb wraps the wide home composer in the compact composer too; only the compact one has its own glass. */
+${ROOT} [data-app-composer]:has([data-new-thread-footer]):not([data-testid="root-compose-compact-composer"] > .bg-background *) { ${GLASS_SURFACE} border-radius: 20px; padding: 10px 10px 4px; }
 ${ROOT} [data-app-composer] { --background: ${mix("var(--ambient-background)", "68%")}; }
 /* The opaque follow-up shell fills the seam behind the input and its footer lip. */
 ${ROOT} [data-follow-up-composer] { background-color: var(--ambient-background); border-radius: 12px; }
@@ -195,6 +200,9 @@ ${ROOT} [data-testid="app-desktop-sidebar-trigger"][class~="left-[84px]"] { marg
 ${ROOT} [data-testid="app-page-header-content-row"][class~="pl-[104px]"] { padding-inline-start: ${TRAFFIC_LIGHT_RESERVE}; }
 ${ROOT} ${SIDEBAR_HEADER_CONTENT} { display: flex; align-items: center; min-width: 0; max-width: 100%; min-height: 32px; overflow: hidden; }
 ${ROOT} button[data-sidebar="trigger"] { margin-inline: -4px 0; width: 32px; height: 32px; }
+/* Rail icons sit on the same opaque chip as the toggle above them; the column hugs its icons. */
+${RAIL} { flex: 0 1 auto; width: auto; padding: 4px; ${GLASS_CHIP} border-radius: 12px; }
+${RAIL_SETTINGS} { ${GLASS_CHIP} border-radius: 12px; width: 32px; height: 32px; }
 ${ROOT} [data-testid="app-sidebar-top-reserve-row"] > div:nth-child(n) { margin-inline-end: 0; min-height: 32px; }
 ${HEADER_FIRST} { flex: 0 1 auto; min-width: 0; min-height: 32px; margin-inline: -6px 6px; padding-inline-start: 12px; }
 ${HEADER_FIRST}:has([data-pane-header-focus-tab]) { background-image: linear-gradient(var(--state-active), var(--state-active)); }
@@ -205,7 +213,7 @@ ${ROOT} [data-thread-header-workflow-actions]:not(:has(button, a)) { ${HIDE} }
 ${ROOT} ${HEADER_ACTIONS}:has(> [data-thread-header-pane-actions]) { column-gap: 0; }
 ${ROOT} ${HEADER_ACTIONS} [data-thread-header-pane-actions] { margin-inline-start: 0; column-gap: 0; }
 @media (max-width: 767px) { ${ROOT} div.fixed:has(> ${RIGHT_PANEL_BUTTON}) { top: calc(8px + env(safe-area-inset-top)); right: calc(8px + env(safe-area-inset-right)); } ${ROOT} :is(div.fixed, ${HEADER_ACTIONS}) ${RIGHT_PANEL_BUTTON}, ${ROOT} [data-thread-header-pane-actions] button { width: 32px; height: 32px; } :is(${HEADER_FIRST}, ${ROOT} ${HEADER_ACTIONS}) { height: 32px; min-height: 32px; } ${ROOT} ${HEADER_ACTIONS}:has(${RIGHT_PANEL_BUTTON}) { padding-inline-end: 0; } }
-:is(${THREAD}, ${PAGE}, ${SIDEBAR_CARDS}, ${SECTION_BACK}, ${CHROME_PILLS}, ${OVERLAY}) { --state-hover: ${INK_WASH}; --state-active: ${mix("var(--ink)", "15%")}; --sidebar-accent: var(--state-hover); }
+:is(${THREAD}, ${PAGE}, ${SIDEBAR_CARDS}, ${SECTION_BACK}, ${CHROME_PILLS}, ${RAIL}, ${RAIL_SETTINGS}, ${OVERLAY}) { --state-hover: ${INK_WASH}; --state-active: ${mix("var(--ink)", "15%")}; --sidebar-accent: var(--state-hover); }
 ${SIDEBAR_CARDS} { ${GLASS_SURFACE} border-radius: 16px; margin-inline: 8px; }
 ${SECTION_BACK} { ${GLASS_SURFACE} border-block-end: 0; border-radius: 16px 16px 0 0; margin-inline: 8px; padding-block: 8px 4px; box-shadow: inset 0 1px 0 ${mix("var(--canvas)", "60%")}; }
 ${SECTION_BACK} + [data-sidebar="content"] { border-block-start-color: ${INK_WASH}; border-start-start-radius: 0; border-start-end-radius: 0; box-shadow: 0 12px 32px -16px ${mix("var(--ink)", "35%")}; }
