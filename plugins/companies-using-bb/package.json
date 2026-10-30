@@ -1,13 +1,13 @@
 {
-  "name": "bb-plugin-crm",
+  "name": "bb-plugin-companies-using-bb",
   "version": "0.1.0",
-  "description": "Keep customer and investor conversations, people, and next steps together.",
+  "description": "See which companies use bb, from public GitHub and Discord activity, updated daily.",
   "type": "module",
   "license": "UNLICENSED",
   "files": [
     "dist",
-    "README.md",
-    "skills"
+    "docs",
+    "README.md"
   ],
   "scripts": {
     "build": "node ../../tooling/build-plugin.mjs",
@@ -20,38 +20,30 @@
     "bbPluginSdk": ">=0.5.9"
   },
   "bb": {
-    "name": "CRM",
-    "description": "Keep customer and investor conversations, people, and next steps together.",
+    "name": "Companies using bb",
+    "description": "See which companies use bb, from public GitHub and Discord activity, updated daily.",
     "branding": {
-      "icon": "UserRound"
+      "icon": "UserRoundPlus"
     },
     "server": "./server.ts",
-    "skills": [
-      "skills"
-    ],
     "app": "./app.tsx"
   },
   "devDependencies": {
     "@get-bb/plugin-sdk": "file:../../tooling/vendor/get-bb-plugin-sdk-0.5.9.tgz",
+    "@testing-library/react": "^16.3.2",
     "@types/better-sqlite3": "^7.6.12",
     "@types/node": "^22.0.0",
-    "better-sqlite3": "^12.10.0",
-    "cron-parser": "^5.5.0",
-    "hono": "^4.11.9",
-    "typescript": "^5.7.0",
-    "vitest": "^4.1.8",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "@testing-library/react": "^16.3.2",
+    "better-sqlite3": "^12.10.0",
+    "hono": "^4.11.9",
     "jsdom": "^29.0.1",
-    "class-variance-authority": "^0.7.1",
-    "clsx": "^2.1.1",
-    "tailwind-merge": "^3.4.0"
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "typescript": "^5.7.0",
+    "vitest": "^4.1.8"
   },
   "dependencies": {
-    "@radix-ui/react-slot": "^1.3.0",
     "zod": "^4.3.6"
   }
 }

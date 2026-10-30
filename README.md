@@ -109,6 +109,16 @@ Organizes work into configurable workflow sections that agents follow, and keeps
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/thread-organizer --yes`
 
+### Companies using bb
+
+Shows which companies use bb, from their people's GitHub issues and PRs, Discord posts and Slack Connect channels, with filters, search and sortable counts. The table updates daily and stays on screen while it does.
+
+![Companies using bb table with filters, sortable counts and one company's issues open](plugins/companies-using-bb/docs/screenshot.png)
+
+[Source](plugins/companies-using-bb) · [README](plugins/companies-using-bb/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/companies-using-bb --yes`
+
 ### Content Calendar
 
 Plans deliverables on a month or week calendar stored on a dedicated Google calendar, with drag-and-drop rescheduling, Evergreen and Later trays, gates, and attached Moss notes. Agents manage it through `bb content-calendar` and show it live inline in chat.
@@ -128,18 +138,6 @@ Shows how full each thread's context window is as a Katamari Damacy-style ball i
 [Source](plugins/context-katamari) · [README](plugins/context-katamari/README.md)
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/context-katamari --yes`
-
-### CRM
-
-Prioritize customer companies by potential impact and investors by the value they add. Two heatmap tables keep scores, customer milestones, investor ranks and next steps readable, with manual priority overrides, parked investors and a CLI for agents.
-
-![Customer companies grouped by impact tier, with scores and milestones](https://github.com/user-attachments/assets/6b8f75ec-24cc-4bf2-9e04-6a92fe466d92)
-
-![Investors ranked by value, with criterion scores, rationale and asks](https://github.com/user-attachments/assets/f9b444b4-b1d7-42cf-8a3b-abea0b2c7cf9)
-
-[Source](plugins/crm) · [README](plugins/crm/README.md)
-
-Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/crm --yes`
 
 ### Image Carousel
 
