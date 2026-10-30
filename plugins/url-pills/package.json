@@ -1,7 +1,7 @@
 {
   "name": "bb-plugin-url-pills",
   "version": "0.1.0",
-  "description": "Recognize website links at a glance with favicon pills in drafts and conversations.",
+  "description": "Recognize website links and local files at a glance with compact pills in drafts and conversations.",
   "type": "module",
   "license": "UNLICENSED",
   "files": [
@@ -20,7 +20,7 @@
   },
   "bb": {
     "name": "Compact Links",
-    "description": "Recognize website links at a glance with favicon pills in drafts and conversations.",
+    "description": "Recognize website links and local files at a glance with compact pills in drafts and conversations.",
     "branding": {
       "icon": "Globe"
     },
