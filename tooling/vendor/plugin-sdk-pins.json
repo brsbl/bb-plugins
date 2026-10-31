@@ -2,5 +2,9 @@
   "0.6.37": {
     "registryTarball": "https://registry.npmjs.org/@get-bb/plugin-sdk/-/plugin-sdk-0.6.37.tgz",
     "registryIntegrity": "sha512-fltzoFz2DTSDo35tSMaDR/nlQeTE/WFO1BLUMD0LoJ+dbKsJBCloaK+Kl1BYXP+lABPBH7dgAAfKKKSIgCBzHA=="
+  },
+  "0.6.54": {
+    "registryTarball": "https://registry.npmjs.org/@get-bb/plugin-sdk/-/plugin-sdk-0.6.54.tgz",
+    "registryIntegrity": "sha512-uyFpKc8QZLyPtLgzcpy/nTy+PxJgMBrJ5r+KvwoBA0V87O3UIYcU/Do1iZNYzTZQJu2G0q+zLub6gi2y8Gh6BA=="
   }
 }
