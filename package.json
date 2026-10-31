@@ -1,0 +1,25 @@
+{
+  "name": "bb-plugin-email-inbox",
+  "version": "0.1.0",
+  "description": "A weekday summary of new mail across your Gmail accounts, in its own sidebar section.",
+  "type": "module",
+  "license": "UNLICENSED",
+  "files": [
+    "dist",
+    "README.md",
+    "docs"
+  ],
+  "engines": {
+    "bb": ">=0.0.34",
+    "bbPluginSdk": "^0.5.9"
+  },
+  "bb": {
+    "name": "Email",
+    "description": "A weekday summary of new mail across your Gmail accounts, in its own sidebar section.",
+    "branding": {
+      "icon": "Mail"
+    },
+    "server": "./dist/install-server.mjs",
+    "skills": []
+  }
+}
