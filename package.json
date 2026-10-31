@@ -1,0 +1,25 @@
+{
+  "name": "bb-plugin-discord-inbox",
+  "version": "0.1.0",
+  "description": "Discord mentions and a daily channel summary in a sidebar section.",
+  "type": "module",
+  "license": "UNLICENSED",
+  "files": [
+    "dist",
+    "README.md",
+    "docs"
+  ],
+  "engines": {
+    "bb": ">=0.0.34",
+    "bbPluginSdk": "^0.5.9"
+  },
+  "bb": {
+    "name": "Discord",
+    "description": "Discord mentions and a daily channel summary in a sidebar section.",
+    "branding": {
+      "icon": "Discord"
+    },
+    "server": "./dist/install-server.mjs",
+    "skills": []
+  }
+}
