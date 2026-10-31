@@ -8,7 +8,7 @@ const START = Date.parse("2026-11-02T07:00:00-08:00"); // Mon 7am PT
 
 interface FakeThread { id: string; title: string; key: string | null; notify: boolean; kind: string; turns: string[]; archived: boolean; replied: boolean }
 
-const her = user("300000000000000001", "brsbl", { username: "brsabel" });
+const her = user("300000000000000001", "brsbl");
 const sawyer = user("300000000000000002", "Sawyer");
 const ada = user("300000000000000003", "Ada");
 const mo = user("300000000000000004", "Mo");

@@ -15,7 +15,7 @@ const base = `http://127.0.0.1:${port}`;
 const discord = createFakeDiscord({ base, guildId: "200000000000000000" });
 
 const people = {
-  brsbl: user("300000000000000001", "brsbl", { username: "brsabel" }),
+  brsbl: user("300000000000000001", "brsbl"),
   sawyer: user("300000000000000002", "Sawyer"),
   ada: user("300000000000000003", "Ada"),
   maintainer: user("300000000000000004", "Mo"),
