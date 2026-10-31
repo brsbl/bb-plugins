@@ -160,7 +160,8 @@ export default function plugin(bb: BbPluginApi): void {
         sectionId,
         pluginMetadata: { inbox: true, kind },
       } as Parameters<typeof bb.sdk.threads.spawn>[0]);
-      await setLevel(thread.id, notify ? "all" : "muted");
+      // The thread exists now, so a failed notification setting must not make the engine post it again.
+      await setLevel(thread.id, notify ? "all" : "muted").catch((error: unknown) => bb.log.warn(`Email couldn't set notifications on ${thread.id}: ${String(error)}`));
       return thread.id;
     },
     async replied(threadId) {

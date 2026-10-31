@@ -29,6 +29,14 @@ describe("mail", () => {
     expect(mail).toMatchObject({ text: "plain", cut: 5, attachments: ["deck.pdf"], messageId: "me@x.test/m1", subject: "Hello" });
   });
 
+  it("reads a huge malformed HTML body quickly", () => {
+    const data = Buffer.from("<script ".repeat(400_000) + "<a".repeat(400_000)).toString("base64url");
+    const started = performance.now();
+    const mail = toMail({ id: "m", threadId: "t", payload: { headers: [], parts: [{ mimeType: "text/html", body: { data } }] } }, "me@x.test");
+    expect(performance.now() - started).toBeLessThan(1_000);
+    expect(mail.text.length).toBeLessThanOrEqual(1_500);
+  });
+
   it("names local days", () => {
     expect(localDay(Date.parse("2026-11-02T13:05:00-08:00"), "America/Los_Angeles")).toEqual({ key: "2026-Nov-2", label: "Mon Nov 2", weekday: "Mon", minutes: 13 * 60 + 5 });
   });

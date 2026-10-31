@@ -177,7 +177,7 @@ export function createEngine(deps: EngineDeps) {
     try {
       state.summaryThreadId = await threads.spawn({ title, prompt, kind: "summary", notify: !empty });
     } catch (error) {
-      // bb refused the thread, so nothing was posted: keep the window for the next try.
+      // spawn only throws when bb made no thread, so nothing was posted: keep the window for the next try.
       Object.assign(state, before, { summaryThreadId: previous });
       await deps.save(state);
       throw error;
