@@ -10,7 +10,7 @@ const BASE_URL = "https://draft.premierleague.com/api";
 const REQUEST_TIMEOUT_MS = 15_000;
 const USER_AGENT = "bb-plugin-fpl-draft";
 
-/** Injected so tests run against recorded fixtures instead of the network. */
+/** Injected so tests run against synthetic fixtures instead of the network. */
 export type FetchLike = (
   url: string,
   init: { headers: Record<string, string>; signal: AbortSignal },

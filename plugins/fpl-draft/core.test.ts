@@ -89,8 +89,8 @@ function element(overrides: Partial<DraftElement> & { id: number }): DraftElemen
 }
 
 const TEAMS = new Map<number, DraftTeam>([
-  [1, { id: 1, name: "Arsenal", short_name: "ARS" }],
-  [2, { id: 2, name: "Brentford", short_name: "BRE" }],
+  [1, { id: 1, name: "Amber Athletic", short_name: "AMB" }],
+  [2, { id: 2, name: "Copper City", short_name: "COP" }],
 ]);
 
 describe("manager index", () => {
@@ -275,8 +275,8 @@ describe("squad", () => {
         { element: 1, position: 1 },
       ],
       elements: new Map([
-        [1, element({ id: 1, element_type: 1, web_name: "Raya" })],
-        [2, element({ id: 2, element_type: 4, web_name: "Osula", status: "i", news: "Foot injury" })],
+        [1, element({ id: 1, element_type: 1, web_name: "Keeper Amber" })],
+        [2, element({ id: 2, element_type: 4, web_name: "Forward Quartz", status: "i", news: "Foot injury" })],
       ]),
       teams: TEAMS,
       types: TYPES,
@@ -365,7 +365,7 @@ describe("player rows", () => {
     expect(row?.form).toBe(7.5);
     expect(row?.pointsPerGame).toBe(6);
     expect(row?.fixtureDifficulty).toBe(3);
-    expect(row?.fixtures[0]?.opponent).toBe("BRE");
+    expect(row?.fixtures[0]?.opponent).toBe("COP");
     expect(row?.fixtures[1]?.isHome).toBe(false);
   });
 
@@ -540,7 +540,7 @@ describe("waiver model", () => {
   ) => ({
     elementId: id,
     name,
-    team: "ARS",
+    team: "AMB",
     pointsPerGame,
     minutesPerGame,
     seasonPoints: 0,
