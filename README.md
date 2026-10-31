@@ -185,6 +185,16 @@ Creates, edits, saves, and shares reusable mesh gradients from a visual studio b
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/mesh-gradient --yes`
 
+### Email
+
+Posts a weekday summary of new mail across your Gmail accounts as a thread in an Email section of the sidebar: urgent mail first, then who needs a reply, each item linked to Gmail. It only reads mail.
+
+![Email section below Calendar with a weekday summary open](plugins/email-inbox/docs/email-section.jpg)
+
+[Source](plugins/email-inbox) · [README](plugins/email-inbox/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/email-inbox --yes`
+
 ### Emoji Picker
 
 Type `:` in a composer to open the picker, then choose an emoji to replace the colon. Search by name or shortcode, browse categories, and keep recent choices and a preferred skin tone close at hand.
