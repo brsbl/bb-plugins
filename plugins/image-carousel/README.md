@@ -2,7 +2,13 @@
 
 Show screenshots inline in a bb thread as a carousel, one slide at a time, with arrows in the image’s side margins and the description below.
 
-![A before/after carousel in a bb thread](docs/screenshot.png)
+![A research carousel in a bb thread comparing two synthetic sample workspace layouts, one per slide](docs/research.png)
+
+![The full-size viewer open on the first synthetic sample layout, with its caption and Previous/Next controls](docs/viewer.png)
+
+![A before/after carousel showing two synthetic sample layouts side by side](docs/before-after.png)
+
+![The same before/after slide stacked vertically in a narrow pane](docs/before-after-narrow.png)
 
 ## Install
 
