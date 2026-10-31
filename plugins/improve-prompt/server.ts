@@ -92,7 +92,6 @@ export const rpcContract = {
         .refine((value) => value.trim().length > 0, "Draft cannot be blank"),
       projectId: z.string().min(1),
       sourceThreadId: z.string().min(1).nullable(),
-      targetModel: z.literal("claude-fable-5-1").nullable().default(null),
     }),
     output: z.object({
       requestId: requestIdSchema,
@@ -386,7 +385,6 @@ export default async function plugin(bb: BbPluginApi) {
     draft: string;
     projectId: string;
     sourceThreadId: string | null;
-    targetModel: "claude-fable-5-1" | null;
   }) {
     // A fixed helper execution beats inheritance: the user asked for a
     // specific provider (and optionally model) for every enhancement run.
@@ -408,7 +406,6 @@ export default async function plugin(bb: BbPluginApi) {
         prompt: buildWorkerPrompt({
           draft: input.draft,
           instructions,
-          targetModel: input.targetModel,
         }),
         environment: { type: "project-default" },
         ...(configuredExecution ?? {}),
@@ -434,7 +431,6 @@ export default async function plugin(bb: BbPluginApi) {
         prompt: buildWorkerPrompt({
           draft: input.draft,
           instructions,
-          targetModel: input.targetModel,
         }),
         environment,
         ...configuredExecution,
@@ -451,7 +447,6 @@ export default async function plugin(bb: BbPluginApi) {
       prompt: buildWorkerPrompt({
         draft: input.draft,
         instructions,
-        targetModel: input.targetModel,
       }),
       environment,
       providerId: source.providerId,
