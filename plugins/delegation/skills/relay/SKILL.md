@@ -1,6 +1,6 @@
 ---
 name: relay
-description: Pass the user's decision, answer, or new request to an existing bb thread, or to all of your reports, in one batched `bb thread tell` each, quoting their words. Use when the user or another lead says "tell X", "let the worker know", "pass this on", "pass this to your reports", or forwards a rule for your team, answers a question a worker raised, or approves or rejects something another thread is waiting on. Starting new work belongs to delegate; answering an agent that messaged you is a direct reply.
+description: Pass the user's decision, answer, or new request to an existing bb thread, or to all of the threads under you, in one batched `bb thread tell` each, quoting their words. Use when the user or another lead says "tell X", "let the worker know", "pass this on", "pass this to the threads under me", or uses older wording such as "tell my reports" or "pass this to your reports", or forwards a rule for your team, answers a question a worker raised, or approves or rejects something another thread is waiting on. Starting new work belongs to delegate; answering an agent that messaged you is a direct reply.
 ---
 
 # Relay
@@ -44,12 +44,12 @@ into a single message; `each` sends each request as it arrives.
    | Waiting on an interaction | Find it with `bb thread interactions list <id>` and resolve the one the user decided on: `answer` a question, `approve` or `deny` a command, file change, or plan, `grant` or `deny` a permission, or `respond` to a plugin form. Never resolve one the user hasn't decided. |
    | Errored | Follow `collect-results` before relaying. |
 
-5. **Broadcast to your reports** when another lead or the user asks you to
-   pass something on ("pass this to your reports"). List your direct reports
+5. **Broadcast to the threads under you** when another lead or the user asks you to
+   pass something on ("pass this to the threads under me"). List the threads under you
    with `bb delegation children`, and send each the same message, attributed
    as "From <user> via <lead>:" with their words quoted. Use `--mode queue`
-   unless it changes what they're doing right now. Pass it only to your direct
-   reports; they forward it further if it applies to theirs.
+   unless it changes what they're doing right now. Pass it only to the threads
+   directly under you; they forward it further if it applies to the threads under them.
 6. **Confirm in one line**, such as "Sent to @thread:thr_abc123." Don't wait
    for a reply unless the message asks for something.
 

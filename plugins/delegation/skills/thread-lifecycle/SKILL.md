@@ -19,7 +19,7 @@ This skill uses `mayArchiveOrStop` from its output.
 
 `mayArchiveOrStop` covers only workers a lead spawned for one bounded job.
 It never covers a thread with a standing role: one named in an org chart, a
-report assigned to the lead, or any thread that has returned more than one
+thread assigned to the lead, or any thread that has returned more than one
 report for ongoing work. Those stay until the user asks.
 
 When `mayArchiveOrStop` is true, the lead stops and archives a bounded worker
@@ -75,11 +75,11 @@ thread's environment. Before archiving:
 
 ## Unparent and move only on request
 
-Change a thread's parent or section only when the user asks:
+Change a thread's lead or section only when the user asks:
 
 | Change | Command |
 | --- | --- |
-| Unparent | `bb thread update <id> --clear-parent-thread`. The thread takes its former parent's section unless you also pass `--section` or `--clear-section`. |
+| Unparent | `bb thread update <id> --clear-parent-thread`. The thread takes its former lead's section unless you also pass `--section` or `--clear-section`. |
 | Reparent | `bb thread update <id> --parent-thread <lead-id>` |
 | Move to a section | `bb thread update <id> --section <section-id>`; find IDs with `bb thread section list`. |
 | Leave a section | `bb thread update <id> --clear-section` |
