@@ -1,6 +1,6 @@
 ---
 name: collect-results
-description: Wait for delegated bb workers without polling, read their final replies and artifacts, and catch stalls and errors such as provider 429s and retry them. Use after delegating, when bb tells the lead that a worker finished, failed, or needs input, or when the user asks whether workers are done or what one found. report-results owns what reaches the user; bb-thread-status-report owns status reports across every running thread.
+description: Wait for delegated bb workers without polling, read their final replies and artifacts, and catch stalls and errors such as provider 429s and retry them. Use after delegating, when bb tells the lead that a worker finished, failed, or needs input, or when the user asks whether workers are done or what one found. report-results owns what reaches the user; Use bb-thread-status-report if installed for reports across all running threads; otherwise list threads with `bb thread list --json`, inspect current states, and report only the scope requested.
 ---
 
 # Collect results
@@ -11,7 +11,7 @@ description: Wait for delegated bb workers without polling, read their final rep
 bb delegation settings --json
 ```
 
-The values come from the user's own instructions first. If `bb delegation sources --json` shows `checkedAt` as null, or `~/.bb/AGENTS.md`, `~/.claude/CLAUDE.md`, or a memory note changed after it, refresh them with `delegation-defaults` before using them, but only on the machine its `host` names (this machine is `thread.environment.hostId` in `bb status --json`). On any other machine, use the recorded values as they are: its files aren't the ones they came from.
+The values come from the user's own instructions first. If `bb delegation sources --json` shows `checkedAt` as null, or `~/.bb/AGENTS.md`, `~/.claude/CLAUDE.md`, or a memory note changed after it, refresh them with `delegation-defaults` before using them, but only on the machine its `host` names, or this machine when `host` is null (this machine is `thread.environment.hostId` in `bb status --json`). On any other machine, use the recorded values as they are: its files aren't the ones they came from.
 
 This skill uses `retryLimit` from its output.
 

@@ -14,7 +14,7 @@ thread one message that carries everything it needs.
 bb delegation settings --json
 ```
 
-The values come from the user's own instructions first. If `bb delegation sources --json` shows `checkedAt` as null, or `~/.bb/AGENTS.md`, `~/.claude/CLAUDE.md`, or a memory note changed after it, refresh them with `delegation-defaults` before using them, but only on the machine its `host` names (this machine is `thread.environment.hostId` in `bb status --json`). On any other machine, use the recorded values as they are: its files aren't the ones they came from.
+The values come from the user's own instructions first. If `bb delegation sources --json` shows `checkedAt` as null, or `~/.bb/AGENTS.md`, `~/.claude/CLAUDE.md`, or a memory note changed after it, refresh them with `delegation-defaults` before using them, but only on the machine its `host` names, or this machine when `host` is null (this machine is `thread.environment.hostId` in `bb status --json`). On any other machine, use the recorded values as they are: its files aren't the ones they came from.
 
 Use `relayBatching` from its output: `batch` combines everything for one thread
 into a single message; `each` sends each request as it arrives.
@@ -23,7 +23,8 @@ into a single message; `each` sends each request as it arrives.
 
 1. **Find the target.** Use the thread the user names, or the worker whose
    question they are answering. If two threads could be meant, ask once with
-   a choice card (`inline-action-cards`).
+   a choice card if `inline-action-cards` is installed, otherwise a concise
+   question in the conversation.
 2. **Batch.** With `batch`, collect every decision and request for that
    thread from the current turn into one message.
 3. **Write it.**
@@ -57,10 +58,10 @@ into a single message; `each` sends each request as it arrives.
 
 ```sh
 bb thread tell thr_abc123 --mode queue --message-file - <<'MESSAGE'
-Approved: ship the collapsed variant.
+Approved: add CSV export.
 
-> From brsbl: "go with B, but keep the dot on the left"
+> From the user: "Use CSV and include column headers."
 
-Move the dot to the left edge, update the PR screenshots, and reply with the PR link when CI is green.
+Add the CSV headers, verify the output, and reply with the review link.
 MESSAGE
 ```

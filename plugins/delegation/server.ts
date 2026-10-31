@@ -85,10 +85,10 @@ export default function plugin(bb: BbPluginApi): void {
 
   bb.cli.register(defineCli({
     name: "delegation",
-    summary: "Read Delegation settings and their sources, list a lead's workers, and see what archiving a thread takes with it",
+    summary: "Read Agent Channels settings and their sources, list a lead's workers, and see what archiving a thread takes with it",
     commands: {
       settings: cliCommand({
-        summary: "Print the effective Delegation settings the skills follow; --explain adds where each comes from",
+        summary: "Print the effective Agent Channels settings the skills follow; --explain adds where each comes from",
         options: { json: options.json, explain: { type: "boolean", description: "Include each value's origin and quoted source" } },
         async run(input) {
           const current = await state();
