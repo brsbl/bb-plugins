@@ -119,6 +119,16 @@ Lists upcoming events from your Google calendars as threads in a Calendar sectio
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/calendar --yes`
 
+### Discord
+
+Puts Discord tags and a weekday summary of each channel's activity in a Discord section below Calendar. Tags of you or the Maintainer role, and replies to you, open a notifying thread; it only reads Discord.
+
+![Discord section below Calendar with mention threads and an open daily summary](plugins/discord-inbox/docs/discord-section.png)
+
+[Source](plugins/discord-inbox) · [README](plugins/discord-inbox/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/discord-inbox --yes`
+
 ### Content Calendar
 
 Plans deliverables on a month or week calendar stored on a dedicated Google calendar, with drag-and-drop rescheduling, Evergreen and Later trays, gates, and attached Moss notes. Agents manage it through `bb content-calendar` and show it live inline in chat.
