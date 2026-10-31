@@ -174,6 +174,46 @@ describe("direct tags", () => {
     expect(mentions().map((thread) => thread.title)).toEqual(['Ada mentioned you in #general · "@brsbl new one"']);
   });
 
+  it("caps tags per author and deliveries per pass, so a flood can't bury her", async () => {
+    for (let index = 0; index < 20; index += 1) mention(t.general.id, sawyer, `<@${her.id}> spam ${index}`);
+    await t.tick("skip");
+    expect(mentions()).toHaveLength(3);
+    const people = Array.from({ length: 15 }, (_, index) => user(`3100000000000000${String(index).padStart(2, "0")}`, `Person${index}`));
+    for (const person of people) mention(t.questions.id, person, `<@${her.id}> hello`);
+    t.advance(MINUTE);
+    await t.tick("skip");
+    expect(mentions()).toHaveLength(13);
+    t.advance(MINUTE);
+    await t.tick("skip");
+    expect(mentions()).toHaveLength(18);
+  });
+
+  it("gives up on a tag it couldn't deliver within a day", async () => {
+    mention(t.general.id);
+    t.failSpawns(true);
+    await t.tick("skip");
+    expect(Object.keys(t.state.mentions)).toHaveLength(1);
+    t.advance(25 * HOUR);
+    await t.tick("skip");
+    t.failSpawns(false);
+    t.advance(MINUTE);
+    await t.tick("skip");
+    expect(mentions()).toEqual([]);
+    expect(t.state.mentions).toEqual({});
+  });
+
+  it("forgets forum posts a week after they leave the active list", async () => {
+    const { thread: post } = t.discord.startThread(t.bugs.id, "Old post", sawyer, "hello");
+    await t.tick("skip");
+    expect(t.state.channels[post.id]).toBeDefined();
+    t.discord.archiveThread(post.id);
+    t.advance(8 * 24 * HOUR);
+    await t.tick("skip");
+    expect(t.state.channels[post.id]).toBeUndefined();
+    expect(t.state.positions[post.id]).toBeUndefined();
+    expect(t.state.channels[t.general.id]).toBeDefined();
+  });
+
   it("adopts the thread an interrupted spawn made instead of making another", async () => {
     mention(t.general.id);
     t.failSpawns(true);
@@ -275,6 +315,24 @@ describe("daily summary", () => {
     const [summary] = t.spawned.filter((thread) => thread.kind === "summary");
     expect(summary).toMatchObject({ notify: false });
     expect(summary!.turns[0]).toContain("Discord · Mon Nov 2: nothing new since Mon.");
+  });
+
+  it("waits before rebuilding a scheduled summary that failed", async () => {
+    await t.tick();
+    t.discord.post(t.general.id, sawyer, "news");
+    t.at("2026-11-02T09:00:00-08:00");
+    t.failSpawns(true);
+    await t.tick();
+    const reads = () => t.discord.requests.filter((request) => request.path === `/channels/${t.general.id}/messages`).length;
+    const before = reads();
+    t.failSpawns(false);
+    t.advance(5 * MINUTE);
+    await t.tick();
+    expect(reads()).toBe(before);
+    expect(t.spawned.filter((thread) => thread.kind === "summary")).toHaveLength(0);
+    t.advance(11 * MINUTE);
+    await t.tick();
+    expect(t.spawned.filter((thread) => thread.kind === "summary")).toHaveLength(1);
   });
 
   it("caps its input and counts what it left out", async () => {

@@ -56,6 +56,12 @@ export function messageText(message: DiscordMessage, names: Names, max = MAX_MES
   return text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text;
 }
 
+/**
+ * Quoted Discord text as literal Markdown: no images (which would load from someone else's server when the
+ * thread opens), no links that pose as the real "Open in Discord" link, and no raw HTML.
+ */
+export const escapeMarkdown = (text: string) => text.replace(/[\\`*_[\]()!<>#|~]/g, (char) => `\\${char}`);
+
 export const jumpLink = (guildId: string, channelId: string, messageId: string) => `https://discord.com/channels/${guildId}/${channelId}/${messageId}`;
 
 export function mentionTitle(kind: TagKind, author: string, channel: string, text: string): string {
@@ -83,7 +89,7 @@ export function mentionNote(input: { message: DiscordMessage; context: DiscordMe
   const what = input.kind === "maintainer" ? `${author} tagged @Maintainer in ${where}` : `${author} mentioned you in ${where}`;
   return [
     `${what}: ${oneLine(text, 120)}`,
-    text.split("\n").map((line) => `> ${line}`).join("\n"),
+    text.split("\n").map((line) => `> ${escapeMarkdown(line)}`).join("\n"),
     ...(input.context.length
       ? [["Before it:", ...input.context.map((before) => `- ${authorName(before.author)}: ${oneLine(messageText(before, input.names, MAX_CONTEXT), MAX_CONTEXT)}`)].join("\n")]
       : []),

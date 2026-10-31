@@ -22,6 +22,14 @@ const ROLES_TTL = DAY;
 const MEMBER_LOOKUPS = 100;
 const KEEP_MENTIONS = 7 * DAY;
 const KEEP_UNSEEN = 30 * DAY;
+/** Discord threads and forum posts that left the active list. Hundreds turn over a month, and state is one KV value capped at 256 KB. */
+const KEEP_UNSEEN_THREADS = 7 * DAY;
+const MAX_NAME = 100;
+/** Flood guard: tags beyond these limits are left to the summary. */
+const MENTIONS_PER_AUTHOR_HOUR = 3;
+const DELIVERIES_PER_PASS = 10;
+/** A failed scheduled summary waits this long before rebuilding, so it doesn't re-read the server every minute. */
+const SUMMARY_RETRY = 15 * MINUTE;
 
 export interface ChannelInfo {
   name: string;
@@ -31,6 +39,7 @@ export interface ChannelInfo {
 
 export interface MentionRecord {
   channelId: string;
+  authorId: string;
   kind: TagKind;
   /** When the message was sent. */
   at: number;
@@ -65,6 +74,8 @@ export interface DiscordState {
   summaryThreadId: string | null;
   /** Set while a summary thread is being made, so a restart adopts it rather than posting another. */
   summaryKey: string | null;
+  /** After a failed scheduled summary, the next try waits until then. */
+  summaryRetryAt: number | null;
   maintainerRoleId: string | null;
   roleNames: Record<string, string>;
   rolesAt: number | null;
@@ -75,7 +86,7 @@ export interface DiscordState {
 export const emptyState = (): DiscordState => ({
   baselineAt: null, lastPollAt: null, lastError: null, failingSince: null, problemThreadId: null,
   positions: {}, seenAt: {}, channels: {}, activePosts: [], mentions: {}, links: {},
-  lastSummaryAt: null, lastSummaryDate: null, summaryThreadId: null, summaryKey: null,
+  lastSummaryAt: null, lastSummaryDate: null, summaryThreadId: null, summaryKey: null, summaryRetryAt: null,
   maintainerRoleId: null, roleNames: {}, rolesAt: null, members: {},
 });
 
@@ -119,7 +130,7 @@ export function createEngine(deps: EngineDeps) {
 
   function remember(state: DiscordState, channels: DiscordChannel[], now: number) {
     for (const channel of channels) {
-      state.channels[channel.id] = { name: channel.name ?? "unknown", type: channel.type, parentId: channel.parent_id ?? null };
+      state.channels[channel.id] = { name: oneLine(channel.name, MAX_NAME) || "unknown", type: channel.type, parentId: channel.parent_id ?? null };
       state.seenAt[channel.id] = now;
     }
   }
@@ -162,8 +173,8 @@ export function createEngine(deps: EngineDeps) {
           const messages = await discord.messages(target.id, { after: position });
           for (const message of messages) {
             const kind = directTag(message, me);
-            if (kind && !state.mentions[message.id] && now - timeOf(message.id) <= MENTION_MAX_AGE) {
-              state.mentions[message.id] = { channelId: target.id, kind, at: timeOf(message.id), phase: "pending", threadId: null };
+            if (kind && !state.mentions[message.id] && now - timeOf(message.id) <= MENTION_MAX_AGE && !flooding(state, message)) {
+              state.mentions[message.id] = { channelId: target.id, authorId: message.author.id, kind, at: timeOf(message.id), phase: "pending", threadId: null };
               fresh.set(message.id, message);
             }
           }
@@ -188,6 +199,14 @@ export function createEngine(deps: EngineDeps) {
     state.lastPollAt = now;
   }
 
+  /** This author already tagged her MENTIONS_PER_AUTHOR_HOUR times in the hour before this message. */
+  function flooding(state: DiscordState, message: DiscordMessage) {
+    const at = timeOf(message.id);
+    let recent = 0;
+    for (const record of Object.values(state.mentions)) if (record.authorId === message.author.id && at - record.at < HOUR) recent += 1;
+    return recent >= MENTIONS_PER_AUTHOR_HOUR;
+  }
+
   function place(state: DiscordState, channelId: string) {
     const info = state.channels[channelId];
     if (info && isThread(info.type)) return { channel: state.channels[info.parentId ?? ""]?.name ?? "unknown", post: info.name, thread: true };
@@ -201,7 +220,7 @@ export function createEngine(deps: EngineDeps) {
 
   async function deliver(state: DiscordState, fresh: Map<string, DiscordMessage>, config: EngineConfig) {
     const waiting = Object.entries(state.mentions).filter(([, record]) => record.phase !== "done").sort(([a], [b]) => compareIds(a, b));
-    for (const [id, record] of waiting) {
+    for (const [id, record] of waiting.slice(0, DELIVERIES_PER_PASS)) {
       try {
         if (record.phase === "spawning") {
           const found = await threads.find(id);
@@ -279,6 +298,7 @@ export function createEngine(deps: EngineDeps) {
       state.summaryKey = null;
     }
     if (!force && !summaryDue(now, state.lastSummaryDate, config.timeZone, config.summaryTime)) return;
+    if (!force && state.summaryRetryAt !== null && now < state.summaryRetryAt) return;
 
     await refreshRoles(state, now, config);
     const since = state.lastSummaryAt ?? now - DAY;
@@ -371,6 +391,7 @@ export function createEngine(deps: EngineDeps) {
     const previous = state.summaryThreadId;
     state.summaryThreadId = threadId;
     state.summaryKey = null;
+    state.summaryRetryAt = null;
     state.lastSummaryAt = now;
     if (date) state.lastSummaryDate = date;
     state.activePosts = [];
@@ -411,9 +432,13 @@ export function createEngine(deps: EngineDeps) {
   }
 
   function prune(state: DiscordState, now: number) {
-    for (const [id, record] of Object.entries(state.mentions)) if (record.phase === "done" && now - record.at > KEEP_MENTIONS) delete state.mentions[id];
+    for (const [id, record] of Object.entries(state.mentions)) {
+      // Undelivered past the age limit: the summary covers it instead.
+      if (now - record.at > (record.phase === "done" ? KEEP_MENTIONS : MENTION_MAX_AGE)) delete state.mentions[id];
+    }
     for (const [id, at] of Object.entries(state.seenAt)) {
-      if (now - at <= KEEP_UNSEEN) continue;
+      const thread = isThread(state.channels[id]?.type ?? -1);
+      if (now - at <= (thread ? KEEP_UNSEEN_THREADS : KEEP_UNSEEN)) continue;
       delete state.seenAt[id];
       delete state.positions[id];
       delete state.channels[id];
@@ -427,6 +452,7 @@ export function createEngine(deps: EngineDeps) {
     async tick(config: EngineConfig, options: { poll: boolean; summary: "auto" | "force" | "skip" }) {
       const state = await deps.load();
       const now = deps.now();
+      prune(state, now);
       if (options.poll) {
         const fresh = new Map<string, DiscordMessage>();
         let healthy = false;
@@ -447,6 +473,7 @@ export function createEngine(deps: EngineDeps) {
           state.lastError = `Summary: ${errorText(error)}`;
           deps.log.warn(`Discord summary failed: ${errorText(error)}`);
           if (options.summary === "force") { await deps.save(state); throw error; }
+          state.summaryRetryAt = now + SUMMARY_RETRY;
         }
       }
       prune(state, now);
