@@ -15,7 +15,9 @@ clicks the avatar icon in the footer again.
 - In a browser or on a `https://<handle>.getbb.app` URL, choosing a server
   navigates the tab to that server's URL.
 - In the desktop app, the list is the desktop app's own server list, and
-  choosing a server switches through the desktop app.
+  choosing a server switches through the desktop app. The built-in This Mac /
+  This Computer entry remains available when another server is selected, so
+  switching back can start the local server even if its Connect URL is offline.
 - Inside the bb mobile app the list is read-only.
 
 ## Ring colors

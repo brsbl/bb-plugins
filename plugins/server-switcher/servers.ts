@@ -100,7 +100,6 @@ export function desktopServerRows(
   };
   for (const choice of parsed.data) {
     if (choice.id === BUILTIN_CHOICE_ID) {
-      if (!choice.active) continue;
       add(
         choice.id,
         {
@@ -109,7 +108,7 @@ export function desktopServerRows(
           detail: "Built-in server",
           account: false,
           live: null,
-          current: true,
+          current: choice.active,
           url: null,
         },
         true,
