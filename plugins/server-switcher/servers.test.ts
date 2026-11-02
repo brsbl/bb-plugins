@@ -37,7 +37,7 @@ describe("accountServerRows", () => {
 });
 
 describe("desktopServerRows", () => {
-  it("hides the inactive built-in server and names account servers by handle", () => {
+  it("keeps a selectable route back to the inactive built-in server", () => {
     const rows = desktopServerRows(
       [
         { id: "builtin", name: "This Mac", active: false },
@@ -51,6 +51,7 @@ describe("desktopServerRows", () => {
     ).toEqual([
       ["connect:work", "work", true, true],
       ["connect:alpha", "alpha", false, false],
+      ["builtin", "This Mac", null, false],
     ]);
   });
 
@@ -83,6 +84,21 @@ describe("desktopServerRows", () => {
     expect(rows?.map((row) => [row.name, row.current])).toEqual([
       ["This Mac", true],
     ]);
+  });
+
+  it("offers local startup even when account servers cannot be loaded", () => {
+    const rows = desktopServerRows(
+      [
+        { id: "builtin", name: "This Mac", active: false },
+        { id: "connect:work", name: "work", active: true },
+      ],
+      null,
+    );
+    expect(rows?.find((row) => row.id === "builtin")).toMatchObject({
+      current: false,
+      live: null,
+      url: null,
+    });
   });
 
   it("rejects malformed choices", () => {
