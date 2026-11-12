@@ -164,7 +164,8 @@ ${PAGE} .bg-card[class*="hover:bg-"]:hover { background-color: color-mix(in okla
 ${THREAD}::after { content: ""; position: absolute; z-index: 1; pointer-events: none; top: 1px; height: 28px; left: calc(${COLUMN_LEFT} + 1px); right: calc(${COLUMN_RIGHT} + 1px); border-radius: 19px 19px 0 0; background: linear-gradient(to bottom, ${mix("var(--ambient-background)", "18%")}, transparent); }
 ${THREAD} [data-timeline-row-list] :is([data-message-column].border, [data-message-column] .border) { border-color: ${mix("var(--ink)", "8%")}; }
 ${THREAD} [data-markdown-preview] div:has(> div > table) { width: 100% !important; margin-inline: 0 !important; }
-${ROOT} [data-ambient-scroll-clip] { clip-path: inset(0 0 var(--ambient-scroll-clip-bottom, 0px) 0); }
+/* Clip only the bottom: bb portals the text-selection menu into the transcript, and it can overhang the column's sides. */
+${ROOT} [data-ambient-scroll-clip] { clip-path: inset(-100vmax -100vmax var(--ambient-scroll-clip-bottom, 0px) -100vmax); }
 ${THREAD} [data-scroll-footer] > .bg-background { background-color: transparent; }
 /* Pending interactions overlap the scrolling timeline, so their surface must be fully opaque. */
 ${ROOT} :is([data-testid="user-question-banner"], [data-testid="plugin-interaction-shell"], [data-testid="approval-banner"], [data-testid="plan-review-banner"]) { background-color: var(--ambient-background); border-radius: 12px; }
@@ -240,6 +241,8 @@ ${ROOT} :is([role="separator"][data-split-resize-grid-boundary], [data-panel-res
 ${RIGHT_PANEL} [data-app-browser] > [class~="flex-1"]:last-child { margin: 0 8px 8px; border-radius: 12px; overflow: hidden; }
 ${OVERLAY} { ${GLASS_PANE} --background: transparent; --popover: transparent; --sidebar: transparent; }
 ${OVERLAY}::before { ${LAYER} inset: 0; border-radius: inherit; ${BLUR} }
+/* Menus inside a thread, like the text-selection menu, sit on dense text; their surface is opaque. */
+${THREAD} [data-bb-portaled-overlay]:is([role="dialog"], [role="menu"], [role="listbox"]) { background-color: var(--ambient-background); }
 ${OVERLAY} .sticky:is(.bg-sidebar, .bg-background, .bg-popover) { --sidebar: transparent; --background: transparent; --popover: transparent; ${BLUR} }
 ${SHELL}[data-ambient-glass="solid"] ${OVERLAY} .sticky:is(.bg-sidebar, .bg-background, .bg-popover) { --sidebar: var(--ambient-glass-solid); --background: var(--ambient-glass-solid); --popover: var(--ambient-glass-solid); }
 ${OVERLAY}[data-testid="secondary-panel-shelf"] .sticky:is(.bg-sidebar, .bg-background, .bg-popover) { --sidebar: var(--ambient-glass-solid); --background: var(--ambient-glass-solid); --popover: var(--ambient-glass-solid); ${NO_BLUR} }
