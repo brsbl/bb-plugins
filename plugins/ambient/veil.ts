@@ -84,7 +84,7 @@ const RIGHT_PANEL_BUTTON = 'button[aria-label*="right panel" i]';
 const SIDEBAR_CARDS = `${ROOT} :is([data-testid="sidebar-navigation-region"], [data-sidebar="content"], [data-sidebar="footer"])`;
 const SIDEBAR_FOOTER = `${ROOT} [data-sidebar="footer"]`;
 /** bb's default icon rail: its scrolling icon column, and Settings in the rail's footer cell. */
-const RAIL = `${ROOT} [data-testid="app-nav-rail"] > :first-child`;
+const RAIL = `${ROOT} [data-testid="app-nav-rail"] > :not([data-prism-frame-layer])`;
 const RAIL_SETTINGS = `${ROOT} [data-testid="sidebar-navigation-rail"] ~ div > button[aria-label^="Settings"]`;
 /** Plugins, Settings and Skills put "Back to app" above the section card; it joins the card as its first row. */
 const SECTION_BACK = `${ROOT} [data-testid$="-sidebar-top-reserve-row"] + div:has(+ [data-sidebar="content"])`;
