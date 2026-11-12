@@ -124,6 +124,10 @@ ${SHELL} {
   --ambient-glass-solid: ${mix("var(--ambient-background)", "clamp(88%, calc(var(--ambient-glass, 60%) + 30%), 92%)")};
   --ambient-blur: blur(12px);
 }
+/* The scene is the window's backdrop. A theme's image on bb's desktop window frame is opaque and would hide it. */
+${ROOT} [data-framed] { background-image: none; }
+/* Prism Frame paints the same frame, rail and title bar with an opaque gradient; the scene replaces it. */
+${ROOT} [data-prism-frame-layer] { ${HIDE} }
 ${SHELL}[data-ambient-glass="low"] { --ambient-blur: blur(6px); }
 ${SHELL}[data-ambient-glass="solid"] { --ambient-blur: none; --ambient-glass-fill: var(--ambient-glass-solid); }
 :is(${PANES}) { --background: ${mix("var(--ambient-background)", "var(--ambient-keep, 23%)")}; --sidebar: ${mix("var(--ambient-sidebar)", "var(--ambient-keep, 23%)")}; }
