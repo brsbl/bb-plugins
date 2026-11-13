@@ -5,7 +5,7 @@ import { actionLabel, canDismiss, idSchema, title, type Action, type FollowUp, t
 import { ActionButton, IconButton, MoreMenu, MenuAction, MailIcon, SignpostIcon, ViewIcon, ActionGlyphIcon, type ActionGlyph } from "./controls.js";
 import { pendingLabel, sentStatus } from "./presentation.js";
 import { FollowUps, Media } from "./evidence.js";
-import { Button, ContextLine, DecisionBody, DecisionCard, DecisionHeader, OptionList, Outcome, SubmitRow, type Option } from "./ui/components.js";
+import { Button, CommentInput, ContextLine, DecisionBody, DecisionCard, DecisionHeader, NoteField, OptionList, Outcome, SubmitRow, type Option } from "./ui/components.js";
 import { readableError, submitting } from "./submit.js";
 import { ReloadFrame } from "./reload-frame.js";
 import { DismissBar, useDismiss } from "./dismiss.js";
@@ -17,7 +17,7 @@ import "./compact.css";
 type CardItem = Item & Partial<Pick<ItemView, "followUps" | "threadTitle" | "threadProjectId">>;
 
 // Where a card renders. In the timeline an unanswered card is one line pointing to Waiting on you;
-// the drawer shows its form without a note, since the drawer itself names the question and thread.
+// the drawer shows its answer form and optional comment.
 export type Surface = "timeline" | "drawer";
 
 export function ActionCard({ id, threadId, surface, initialItem, onItem, logEntry, onLoaded }: {
@@ -29,7 +29,7 @@ export function ActionCard({ id, threadId, surface, initialItem, onItem, logEntr
   const navigate = useBbNavigate();
   // An ask's written answer, sent as its attempt note.
   const [note, changeNote] = useState("");
-  const clearNote = () => changeNote("");
+  const [comment, setComment] = useState("");
   const [followUps, setFollowUps] = useState<FollowUp[]>(initialItem?.followUps ?? []);
   const [viewResult, setViewResult] = useState(false);
   const onItemRef = useRef(onItem); onItemRef.current = onItem;
@@ -54,10 +54,12 @@ export function ActionCard({ id, threadId, surface, initialItem, onItem, logEntr
   const alive = useRef(true);
   const adopt = useCallback((next: CardItem, own = false) => {
     const changedState = current.current?.state !== next.state;
+    const reopened = !!current.current && changedState && next.state === "ready";
     const { followUps: latest, threadTitle: _title, threadProjectId: _project, ...plain } = next;
     current.current = plain;
     if (alive.current) {
       setItem(plain); onItemRef.current?.(plain, own);
+      if (reopened) { changeNote(""); setComment(""); setPicked(null); }
       if (latest) setFollowUps(latest);
       if (changedState && (next.state === "succeeded" || next.state === "failed")) setError(null);
     }
@@ -133,8 +135,15 @@ export function ActionCard({ id, threadId, surface, initialItem, onItem, logEntr
     adopt(sent!);
   };
 
+  // Ask already uses note for the answer; keep both texts in that existing delivery contract.
+  const attemptNote = item?.content.type === "ask"
+    ? comment.trim() ? `${note}\n\nComment: ${comment.trim()}` : note
+    : comment.trim();
+  const noteError = attemptNote.length > 1000
+    ? `${item?.content.type === "ask" ? "Answer and comment together" : "Comment"} must fit in 1,000 characters. Remove ${attemptNote.length - 1000} ${attemptNote.length === 1001 ? "character" : "characters"} to submit.`
+    : null;
   const act = async (action?: Action, choice?: string) => {
-    if (lock.current || submitting.has(threadId)) return;
+    if (lock.current || submitting.has(threadId) || (current.current?.state === "ready" && noteError)) return;
     // A collapsed row hides the email: its first Send or Save opens the draft instead, and only a visible draft goes out.
     if (unseen(action)) { revealedAt.current = Date.now(); setOpen(true); setTimeout(() => reviewTarget.current?.focus()); return; }
     // The rest of the gesture that opened it (a double-click or a held Enter) must not send.
@@ -152,8 +161,8 @@ export function ActionCard({ id, threadId, surface, initialItem, onItem, logEntr
       }
       if (action) {
         next = action === "choose" && choice
-          ? await rpc.call("choose", { id, threadId, revision: next.revision, choice, ...(next.state === "ready" ? { note } : {}) })
-          : await rpc.call("prepare", { id, threadId, revision: next.revision, action, ...(next.state === "ready" ? { note } : {}) });
+          ? await rpc.call("choose", { id, threadId, revision: next.revision, choice, ...(next.state === "ready" ? { note: attemptNote } : {}) })
+          : await rpc.call("prepare", { id, threadId, revision: next.revision, action, ...(next.state === "ready" ? { note: attemptNote } : {}) });
         adopt(next);
       }
       // Resending a pending request keeps its attempt ID; claim refuses duplicates.
@@ -164,7 +173,7 @@ export function ActionCard({ id, threadId, surface, initialItem, onItem, logEntr
   const reopen = async () => {
     if (!current.current || lock.current) return;
     lock.current = true; setBusy(true);
-    try { adopt(await rpc.call("reopen", { id, threadId, revision: current.current.revision })); setError(null); clearNote(); }
+    try { adopt(await rpc.call("reopen", { id, threadId, revision: current.current.revision })); setError(null); }
     catch (err) { setError(readableError(err)); }
     finally { lock.current = false; setBusy(false); }
   };
@@ -219,6 +228,7 @@ export function ActionCard({ id, threadId, surface, initialItem, onItem, logEntr
   const suggested = choice ? choice.recommended : item.content.type === "decide" ? item.content.recommended : undefined;
   const drawer = surface === "drawer";
   const submit = () => {
+    if (noteError) return;
     if (ask) { if (note.trim()) void act("answer"); }
     else if (value) void act(choice ? "choose" : value as Action, choice ? value : undefined);
   };
@@ -244,7 +254,7 @@ export function ActionCard({ id, threadId, surface, initialItem, onItem, logEntr
   const { context, media } = item.content;
   // The one-line view never shows images and folds line breaks into spaces, so context with either always offers more.
   const brief = context && <ContextLine media={context.trim().includes("\n") || context.includes("![") || /<img\b/i.test(context)}><Markdown content={context} /></ContextLine>;
-  const field = <DecisionBody
+  const field = <><DecisionBody
     about={<>
       {/* Context sits right under the question; what the answer does follows it, just above the options. */}
       {!(drawer || logForm) && <DecisionHeader question={heading} id={`${fieldId}-q`} />}
@@ -262,9 +272,16 @@ export function ActionCard({ id, threadId, surface, initialItem, onItem, logEntr
       <FollowUps items={followUps} />
     </>}
     answer={ask
-      ? <textarea className="ac-textarea" aria-label="Your answer" placeholder="Your answer" value={note} readOnly={!ready || busy} rows={2} maxLength={1000} onChange={(event) => changeNote(event.target.value)}
+      ? <textarea className="ac-textarea" aria-label="Your answer" aria-invalid={!!noteError || undefined} aria-describedby={noteError ? `${fieldId}-note-error` : undefined} placeholder="Your answer" value={note} readOnly={!ready || busy} rows={2} maxLength={1000} onChange={(event) => changeNote(event.target.value)}
         onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); submit(); } }} />
-      : <OptionList name={fieldId} label={heading} options={formOptions} value={value} recommended={suggested} disabled={!ready || busy} onChange={setPicked} shortcuts={drawer} />} />;
+      : <OptionList name={fieldId} label={heading} options={formOptions} value={value} recommended={suggested} disabled={!ready || busy} onChange={setPicked} shortcuts={drawer}
+        selected={!reply && <CommentInput value={comment} onChange={setComment} invalid={!!noteError} describedBy={noteError ? `${fieldId}-note-error` : undefined} />} />} />
+    {/* A decision's comment sits under its picked option; a written answer keeps Add comment below it. */}
+    {(ask || noteError) && <div className="iac-comment">
+      {ask && <NoteField comment value={comment} onChange={setComment} disabled={!ready || busy} invalid={!!noteError} describedBy={noteError ? `${fieldId}-note-error` : undefined} />}
+      {noteError && <div id={`${fieldId}-note-error`} className="iac-error" role="alert">{noteError}</div>}
+    </div>}
+  </>;
   const failure = error && <div className="iac-error" role="alert">{error}<div className="iac-actions">
     {loadError && <ActionButton onClick={() => void load()}>Retry loading</ActionButton>}
     {saveError && <><ActionButton onClick={() => void flush().catch(() => {})}>Retry save</ActionButton><ActionButton onClick={() => void load(true)}>Load saved draft</ActionButton></>}
@@ -339,7 +356,7 @@ export function ActionCard({ id, threadId, surface, initialItem, onItem, logEntr
       <DecisionCard label={`${kind}: ${heading}`} className="ac-drawer iac-log-card" onSubmit={submit}>
         {dismissal.pending ? <DismissBar dismissal={dismissal} /> : <>{field}<div className="iac-drawer-actions">
           {canDismiss(item) && <button type="button" className="iac-dismiss-undo" disabled={busy} onClick={dismissal.start}>Dismiss</button>}
-          <SubmitRow disabled={disabled} canSubmit={ask ? !!note.trim() : !!value} pending={!!sending} />
+          <SubmitRow disabled={disabled} canSubmit={!noteError && (ask ? !!note.trim() : !!value)} pending={!!sending} />
         </div></>}
         {dismissal.error && <div className="iac-error" role="alert">{dismissal.error}</div>}
         {failure}
@@ -415,8 +432,8 @@ export function ActionCard({ id, threadId, surface, initialItem, onItem, logEntr
     {done ? <>{result}{drawer && canDismiss(item) && (dismissal.pending ? <DismissBar dismissal={dismissal} />
       : <div className="iac-drawer-actions"><button type="button" className="iac-dismiss-undo" disabled={busy} onClick={dismissal.start}>Dismiss</button></div>)}</>
       : dismissal.pending ? <DismissBar dismissal={dismissal} /> : <>{field}{drawer && canDismiss(item)
-      ? <div className="iac-drawer-actions"><button type="button" className="iac-dismiss-undo" disabled={busy} onClick={dismissal.start}>Dismiss</button><SubmitRow disabled={disabled} canSubmit={ask ? !!note.trim() : !!value} pending={!!sending} /></div>
-      : <SubmitRow disabled={disabled} canSubmit={ask ? !!note.trim() : !!value} pending={!!sending} />}</>}
+      ? <div className="iac-drawer-actions"><button type="button" className="iac-dismiss-undo" disabled={busy} onClick={dismissal.start}>Dismiss</button><SubmitRow disabled={disabled} canSubmit={!noteError && (ask ? !!note.trim() : !!value)} pending={!!sending} /></div>
+      : <SubmitRow disabled={disabled} canSubmit={!noteError && (ask ? !!note.trim() : !!value)} pending={!!sending} />}</>}
     {dismissal.error && <div className="iac-error" role="alert">{dismissal.error}</div>}
     {failure}
   </DecisionCard>;
