@@ -761,6 +761,12 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
         bb.log.warn(
           `thread=${threadId} action=section-missing stage=${destination?.key ?? "unassigned"}`,
         );
+        // The thread's stage is gone, so it no longer remembers one; a section
+        // later created with the same name must not pull it back in.
+        if (state.rememberedStageKey === destination?.key) {
+          state.rememberedStageKey = null;
+          await saveThreadState(threadId, state);
+        }
         void requestSync();
         return null;
       }
@@ -1036,7 +1042,9 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
             : [],
         );
         await addPendingDeletes(removed);
-        await runPendingDeletes(new Set(removed));
+        await runPendingDeletes(
+          new Set((await bb.sdk.threadSections.list()).map((section) => section.id)),
+        );
         const sectionNames = new Map(
           (await bb.sdk.threadSections.list()).map((section) => [
             section.id,

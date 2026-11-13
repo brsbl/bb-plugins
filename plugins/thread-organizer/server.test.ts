@@ -1949,6 +1949,47 @@ describe("two-way section sync", () => {
     await organizer.harness.lifecycle.dispose();
   });
 
+  it("forgets a deleted section's stage even when the move into it raced the delete", async () => {
+    const { organizer, config } = await started();
+    await organizer.harness.behavior.runCli(["phase", "handoff"], { threadId: "thr_test" });
+    organizer.deleteInBb(sectionOf(config, "handoff"));
+    organizer.setThread({ status: "active" });
+    await organizer.harness.behavior.emitThreadEvent("thread.active", {
+      thread: organizer.current(),
+    });
+    organizer.addSection("Handoff");
+    organizer.emitSectionListChanged();
+    await vi.waitFor(async () =>
+      expect((await configFor(organizer)).stages.some((stage) => stage.key === "handoff"))
+        .toBe(true),
+    );
+    organizer.emitChanged("status-changed");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(organizer.current().sectionId).toBeNull();
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("keeps an earlier failed delete pending across later saves", async () => {
+    const { organizer, config } = await started();
+    const handoff = sectionOf(config, "handoff");
+    let failDeletes = true;
+    const deleteSection = organizer.deleteSection.getMockImplementation()!;
+    organizer.deleteSection.mockImplementation(async (input) => {
+      if (failDeletes) throw new Error("deletion failed");
+      return deleteSection(input);
+    });
+    const edited = editableWorkflowConfig(config);
+    edited.stages = edited.stages.filter((stage) => stage.key !== "handoff");
+    await organizer.harness.behavior.callRpc("saveConfig", edited);
+    await saveStagePatch(organizer, "planning", { rule: "Plan it." });
+    expect((await configFor(organizer)).stages.some((stage) => stage.sectionId === handoff))
+      .toBe(false);
+    failDeletes = false;
+    await saveStagePatch(organizer, "planning", { rule: "Plan it again." });
+    expect(organizer.sections().some((section) => section.id === handoff)).toBe(false);
+    await organizer.harness.lifecycle.dispose();
+  });
+
   it("changes nothing when bb's sections cannot be listed", async () => {
     const { organizer, config } = await started();
     organizer.listSections.mockRejectedValueOnce(new Error("offline"));
