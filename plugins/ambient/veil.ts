@@ -197,7 +197,8 @@ ${ROOT} [data-app-composer]:has([data-new-thread-footer]):not([data-testid="root
 ${ROOT} [data-app-composer] { --background: ${mix("var(--ambient-background)", "68%")}; }
 /* The opaque follow-up shell fills the seam behind the input and its footer lip. */
 ${ROOT} [data-follow-up-composer] { background-color: var(--ambient-background); border-radius: 12px; }
-${ROOT} [data-promptbox] { border-color: transparent; }
+/* Low specificity on purpose: plugins that restyle a composer, like Desktop's IM window, keep their own border. */
+:where(${ROOT}) [data-promptbox] { border-color: transparent; }
 ${ROOT} [data-follow-up-composer] [data-promptbox] { --background: var(--ambient-background); ${NO_BLUR} }
 ${ROOT} [data-follow-up-composer-footer] { border-radius: 0 0 12px 12px; padding-inline: 4px; }
 ${ROOT} [data-follow-up-composer-footer] button { background-color: transparent; }
@@ -231,7 +232,7 @@ ${ROOT} [data-testid="split-workspace-panel-toggle"] { right: 15px; }
 ${ROOT} [data-thread-header-workflow-actions]:not(:has(button, a)) { ${HIDE} }
 ${ROOT} ${HEADER_ACTIONS}:has(> [data-thread-header-pane-actions]) { column-gap: 0; }
 ${ROOT} ${HEADER_ACTIONS} [data-thread-header-pane-actions] { margin-inline-start: 0; column-gap: 0; }
-@media (max-width: 767px) { ${ROOT} :is(div.fixed, ${HEADER_ACTIONS}) ${RIGHT_PANEL_BUTTON}, ${ROOT} [data-thread-header-pane-actions] button { width: 32px; height: 32px; } :is(${HEADER_FIRST}, ${ROOT} ${HEADER_ACTIONS}) { height: 32px; min-height: 32px; } ${ROOT} ${HEADER_ACTIONS}:has(${RIGHT_PANEL_BUTTON}) { padding-inline-end: 0; } }
+@media (max-width: 767px) { ${ROOT} :is(div.fixed, ${HEADER_ACTIONS}) ${RIGHT_PANEL_BUTTON}, ${ROOT} [data-thread-header-pane-actions] button { width: 32px; height: 32px; } :is(${HEADER_FIRST}, ${ROOT} ${HEADER_ACTIONS}) { height: 32px; min-height: 32px; } ${ROOT} ${HEADER_ACTIONS}:has(${RIGHT_PANEL_BUTTON}) { padding-inline: 3px; } }
 :is(${THREAD}, ${PAGE}, ${SIDEBAR_CARDS}, ${SECTION_BACK}, ${CHROME_PILLS}, ${RAIL}, ${RAIL_SETTINGS}, ${OVERLAY}) { --state-hover: ${INK_WASH}; --state-active: ${mix("var(--ink)", "15%")}; --sidebar-accent: var(--state-hover); }
 ${SIDEBAR_CARDS} { ${GLASS_SURFACE} border-radius: 16px; margin-inline: 8px; }
 ${SECTION_BACK} { ${GLASS_SURFACE} border-block-end: 0; border-radius: 16px 16px 0 0; margin-inline: 8px; padding-block: 8px 4px; box-shadow: inset 0 1px 0 ${mix("var(--canvas)", "60%")}; }
