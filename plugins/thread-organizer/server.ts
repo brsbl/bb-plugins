@@ -163,6 +163,8 @@ interface ThreadWorkflowState {
   dismissedInboxPluginId?: string;
   /** The last workflow stage the thread landed in; Inbox never counts. */
   lastLandedStageKey: string | null;
+  /** The section the thread was in after its last reconcile. */
+  lastSectionId?: string | null;
   pendingEntryPrompt: PendingEntryPrompt | null;
   /** A prompt the host queued rather than started; retracted if the thread moves on. */
   queuedEntryPrompt: QueuedEntryPrompt | null;
@@ -561,6 +563,8 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
               value.pendingEntryPrompt,
             ),
             queuedEntryPrompt: parseQueuedEntryPrompt(value.queuedEntryPrompt),
+            lastSectionId:
+              typeof value.lastSectionId === "string" ? value.lastSectionId : null,
             recentEntryPrompts: parseEntryPromptRecords(
               value.recentEntryPrompts,
             ),
@@ -683,6 +687,22 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     ) {
       void requestSync();
       return null;
+    }
+
+    // Deleting a section in bb leaves its threads with no section. Keep them
+    // there: a thread whose last section is gone forgets the stage it
+    // remembered, even when that section was an inbox it was waiting in.
+    if (
+      explicitStageKey === undefined &&
+      thread.sectionId === null &&
+      state.lastSectionId
+    ) {
+      const lastSectionId = state.lastSectionId;
+      const sections = await bb.sdk.threadSections.list();
+      if (!sections.some((section) => section.id === lastSectionId)) {
+        state.rememberedStageKey = null;
+        void requestSync();
+      }
     }
 
     if (explicitStageKey) {
@@ -817,6 +837,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
         stageKey: destination.key,
       };
     }
+    state.lastSectionId = destinationSectionId;
     await saveThreadState(threadId, state);
     return state.pendingEntryPrompt === null
       ? null

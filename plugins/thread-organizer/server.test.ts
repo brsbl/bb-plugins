@@ -1990,6 +1990,26 @@ describe("two-way section sync", () => {
     await organizer.harness.lifecycle.dispose();
   });
 
+  it("leaves a read thread with no section when the Inbox it waits in is deleted", async () => {
+    const { organizer, config } = await started();
+    await organizer.harness.behavior.runCli(["phase", "planning"], { threadId: "thr_test" });
+    const inbox = sectionOf(config, "inbox");
+    organizer.setThread({ status: "idle", lastReadAt: 20, latestAttentionAt: 20, sectionId: inbox });
+    organizer.emitChanged("order-changed");
+    await vi.waitFor(async () =>
+      expect(await organizer.bb.storage.kv.get("thread:v3:thr_test"))
+        .toMatchObject({ lastSectionId: inbox }),
+    );
+
+    organizer.deleteInBb(inbox);
+    organizer.emitChanged("title-changed");
+    organizer.emitSectionListChanged();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const replacement = await restarted(organizer);
+    expect(organizer.current().sectionId).toBeNull();
+    await replacement.harness.lifecycle.dispose();
+  });
+
   it("changes nothing when bb's sections cannot be listed", async () => {
     const { organizer, config } = await started();
     organizer.listSections.mockRejectedValueOnce(new Error("offline"));
