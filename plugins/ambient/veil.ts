@@ -226,8 +226,8 @@ ${ROOT} ${HEADER_ACTIONS} { margin-inline: auto -8px; min-height: 32px; }
 ${ROOT} ${HEADER_ACTIONS} button.border { border-color: transparent; }
 /* bb pulls the desktop title bar's right-panel toggles, and the slot one reserves in split panes, out to the window edge; inside the pill and the panel they keep their padding. */
 ${ROOT} ${HEADER_ACTIONS} :is(${RIGHT_PANEL_BUTTON}, [data-thread-header-pane-actions] > span[aria-hidden]), ${RIGHT_PANEL} ${RIGHT_PANEL_BUTTON} { margin-inline-end: 0; }
-/* The split panes' floating toggle sits on that slot: the pill's -8px overhang of bb's 16px chrome padding, plus its 6px padding. */
-${ROOT} [data-framed] [data-testid="split-workspace-panel-toggle"] { right: 14px; }
+/* The split panes' floating toggle sits exactly on that slot (bb's 16px chrome padding, less the pill's 8px overhang, plus its padding and gap). */
+${ROOT} [data-testid="split-workspace-panel-toggle"] { right: 15px; }
 ${ROOT} [data-thread-header-workflow-actions]:not(:has(button, a)) { ${HIDE} }
 ${ROOT} ${HEADER_ACTIONS}:has(> [data-thread-header-pane-actions]) { column-gap: 0; }
 ${ROOT} ${HEADER_ACTIONS} [data-thread-header-pane-actions] { margin-inline-start: 0; column-gap: 0; }
