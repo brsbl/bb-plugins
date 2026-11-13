@@ -47,23 +47,31 @@ describe("Thread Organizer app registration", () => {
     ]);
   });
 
-  it("uses the runtime plugin id when its sidebar controller loads config", async () => {
+  it("uses the runtime plugin id when its sidebar asks for a sync", async () => {
     const app = await loadApp();
-    const fetchMock = vi.fn(async (_input: string) => ({
-      ok: true,
-      status: 200,
-      json: async () => ({ ok: true, result: configuredWorkflow() }),
-    }));
+    const fetchMock = vi.fn(async (_input: string) => ({ ok: true, status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
+    vi.useFakeTimers();
+    const root = document.createElement("aside");
+    root.dataset.sidebar = "sidebar";
+    root.innerHTML =
+      '<div data-sidebar-section-id="sec_a"></div><div data-sidebar-section-id="sec_b"></div>';
+    document.body.append(root);
 
     const mounted = await mountPluginContentScripts(app, {
       pluginId: "thread-organizer-from-main",
     });
+    root.firstElementChild!.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+    root.append(root.firstElementChild!);
+    root.lastElementChild!.dispatchEvent(new Event("pointerup", { bubbles: true }));
+    await vi.advanceTimersByTimeAsync(1_000);
 
-    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
+    expect(fetchMock).toHaveBeenCalledOnce();
     expect(fetchMock.mock.calls[0]?.[0]).toBe(
-      "/api/v1/plugins/thread-organizer-from-main/rpc/getConfig",
+      "/api/v1/plugins/thread-organizer-from-main/rpc/syncFromBb",
     );
+    vi.useRealTimers();
+    root.remove();
     await mounted.lifecycle.dispose();
   });
 });
@@ -83,7 +91,7 @@ describe("workflow settings", () => {
       {
         sdk: { plugins: { list: async () => ({ plugins: [] }) } },
         rpc: {
-          listThreadSourcePlugins: async () => [], getConfig: async () => initial,
+          listThreadSourcePlugins: async () => [], syncFromBb: async () => configuredWorkflow(), getConfig: async () => initial,
           saveConfig: async (input) => {
             submitted = input;
             return saveResponse;
@@ -137,7 +145,7 @@ describe("workflow settings", () => {
       {
         sdk: { plugins: { list: async () => ({ plugins: [] }) } },
         rpc: {
-          listThreadSourcePlugins: async () => [], getConfig: async () => initial,
+          listThreadSourcePlugins: async () => [], syncFromBb: async () => configuredWorkflow(), getConfig: async () => initial,
           saveConfig: async (input) => {
             savedInput = input;
             return {
@@ -194,7 +202,7 @@ describe("workflow settings", () => {
       {
         sdk: { plugins: { list: async () => ({ plugins: [] }) } },
         rpc: {
-          listThreadSourcePlugins: async () => [], getConfig: async () => initial,
+          listThreadSourcePlugins: async () => [], syncFromBb: async () => configuredWorkflow(), getConfig: async () => initial,
           saveConfig: async (input) => ({
             ...input,
             stages: input.stages.map((stage) => ({
@@ -274,7 +282,7 @@ describe("workflow settings", () => {
       {
         sdk: { plugins: { list: async () => ({ plugins: [] }) } },
         rpc: {
-          listThreadSourcePlugins: async () => [], getConfig: async () => initial,
+          listThreadSourcePlugins: async () => [], syncFromBb: async () => configuredWorkflow(), getConfig: async () => initial,
           saveConfig: async (input) => ((savedInput = input), {
             ...input,
             stages: input.stages.map((stage) => ({
@@ -314,7 +322,7 @@ describe("workflow settings", () => {
     const app = await loadApp();
     const rendered = renderSlot<{}, typeof rpcContract>(app.settingsSections[0]!, {}, {
       sdk: { plugins: { list: async () => ({ plugins: [] }) } },
-      rpc: { listThreadSourcePlugins: async () => [], getConfig: async () => configuredWorkflow(), saveConfig: async () => configuredWorkflow() },
+      rpc: { listThreadSourcePlugins: async () => [], syncFromBb: async () => configuredWorkflow(), getConfig: async () => configuredWorkflow(), saveConfig: async () => configuredWorkflow() },
     });
     const trigger = await rendered.findByRole("button", { name: "Edit entry prompt for Planning" });
     expect(trigger.textContent).toBe("Add prompt");
@@ -344,7 +352,7 @@ describe("workflow settings", () => {
       {
         sdk: { plugins: { list: async () => ({ plugins: [] }) } },
         rpc: {
-          listThreadSourcePlugins: async () => [], getConfig: async () => {
+          listThreadSourcePlugins: async () => [], syncFromBb: async () => configuredWorkflow(), getConfig: async () => {
             loads += 1;
             return initial;
           },
@@ -421,7 +429,7 @@ describe("workflow settings", () => {
       {
         sdk: { plugins: { list: async () => ({ plugins: [] }) } },
         rpc: {
-          listThreadSourcePlugins: async () => [], getConfig: async () => initial,
+          listThreadSourcePlugins: async () => [], syncFromBb: async () => configuredWorkflow(), getConfig: async () => initial,
           saveConfig: async (input) => {
             submitted = input;
             throw new Error(
@@ -503,7 +511,7 @@ describe("workflow settings", () => {
       {
         sdk: { plugins: { list: async () => ({ plugins: [] }) } },
         rpc: {
-          listThreadSourcePlugins: async () => [], getConfig: async () => initial,
+          listThreadSourcePlugins: async () => [], syncFromBb: async () => configuredWorkflow(), getConfig: async () => initial,
           saveConfig: async (input) => {
             savedInput = input;
             return {
@@ -562,7 +570,7 @@ describe("workflow settings", () => {
       {
         sdk: { plugins: { list: async () => ({ plugins: [] }) } },
         rpc: {
-          listThreadSourcePlugins: async () => [], getConfig: async () => configuredWorkflow(),
+          listThreadSourcePlugins: async () => [], syncFromBb: async () => configuredWorkflow(), getConfig: async () => configuredWorkflow(),
           saveConfig: async (input) => ({
             ...input,
             stages: input.stages.map((stage) => ({
@@ -618,6 +626,7 @@ describe("workflow settings", () => {
         ] }) } },
         rpc: {
           listThreadSourcePlugins: async () => ["digests"],
+          syncFromBb: async () => initial,
           getConfig: async () => initial,
           saveConfig: async (input) => {
             saved.current = input;
@@ -731,7 +740,7 @@ describe("workflow settings", () => {
       {
         sdk: { plugins: { list: async () => ({ plugins: [] }) } },
         rpc: {
-          listThreadSourcePlugins: async () => [], getConfig: async () => configuredWorkflow(),
+          listThreadSourcePlugins: async () => [], syncFromBb: async () => configuredWorkflow(), getConfig: async () => configuredWorkflow(),
           saveConfig: async (input) => ({
             ...input,
             stages: input.stages.map((stage) => ({
