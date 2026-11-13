@@ -245,8 +245,6 @@ ${SIDEBAR_FOOTER} > [data-overflow-fade], ${SIDEBAR_FOOTER} > ul > li[aria-hidde
 :is(${SIDEBAR_CARDS}) [data-sidebar-sticky-stack] [data-sidebar-sticky-tier] { position: relative; top: auto; }
 ${RIGHT_PANEL} { ${GLASS_SURFACE} inset: 8px 8px 8px 2px; height: auto; max-width: calc(100% - 10px); border-radius: 20px; overflow: hidden; --background: transparent; --sidebar: transparent; }
 ${ROOT} :is([role="separator"][data-split-resize-grid-boundary], [data-panel-resize-handle-id]):not(:hover, [data-dragging], [data-resize-handle-state="drag"]), ${ROOT} [data-panel-resize-handle-id]:not(:hover, [data-resize-handle-state="drag"]) > span { background-color: transparent; }
-${ROOT} [data-panel-resize-snap-handle]:not(:hover) > span { background-color: transparent; }
-${ROOT} #thread-detail-secondary-panel > aside { border-color: transparent; }
 ${RIGHT_PANEL} [data-app-browser] > [class~="flex-1"]:last-child { margin: 0 8px 8px; border-radius: 12px; overflow: hidden; }
 ${OVERLAY} { ${GLASS_PANE} --background: transparent; --popover: transparent; --sidebar: transparent; }
 ${OVERLAY}::before { ${LAYER} inset: 0; border-radius: inherit; ${BLUR} }
