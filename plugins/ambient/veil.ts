@@ -218,7 +218,7 @@ ${ROOT} ${SIDEBAR_HEADER_CONTENT} { display: flex; align-items: center; min-widt
 ${ROOT} button[data-sidebar="trigger"] { margin-inline: -4px 0; width: 32px; height: 32px; }
 /* Rail icons sit on the same opaque chip as the toggle above them; the column hugs its icons. */
 ${RAIL} { flex: 0 1 auto; width: auto; padding: 4px; ${GLASS_CHIP} border-radius: 12px; }
-${RAIL_SETTINGS} { ${GLASS_CHIP} border-radius: 12px; width: 32px; height: 32px; }
+${RAIL_SETTINGS} { ${GLASS_CHIP} border-radius: 12px; width: 34px; height: 34px; }
 ${ROOT} [data-testid="app-sidebar-top-reserve-row"] > div:nth-child(n) { margin-inline-end: 0; min-height: 32px; }
 ${HEADER_FIRST} { flex: 0 1 auto; min-width: 0; min-height: 32px; margin-inline: -6px 6px; padding-inline-start: 12px; }
 ${HEADER_FIRST}:has([data-pane-header-focus-tab]) { background-image: linear-gradient(var(--state-active), var(--state-active)); }
@@ -247,7 +247,14 @@ ${ROOT} [data-sidebar="content"] > .px-2:first-child { padding-block-start: 12px
 @media (max-height: 560px) { ${ROOT} [data-testid="sidebar-navigation-region"] { flex: 0 1 auto; min-height: 3rem; overflow-y: auto; } }
 /* bb measures this row to decide which icons fit. Shrink-to-content makes overflow capacity depend on the icons it already hid. */
 ${SIDEBAR_FOOTER} { flex-shrink: 0; margin-block: 8px; align-self: stretch; width: auto; }
-${SIDEBAR_FOOTER} [data-testid^="plugin-sidebar-footer-disclosure-"] { border-color: transparent; background-color: transparent; }
+/* The footer tray matches the Settings chip beside it: a 34px glass strip on bb's own footer row, which bb centers on Settings. */
+${SIDEBAR_FOOTER} { position: relative; isolation: isolate; background: none; box-shadow: none; ${NO_BLUR} }
+${SIDEBAR_FOOTER}::before { ${LAYER} ${GLASS_SURFACE} border-radius: 12px; inset-inline: 0; top: calc(50% - 17px); height: 34px; }
+${ROOT} [data-framed] [data-sidebar="footer"] { margin-block: 0; }
+/* Outside the desktop frame bb pads the footer 8px above and 7px below, so its icons sit half a pixel below center. */
+${ROOT} [data-sidebar="footer"]:not([data-framed] *)::before { top: calc(50% - 16.5px); }
+${SIDEBAR_FOOTER} [data-testid^="plugin-sidebar-footer-disclosure-"] { background-color: transparent; }
+${ROOT} [data-testid^="plugin-sidebar-footer-disclosure-"] { border-color: transparent; }
 ${SIDEBAR_FOOTER} > [data-overflow-fade], ${SIDEBAR_FOOTER} > ul > li[aria-hidden="true"]:empty { ${HIDE} }
 :is(${SIDEBAR_CARDS}, ${RIGHT_PANEL}) :is(.sticky, [data-sidebar-sticky-tier], [data-sidebar-sticky-stack]), ${OVERLAY} :is(.sticky:not(.bg-sidebar, .bg-background, .bg-popover), [data-sidebar-sticky-tier], [data-sidebar-sticky-stack]), :is(${SIDEBAR_CARDS}) [data-sidebar-sticky-stack]::before { ${NO_BLUR} }
 :is(${SIDEBAR_CARDS}) [data-sidebar-sticky-stack] [data-sidebar-sticky-tier] { position: relative; top: auto; }
