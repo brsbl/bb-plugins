@@ -24,11 +24,14 @@ export function mountFrame(options: Options) {
   const stop = () => { cancelAnimationFrame(raf); raf = 0; last = 0; };
   const draw = (now: number) => {
     raf = 0;
-    if (disposed || document.hidden || ![...surfaces.values()].some(surface => surface.renderer)) { last = 0; return; }
+    // A layer another stylesheet hides (Ambient does) has no boxes; drawing it would only spend GPU time.
+    const shown = [...surfaces].filter(([, surface]) => surface.renderer && surface.layer.getClientRects().length > 0);
+    // Stopping is safe: a stylesheet change or resize reschedules the loop.
+    if (disposed || document.hidden || shown.length === 0) { last = 0; return; }
     if (!last || now - last >= 1000 / 30) {
       if (last && !reduced.matches) elapsed += Math.min(0.1, (now - last) / 1000) * options.speed;
       last = now;
-      const bounds = [...surfaces].map(([target, surface]) => ({ surface, rect: target.getBoundingClientRect() }));
+      const bounds = shown.map(([target, surface]) => ({ surface, rect: target.getBoundingClientRect() }));
       const area = bounds.reduce((sum, { rect }) => sum + rect.width * rect.height, 0);
       const scale = Math.min(devicePixelRatio || 1, 1, Math.sqrt(900000 / Math.max(1, area)));
       for (const { surface, rect } of bounds) {
