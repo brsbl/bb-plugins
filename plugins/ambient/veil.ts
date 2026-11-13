@@ -106,7 +106,8 @@ const HIDE = "display: none;";
 const NO_BLUR = "-webkit-backdrop-filter: none; backdrop-filter: none;";
 const BLUR = "-webkit-backdrop-filter: var(--ambient-blur); backdrop-filter: var(--ambient-blur);";
 const INK_WASH = mix("var(--ink)", "9%");
-const EDGE = `border: 1px solid ${INK_WASH};`;
+/** Glass separates by fill and shadow, not outlines; the transparent border keeps bb's sizing. */
+const EDGE = "border: 1px solid transparent;";
 const SHEEN = `linear-gradient(to bottom, ${mix("var(--canvas)", "28%")}, transparent 45%)`;
 const LAYER = "content: \"\"; position: absolute; z-index: -1; pointer-events: none;";
 /** Glass without the blur: fill, edge and lift. */
@@ -125,9 +126,14 @@ ${SHELL} {
   --ambient-blur: blur(12px);
 }
 /* The scene is the window's backdrop. A theme's image on bb's desktop window frame is opaque and would hide it. */
-${ROOT} [data-framed] { background-image: none; }
+${ROOT} [data-framed] { background-image: none; background-color: var(--background); }
 /* Prism Frame paints the same frame, rail and title bar with an opaque gradient; the scene replaces it. */
 ${ROOT} [data-prism-frame-layer] { ${HIDE} }
+/* No hairlines over the scene: the desktop window card's outline, its title-bar seam, and the frame edges. */
+${ROOT} [data-sidebar="inset-edge"] { ${HIDE} }
+${ROOT} [data-sidebar="inset"]::after, ${ROOT} [data-sidebar="collapsible-body"] { border-color: transparent; background-color: transparent; }
+/* The frame carries the one Show-through tint; the card's and sidebar's own fills would draw their edges as tone steps. */
+${ROOT} [data-framed] [data-sidebar="inset"]::before, ${ROOT} [data-framed] [data-sidebar="panel"] { background-color: transparent; }
 ${SHELL}[data-ambient-glass="low"] { --ambient-blur: blur(6px); }
 ${SHELL}[data-ambient-glass="solid"] { --ambient-blur: none; --ambient-glass-fill: var(--ambient-glass-solid); }
 :is(${PANES}) { --background: ${mix("var(--ambient-background)", "var(--ambient-keep, 23%)")}; --sidebar: ${mix("var(--ambient-sidebar)", "var(--ambient-keep, 23%)")}; }
@@ -191,6 +197,7 @@ ${ROOT} [data-app-composer]:has([data-new-thread-footer]):not([data-testid="root
 ${ROOT} [data-app-composer] { --background: ${mix("var(--ambient-background)", "68%")}; }
 /* The opaque follow-up shell fills the seam behind the input and its footer lip. */
 ${ROOT} [data-follow-up-composer] { background-color: var(--ambient-background); border-radius: 12px; }
+${ROOT} [data-promptbox] { border-color: transparent; }
 ${ROOT} [data-follow-up-composer] [data-promptbox] { --background: var(--ambient-background); ${NO_BLUR} }
 ${ROOT} [data-follow-up-composer-footer] { border-radius: 0 0 12px 12px; padding-inline: 4px; }
 ${ROOT} [data-follow-up-composer-footer] button { background-color: transparent; }
@@ -221,7 +228,7 @@ ${ROOT} ${HEADER_ACTIONS} [data-thread-header-pane-actions] { margin-inline-star
 :is(${THREAD}, ${PAGE}, ${SIDEBAR_CARDS}, ${SECTION_BACK}, ${CHROME_PILLS}, ${RAIL}, ${RAIL_SETTINGS}, ${OVERLAY}) { --state-hover: ${INK_WASH}; --state-active: ${mix("var(--ink)", "15%")}; --sidebar-accent: var(--state-hover); }
 ${SIDEBAR_CARDS} { ${GLASS_SURFACE} border-radius: 16px; margin-inline: 8px; }
 ${SECTION_BACK} { ${GLASS_SURFACE} border-block-end: 0; border-radius: 16px 16px 0 0; margin-inline: 8px; padding-block: 8px 4px; box-shadow: inset 0 1px 0 ${mix("var(--canvas)", "60%")}; }
-${SECTION_BACK} + [data-sidebar="content"] { border-block-start-color: ${INK_WASH}; border-start-start-radius: 0; border-start-end-radius: 0; box-shadow: 0 12px 32px -16px ${mix("var(--ink)", "35%")}; }
+${SECTION_BACK} + [data-sidebar="content"] { border-block-start-color: transparent; border-start-start-radius: 0; border-start-end-radius: 0; box-shadow: 0 12px 32px -16px ${mix("var(--ink)", "35%")}; }
 ${SECTION_BACK} + [data-sidebar="content"] > .px-2:first-child { padding-block-start: 8px; }
 :is(${SIDEBAR_CARDS}, ${OVERLAY}) .w-px.bg-border-hairline, :is(${SIDEBAR_CARDS}, ${OVERLAY}) [class*="before:bg-border-hairline"]::before { ${HIDE} }
 ${ROOT} [data-testid="sidebar-navigation-region"] { margin-block: 0 8px; }
@@ -238,6 +245,8 @@ ${SIDEBAR_FOOTER} > [data-overflow-fade], ${SIDEBAR_FOOTER} > ul > li[aria-hidde
 :is(${SIDEBAR_CARDS}) [data-sidebar-sticky-stack] [data-sidebar-sticky-tier] { position: relative; top: auto; }
 ${RIGHT_PANEL} { ${GLASS_SURFACE} inset: 8px 8px 8px 2px; height: auto; max-width: calc(100% - 10px); border-radius: 20px; overflow: hidden; --background: transparent; --sidebar: transparent; }
 ${ROOT} :is([role="separator"][data-split-resize-grid-boundary], [data-panel-resize-handle-id]):not(:hover, [data-dragging], [data-resize-handle-state="drag"]), ${ROOT} [data-panel-resize-handle-id]:not(:hover, [data-resize-handle-state="drag"]) > span { background-color: transparent; }
+${ROOT} [data-panel-resize-snap-handle]:not(:hover) > span { background-color: transparent; }
+${ROOT} #thread-detail-secondary-panel > aside { border-color: transparent; }
 ${RIGHT_PANEL} [data-app-browser] > [class~="flex-1"]:last-child { margin: 0 8px 8px; border-radius: 12px; overflow: hidden; }
 ${OVERLAY} { ${GLASS_PANE} --background: transparent; --popover: transparent; --sidebar: transparent; }
 ${OVERLAY}::before { ${LAYER} inset: 0; border-radius: inherit; ${BLUR} }
