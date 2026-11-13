@@ -9,7 +9,7 @@ function row(id: string, at: number, fields: Record<string, unknown>) {
 
 const selfRows = [
   row("u1", 1, { initiator: "user", text: "Make Dispatch operational." }),
-  row("g1", 5, { initiator: "agent", senderThreadId: "thr_growth", text: "[bb message from thread:thr_growth]\n\nQA is a hard gate. Pass it to your reports." }),
+  row("g1", 5, { initiator: "agent", senderThreadId: "thr_growth", text: "[bb message from thread:thr_growth]\n\nQA is a hard gate. Pass it to the threads under you." }),
   row("d1", 7, { initiator: "system", systemMessageKind: "child-completed", systemMessageSubject: { kind: "thread", threadId: "thr_dispatch", threadName: "Dispatch" }, text: "[bb system]\n\n@thread:thr_dispatch completed:\n\nThe e2e run is done." }),
   row("c1", 9, { initiator: "system", systemMessageKind: "child-needs-attention", systemMessageSubject: { kind: "thread", threadId: "thr_carousel", threadName: "Image carousel" }, text: "Which file format should #418 accept?" }),
   row("x1", 10, { initiator: "system", systemMessageKind: "ownership-assigned", systemMessageSubject: { kind: "thread", threadId: "thr_moss", threadName: "Moss viewer" }, text: "assigned" }),
@@ -32,7 +32,7 @@ function inputs(overrides: Partial<ChannelInputs> = {}): ChannelInputs {
         row("p2", 8, { initiator: "agent", senderThreadId: SELF, text: "Rerun QA.", turnRequest: { kind: "steer", status: "accepted" } }),
         row("p3", 3, { initiator: "agent", senderThreadId: "thr_someone_else", text: "Not from Ops Tools" }),
       ]],
-      ["thr_growth", [row("p4", 6, { initiator: "agent", senderThreadId: SELF, text: "Passed to all reports.", turnRequest: { kind: "message", status: "pending" } })]],
+      ["thr_growth", [row("p4", 6, { initiator: "agent", senderThreadId: SELF, text: "Passed to all the threads under me.", turnRequest: { kind: "message", status: "pending" } })]],
     ]),
     ...overrides,
   };
@@ -54,7 +54,7 @@ describe("needs-you text", () => {
 });
 
 describe("channels", () => {
-  it("opens a report's channel with the prompt it started with, only when its full history is loaded", () => {
+  it("opens a worker's channel with the prompt it started with, only when its full history is loaded", () => {
     const rows = [row("s1", 1, { initiator: "user", text: "Build the carousel." }), row("s2", 4, { initiator: "agent", senderThreadId: SELF, text: "Also add WebP." })];
     expect(outgoing(rows, SELF, { isReport: true, historyComplete: true }).map((message) => `${message.dir}:${message.id}`)).toEqual(["brief:s1", "out:s2"]);
     expect(outgoing(rows, SELF, { isReport: true, historyComplete: false }).map((message) => message.id)).toEqual(["s2"]);
@@ -74,7 +74,7 @@ describe("channels", () => {
     expect(outgoing(inputs().counterpartRows.get("thr_growth")!, SELF)[0]?.status).toBe("pending");
   });
 
-  it("finds reports, the parent, and anyone who wrote in", () => {
+  it("finds threads under you, your lead, and anyone who wrote in", () => {
     expect(counterpartIds({ selfId: SELF, parentId: "thr_root", childIds: ["thr_dispatch"], selfRows })).toEqual(["thr_root", "thr_dispatch", "thr_growth", "thr_carousel"]);
   });
 
@@ -91,7 +91,7 @@ describe("channels", () => {
     expect(moss.messages).toEqual([]);
   });
 
-  it("splits a batched outcome notice per report and fills each from the report's last reply", () => {
+  it("splits a batched outcome notice per worker and fills each from the worker's last reply", () => {
     const batch = row("b1", 30, { initiator: "system", systemMessageKind: "child-outcome-batch", systemMessageSubject: { kind: "thread-batch", count: 2, outcomes: [{ threadId: "thr_dispatch", status: "completed" }, { threadId: "thr_moss", status: "failed" }] }, text: "Child thread updates" });
     const channels = buildChannels(inputs({
       selfRows: [...selfRows, batch],
