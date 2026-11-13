@@ -106,7 +106,8 @@ const HIDE = "display: none;";
 const NO_BLUR = "-webkit-backdrop-filter: none; backdrop-filter: none;";
 const BLUR = "-webkit-backdrop-filter: var(--ambient-blur); backdrop-filter: var(--ambient-blur);";
 const INK_WASH = mix("var(--ink)", "9%");
-const EDGE = `border: 1px solid ${INK_WASH};`;
+/** Glass separates by fill and shadow, not outlines; the transparent border keeps bb's sizing. */
+const EDGE = "border: 1px solid transparent;";
 const SHEEN = `linear-gradient(to bottom, ${mix("var(--canvas)", "28%")}, transparent 45%)`;
 const LAYER = "content: \"\"; position: absolute; z-index: -1; pointer-events: none;";
 /** Glass without the blur: fill, edge and lift. */
@@ -125,9 +126,14 @@ ${SHELL} {
   --ambient-blur: blur(12px);
 }
 /* The scene is the window's backdrop. A theme's image on bb's desktop window frame is opaque and would hide it. */
-${ROOT} [data-framed] { background-image: none; }
+${ROOT} [data-framed] { background-image: none; background-color: var(--background); }
 /* Prism Frame paints the same frame, rail and title bar with an opaque gradient; the scene replaces it. */
 ${ROOT} [data-prism-frame-layer] { ${HIDE} }
+/* No hairlines over the scene: the desktop window card's outline, its title-bar seam, and the frame edges. */
+${ROOT} [data-sidebar="inset-edge"] { ${HIDE} }
+${ROOT} [data-sidebar="inset"]::after, ${ROOT} [data-sidebar="collapsible-body"] { border-color: transparent; background-color: transparent; }
+/* The frame carries the one Show-through tint; the card's and sidebar's own fills would draw their edges as tone steps. */
+${ROOT} [data-framed] [data-sidebar="inset"]::before, ${ROOT} [data-framed] [data-sidebar="panel"] { background-color: transparent; }
 ${SHELL}[data-ambient-glass="low"] { --ambient-blur: blur(6px); }
 ${SHELL}[data-ambient-glass="solid"] { --ambient-blur: none; --ambient-glass-fill: var(--ambient-glass-solid); }
 :is(${PANES}) { --background: ${mix("var(--ambient-background)", "var(--ambient-keep, 23%)")}; --sidebar: ${mix("var(--ambient-sidebar)", "var(--ambient-keep, 23%)")}; }
@@ -191,13 +197,18 @@ ${ROOT} [data-app-composer]:has([data-new-thread-footer]):not([data-testid="root
 ${ROOT} [data-app-composer] { --background: ${mix("var(--ambient-background)", "68%")}; }
 /* The opaque follow-up shell fills the seam behind the input and its footer lip. */
 ${ROOT} [data-follow-up-composer] { background-color: var(--ambient-background); border-radius: 12px; }
+/* Low specificity on purpose: plugins that restyle a composer, like Desktop's IM window, keep their own border. */
+:where(${ROOT}) [data-promptbox] { border-color: transparent; }
 ${ROOT} [data-follow-up-composer] [data-promptbox] { --background: var(--ambient-background); ${NO_BLUR} }
 ${ROOT} [data-follow-up-composer-footer] { border-radius: 0 0 12px 12px; padding-inline: 4px; }
 ${ROOT} [data-follow-up-composer-footer] button { background-color: transparent; }
 ${ROOT} [data-follow-up-composer-footer] button:hover { background-color: ${INK_WASH}; }
 ${ROOT} [role="img"][aria-label="bb"] + div { ${GLASS_SURFACE} border-radius: 20px; padding: 6px; }
-${ROOT} div.fixed:has(> ${RIGHT_PANEL_BUTTON}) { top: calc(6px + env(safe-area-inset-top)); right: calc(6px + env(safe-area-inset-right)); }
-${ROOT} div.fixed > ${RIGHT_PANEL_BUTTON} { ${GLASS_CHIP} border-radius: 12px; }
+/* The lone right-panel toggle lines up with the header pills: same 8px inset and 32px height. */
+${ROOT} div.fixed:has(> ${RIGHT_PANEL_BUTTON}) { top: calc(8px + env(safe-area-inset-top)); right: calc(8px + env(safe-area-inset-right)); }
+${ROOT} div.fixed > ${RIGHT_PANEL_BUTTON} { ${GLASS_CHIP} border-radius: 12px; width: 32px; height: 32px; }
+/* The desktop frame shifts it by its lip and the traffic-light axis; these offsets put it back on the pills' line. */
+${ROOT} [data-framed] div.fixed:has(> ${RIGHT_PANEL_BUTTON}) { top: 10px; right: 9px; }
 ${ROOT} [data-sidebar="panel"] { background-color: var(--background); border-inline-end-color: transparent; }
 :is(${CHROME_PILLS}) { ${GLASS_CHIP} border-radius: 12px; padding-inline: 6px; }
 ${ROOT} ${SIDEBAR_RESERVE_PILL} { margin-inline: -6px; }
@@ -214,14 +225,18 @@ ${HEADER_FIRST}:has([data-pane-header-focus-tab]) { background-image: linear-gra
 ${ROOT} [data-pane-header-focus-tab] { background-color: transparent; }
 ${ROOT} ${HEADER_ACTIONS} { margin-inline: auto -8px; min-height: 32px; }
 ${ROOT} ${HEADER_ACTIONS} button.border { border-color: transparent; }
+/* bb pulls the desktop title bar's right-panel toggles, and the slot one reserves in split panes, out to the window edge; inside the pill and the panel they keep their padding. */
+${ROOT} ${HEADER_ACTIONS} :is(${RIGHT_PANEL_BUTTON}, [data-thread-header-pane-actions] > span[aria-hidden]), ${RIGHT_PANEL} ${RIGHT_PANEL_BUTTON} { margin-inline-end: 0; }
+/* The split panes' floating toggle sits exactly on that slot (bb's 16px chrome padding, less the pill's 8px overhang, plus its padding and gap). */
+${ROOT} [data-testid="split-workspace-panel-toggle"] { right: 15px; }
 ${ROOT} [data-thread-header-workflow-actions]:not(:has(button, a)) { ${HIDE} }
 ${ROOT} ${HEADER_ACTIONS}:has(> [data-thread-header-pane-actions]) { column-gap: 0; }
 ${ROOT} ${HEADER_ACTIONS} [data-thread-header-pane-actions] { margin-inline-start: 0; column-gap: 0; }
-@media (max-width: 767px) { ${ROOT} div.fixed:has(> ${RIGHT_PANEL_BUTTON}) { top: calc(8px + env(safe-area-inset-top)); right: calc(8px + env(safe-area-inset-right)); } ${ROOT} :is(div.fixed, ${HEADER_ACTIONS}) ${RIGHT_PANEL_BUTTON}, ${ROOT} [data-thread-header-pane-actions] button { width: 32px; height: 32px; } :is(${HEADER_FIRST}, ${ROOT} ${HEADER_ACTIONS}) { height: 32px; min-height: 32px; } ${ROOT} ${HEADER_ACTIONS}:has(${RIGHT_PANEL_BUTTON}) { padding-inline-end: 0; } }
+@media (max-width: 767px) { ${ROOT} :is(div.fixed, ${HEADER_ACTIONS}) ${RIGHT_PANEL_BUTTON}, ${ROOT} [data-thread-header-pane-actions] button { width: 32px; height: 32px; } :is(${HEADER_FIRST}, ${ROOT} ${HEADER_ACTIONS}) { height: 32px; min-height: 32px; } ${ROOT} ${HEADER_ACTIONS}:has(${RIGHT_PANEL_BUTTON}) { padding-inline: 3px; } }
 :is(${THREAD}, ${PAGE}, ${SIDEBAR_CARDS}, ${SECTION_BACK}, ${CHROME_PILLS}, ${RAIL}, ${RAIL_SETTINGS}, ${OVERLAY}) { --state-hover: ${INK_WASH}; --state-active: ${mix("var(--ink)", "15%")}; --sidebar-accent: var(--state-hover); }
 ${SIDEBAR_CARDS} { ${GLASS_SURFACE} border-radius: 16px; margin-inline: 8px; }
 ${SECTION_BACK} { ${GLASS_SURFACE} border-block-end: 0; border-radius: 16px 16px 0 0; margin-inline: 8px; padding-block: 8px 4px; box-shadow: inset 0 1px 0 ${mix("var(--canvas)", "60%")}; }
-${SECTION_BACK} + [data-sidebar="content"] { border-block-start-color: ${INK_WASH}; border-start-start-radius: 0; border-start-end-radius: 0; box-shadow: 0 12px 32px -16px ${mix("var(--ink)", "35%")}; }
+${SECTION_BACK} + [data-sidebar="content"] { border-block-start-color: transparent; border-start-start-radius: 0; border-start-end-radius: 0; box-shadow: 0 12px 32px -16px ${mix("var(--ink)", "35%")}; }
 ${SECTION_BACK} + [data-sidebar="content"] > .px-2:first-child { padding-block-start: 8px; }
 :is(${SIDEBAR_CARDS}, ${OVERLAY}) .w-px.bg-border-hairline, :is(${SIDEBAR_CARDS}, ${OVERLAY}) [class*="before:bg-border-hairline"]::before { ${HIDE} }
 ${ROOT} [data-testid="sidebar-navigation-region"] { margin-block: 0 8px; }
