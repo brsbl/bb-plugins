@@ -35,12 +35,22 @@ It keeps unread agent output in Inbox and lets plugins have their own inboxes.
 - A user move changes the remembered stage. `bb organizer phase <stage-key>`
   moves it explicitly.
 - Inbox keeps that system behavior even when its visible title changes.
+- bb's sidebar owns which sections exist, their names, and their order; the
+  plugin keeps only its rules, inbox settings, and entry prompts. Changes made
+  on either side show on the other and survive restarts:
+  - A section deleted in the sidebar is dropped from the workflow and never
+    rebuilt, the main Inbox included. Its threads stay with no section.
+    Without a main Inbox, unread threads stay where they are; create a section
+    with the Inbox's old name to bring it back with its settings.
+  - A section renamed in the sidebar keeps its new name. Names follow bb's
+    rules, so names that differ only in capitals are fine.
+  - A section created in the sidebar becomes a workflow stage at the same spot,
+    up to 24 sections; further ones stay plain bb sections.
+  - Removing a section in settings deletes it in bb, and its threads end up
+    with no section.
 - A stage title is used verbatim as its bb section name, so any emoji you want
-  in the sidebar goes in the title itself. A section whose name differs from its
-  title only by Unicode styling keeps the name you gave it.
-- A section you or an agent creates in bb's own sidebar becomes a workflow
-  stage as soon as bb reports it, so threads can be moved there immediately.
-  Threads in a section the plugin does not yet own are never reconciled away.
+  in the sidebar goes in the title itself.
+- Threads in a section the plugin does not yet own are never reconciled away.
 - Every section created without a rule — from the panel, from `bb organizer
   section add`, or by adoption — starts as user-managed: agents are told to
   leave it alone until the rule describes real work. Set one afterwards with
@@ -48,10 +58,10 @@ It keeps unread agent output in Inbox and lets plugins have their own inboxes.
 - Section expansion and collapse are owned by bb and the user; Thread Organizer
   never changes them automatically.
 - The sidebar and the workflow share one section order. Dragging any section in
-  the sidebar, the main Inbox included, saves that order as the workflow order.
-  Any saved reorder, from settings or `bb organizer section add --after`, moves
-  the sidebar's sections to match; sections outside the workflow keep their
-  places.
+  the sidebar, the main Inbox included, becomes the workflow order, hidden
+  sections included. Any saved reorder, from settings or `bb organizer section
+  add --after`, moves the sidebar's sections to match; sections outside the
+  workflow keep their places.
 - Automation-origin root threads follow the same workflow as ordinary roots.
 - Thread Organizer never renames threads. Moving between workflow stages leaves
   the user’s thread title unchanged.
@@ -69,7 +79,8 @@ inferred.
 
 Open Thread Organizer in bb’s plugin settings. The workflow editor lets you:
 
-- rename Inbox while leaving its routing protected;
+- rename Inbox while leaving its routing protected (delete its section in the
+  sidebar to remove it);
 - add, remove, reorder, and rename other sections;
 - describe what belongs in each section;
 - give a workflow section an entry prompt that is sent when a thread lands there;

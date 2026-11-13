@@ -159,10 +159,6 @@ function normalizeText(value: string): string {
   return value.normalize("NFKC").trim().replace(/\s+/gu, " ");
 }
 
-function normalizedIdentity(value: string): string {
-  return normalizeText(value).toLocaleLowerCase();
-}
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -171,8 +167,8 @@ function parseStage(value: unknown, withSectionId: boolean): WorkflowStage {
   if (!isRecord(value))
     throw new Error("Every workflow stage must be an object.");
   const key = typeof value.key === "string" ? value.key.trim() : "";
-  const title =
-    typeof value.title === "string" ? normalizeText(value.title) : "";
+  // Titles follow bb's section naming: trimmed, otherwise kept as written.
+  const title = typeof value.title === "string" ? value.title.trim() : "";
   const rule = typeof value.rule === "string" ? normalizeText(value.rule) : "";
   const role = value.role;
   // Prompts keep their line breaks; only the ends are trimmed.
@@ -191,8 +187,8 @@ function parseStage(value: unknown, withSectionId: boolean): WorkflowStage {
       `Stage key "${key}" must use lowercase letters, numbers, and hyphens.`,
     );
   }
-  if (title.length === 0 || title.length > 80) {
-    throw new Error(`Stage "${key}" needs a title of 1–80 characters.`);
+  if (title.length === 0) {
+    throw new Error(`Stage "${key}" needs a title.`);
   }
   if (rule.length === 0 || rule.length > 240) {
     throw new Error(`Stage "${key}" needs a rule of 1–240 characters.`);
@@ -237,10 +233,8 @@ function parseStage(value: unknown, withSectionId: boolean): WorkflowStage {
 }
 
 function validateStages(stages: WorkflowStage[]): void {
-  if (stages.length < 2 || stages.length > MAX_WORKFLOW_STAGES) {
-    throw new Error(
-      `Configure Inbox plus 1–${MAX_WORKFLOW_STAGES - 1} workflow stages.`,
-    );
+  if (stages.length > MAX_WORKFLOW_STAGES) {
+    throw new Error(`Configure at most ${MAX_WORKFLOW_STAGES} sections.`);
   }
   const keys = new Set<string>();
   const titles = new Set<string>();
@@ -250,11 +244,11 @@ function validateStages(stages: WorkflowStage[]): void {
       throw new Error(`Stage key "${stage.key}" is duplicated.`);
     }
     keys.add(stage.key);
-    const titleIdentity = normalizedIdentity(stage.title);
-    if (titles.has(titleIdentity)) {
-      throw new Error(`Stage title "${stage.title}" is duplicated.`);
+    // bb only refuses an exact duplicate, so names differing in case are fine.
+    if (titles.has(stage.title)) {
+      throw new Error(`A section named "${stage.title}" already exists.`);
     }
-    titles.add(titleIdentity);
+    titles.add(stage.title);
     if (stage.role === "inbox" && hasEntryPrompt(stage)) {
       throw new Error("Inbox cannot send an entry prompt.");
     }
@@ -272,13 +266,12 @@ function validateStages(stages: WorkflowStage[]): void {
       throw new Error("Only an additional inbox can catch a plugin.");
     }
   }
+  // The main Inbox is optional: deleting its section in bb removes it.
   const mainInbox = stages.find((stage) => stage.key === "inbox");
-  if (mainInbox?.role !== "inbox") {
-    throw new Error(
-      "The workflow must contain the protected main Inbox.",
-    );
+  if (mainInbox !== undefined && mainInbox.role !== "inbox") {
+    throw new Error("The inbox key is reserved for the main Inbox.");
   }
-  if (mainInbox.rule !== INBOX_RULE) {
+  if (mainInbox !== undefined && mainInbox.rule !== INBOX_RULE) {
     throw new Error("Inbox routing and its system rule cannot be changed.");
   }
 }
@@ -445,12 +438,8 @@ export function entryPromptMessage(
   ].join("\n");
 }
 
-export function inboxStage(config: WorkflowConfig): WorkflowStage {
-  return config.stages.find((stage) => stage.key === "inbox")!;
-}
-
-export function firstWorkflowStage(config: WorkflowConfig): WorkflowStage | null {
-  return config.stages.find((stage) => stage.role === "stage") ?? null;
+export function inboxStage(config: WorkflowConfig): WorkflowStage | null {
+  return config.stages.find((stage) => stage.key === "inbox") ?? null;
 }
 
 export function stageForSectionId(
@@ -461,53 +450,136 @@ export function stageForSectionId(
   return config.stages.find((stage) => stage.sectionId === sectionId) ?? null;
 }
 
-export interface AdoptableSection {
+export interface BbSection {
   id: string;
   name: string;
 }
 
+export interface SectionSyncResult {
+  config: WorkflowConfig;
+  /** One log line per change taken from bb. */
+  changes: string[];
+  /** The main Inbox, when its section was deleted in bb during this sync. */
+  droppedInbox: WorkflowStage | null;
+  /** bb sections left unmanaged because the stage limit is reached. */
+  unmanaged: number;
+}
+
 /**
- * Turns sections created outside the plugin into real workflow stages so the
- * reconciler stops treating threads parked in them as misplaced. Sections
- * awaiting deletion from a pending removal are skipped, otherwise a restart
- * mid-sweep would re-adopt the stage the user just removed.
+ * Makes the stages match bb's sections, which own existence, names and
+ * order. Stages keep only what the plugin adds (rules, inbox settings,
+ * prompts). A stage whose section is gone is dropped, never rebuilt; a stage
+ * that never had a section claims a same-named one; every other section
+ * becomes a stage at its sidebar position. `sidebarOrder` lists section ids
+ * top to bottom, or is null when the sidebar order could not be read.
+ * `restorableInbox` is the main Inbox as it was when its section was deleted,
+ * restored when a section with its name appears again.
  */
-export function adoptUnmanagedSections(
+export function syncStagesWithSections(
   config: WorkflowConfig,
-  sections: readonly AdoptableSection[],
-  skipSectionIds: ReadonlySet<string> = new Set(),
-): WorkflowConfig {
-  const next = cloneWorkflowConfig(config);
-  const claimed = new Set(
-    next.stages.flatMap((stage) =>
-      stage.sectionId === null ? [] : [stage.sectionId],
-    ),
-  );
-  const titles = new Set(
-    next.stages.map((stage) => normalizedIdentity(stage.title)),
-  );
-  for (const section of sections) {
-    if (next.stages.length >= MAX_WORKFLOW_STAGES) break;
-    if (claimed.has(section.id) || skipSectionIds.has(section.id)) continue;
-    const title = normalizeText(section.name);
-    const identity = normalizedIdentity(title);
-    if (title.length === 0 || title.length > 80 || titles.has(identity)) {
+  sections: readonly BbSection[],
+  sidebarOrder: readonly string[] | null,
+  restorableInbox: WorkflowStage | null = null,
+): SectionSyncResult {
+  const changes: string[] = [];
+  const byId = new Map(sections.map((section) => [section.id, section]));
+  const claimed = new Set<string>();
+  let droppedInbox: WorkflowStage | null = null;
+  const stages: WorkflowStage[] = [];
+  for (const original of config.stages) {
+    const stage = { ...original };
+    if (stage.sectionId === null) {
+      const match = sections.find(
+        (section) =>
+          !claimed.has(section.id) &&
+          !config.stages.some((other) => other.sectionId === section.id) &&
+          legacySectionNames(stage).includes(section.name.trim()),
+      );
+      if (match) stage.sectionId = match.id;
+    }
+    if (stage.sectionId !== null) {
+      const section = byId.get(stage.sectionId);
+      if (!section) {
+        changes.push(
+          `action=stage-removed-from-bb stage=${stage.key} section=${stage.sectionId}`,
+        );
+        if (stage.key === "inbox") droppedInbox = original;
+        continue;
+      }
+      claimed.add(section.id);
+      const name = section.name.trim();
+      if (name !== stage.title) {
+        changes.push(
+          `action=stage-renamed-from-bb stage=${stage.key} section=${section.id}`,
+        );
+        stage.title = name;
+      }
+    }
+    stages.push(stage);
+  }
+
+  const rank = new Map((sidebarOrder ?? []).map((id, index) => [id, index]));
+  const unclaimed = sections
+    .filter((section) => !claimed.has(section.id))
+    .sort(
+      (left, right) =>
+        (rank.get(left.id) ?? Number.MAX_SAFE_INTEGER) -
+        (rank.get(right.id) ?? Number.MAX_SAFE_INTEGER),
+    );
+  let unmanaged = 0;
+  for (const section of unclaimed) {
+    if (stages.length >= MAX_WORKFLOW_STAGES) {
+      unmanaged += 1;
       continue;
     }
-    next.stages.push({
-      key: createStageKey(
-        title,
-        next.stages.map((stage) => stage.key),
-      ),
-      role: "stage",
-      title,
-      rule: DEFAULT_STAGE_RULE,
-      sectionId: section.id,
-    });
+    const title = section.name.trim();
+    const restoresInbox =
+      restorableInbox !== null &&
+      restorableInbox.title === title &&
+      !stages.some((stage) => stage.key === "inbox");
+    const stage: WorkflowStage = restoresInbox
+      ? { ...restorableInbox, sectionId: section.id }
+      : {
+          key: createStageKey(title, stages.map((entry) => entry.key)),
+          role: "stage",
+          title,
+          rule: DEFAULT_STAGE_RULE,
+          sectionId: section.id,
+        };
+    stages.push(stage);
     claimed.add(section.id);
-    titles.add(identity);
+    changes.push(
+      `action=stage-added-from-bb stage=${stage.key} section=${section.id}`,
+    );
   }
-  return next;
+
+  if (sidebarOrder !== null) {
+    // Stages with a section take the sidebar's order within the slots they
+    // hold; a stage still waiting for its section keeps its place.
+    const slots = stages.flatMap((stage, index) =>
+      stage.sectionId === null ? [] : [index],
+    );
+    const sorted = slots
+      .map((index) => stages[index]!)
+      .sort(
+        (left, right) =>
+          (rank.get(left.sectionId!) ?? Number.MAX_SAFE_INTEGER) -
+          (rank.get(right.sectionId!) ?? Number.MAX_SAFE_INTEGER),
+      );
+    const before = stages.map((stage) => stage.key).join(",");
+    slots.forEach((slot, index) => {
+      stages[slot] = sorted[index]!;
+    });
+    const after = stages.map((stage) => stage.key).join(",");
+    if (after !== before) changes.push(`action=order-from-bb order=${after}`);
+  }
+
+  return {
+    config: { ...config, stages },
+    changes,
+    droppedInbox,
+    unmanaged,
+  };
 }
 
 /**
@@ -585,10 +657,11 @@ export function placementForThread(
   releaseRead = false,
   hasRunningChildren = false,
 ): WorkflowStage | null {
+  // A remembered stage that no longer exists means no section.
   const remembered =
     config.stages.find(
       (stage) => stage.key === rememberedStageKey && stage.role === "stage",
-    ) ?? firstWorkflowStage(config);
+    ) ?? null;
   const currentStage = stageForSectionId(config, thread.sectionId);
   const keepInInbox =
     !leaveInbox &&
@@ -603,9 +676,9 @@ export function placementForThread(
     (thread.queuedMessageCount ?? 0) === 0 &&
     (isUnreadThread(thread) ||
       (keepInInbox && currentStage?.role === "inbox"));
-  return belongsInInbox
-    ? inboxStage(config)
-    : rememberedStageKey === null ? null : remembered;
+  if (!belongsInInbox) return remembered;
+  // Without a main Inbox, a thread that would go there stays where it is.
+  return inboxStage(config) ?? currentStage;
 }
 
 function entryPromptGuidance(config: WorkflowConfig): string[] {
@@ -630,8 +703,13 @@ export function buildWorkflowSkillSlot(config: WorkflowConfig): string {
       (stage) =>
         `| ${stage.key} | ${escapeTableCell(stage.title)} | ${escapeTableCell(stage.rule)} |`,
     );
+  const mainInbox = inboxStage(config);
   return [
-    `**${escapeTableCell(inboxStage(config).title)}** is the protected main Inbox. Idle unread threads without queued messages and not claimed by another inbox go there automatically and ${inboxStage(config).returnAfterRead ? "return to their workflow section once the user reads them" : "stay until work resumes or the user moves a read thread to another workflow section"}. A running child or a queued message also returns the thread to its workflow section. Never choose an inbox with \`bb organizer phase\`.`,
+    ...(mainInbox === null
+      ? []
+      : [
+          `**${escapeTableCell(mainInbox.title)}** is the protected main Inbox. Idle unread threads without queued messages and not claimed by another inbox go there automatically and ${mainInbox.returnAfterRead ? "return to their workflow section once the user reads them" : "stay until work resumes or the user moves a read thread to another workflow section"}. A running child or a queued message also returns the thread to its workflow section. Never choose an inbox with \`bb organizer phase\`.`,
+        ]),
     ...config.stages
       .filter((stage) => stage.role === "inbox" && stage.key !== "inbox")
       .map((stage) =>

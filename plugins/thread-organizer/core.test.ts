@@ -64,7 +64,7 @@ describe("workflow configuration", () => {
     });
   });
 
-  it("rejects attempts to change Inbox logic or make titles ambiguous", () => {
+  it("rejects Inbox logic changes and exact duplicate titles, like bb", () => {
     const changedRule = editable();
     changedRule.stages[0] = {
       ...changedRule.stages[0]!,
@@ -77,11 +77,24 @@ describe("workflow configuration", () => {
     const duplicatedTitle = editable();
     duplicatedTitle.stages[2] = {
       ...duplicatedTitle.stages[2]!,
-      title: " planning ",
+      title: " Planning ",
     };
     expect(() => core.normalizeEditableWorkflowConfig(duplicatedTitle)).toThrow(
-      "duplicated",
+      'A section named "Planning" already exists',
     );
+
+    // bb allows names that differ only in capitals, and any length.
+    const caseOnly = editable();
+    caseOnly.stages[2] = { ...caseOnly.stages[2]!, title: "planning" };
+    caseOnly.stages[3] = { ...caseOnly.stages[3]!, title: "x".repeat(200) };
+    expect(core.normalizeEditableWorkflowConfig(caseOnly).stages[2]?.title).toBe("planning");
+  });
+
+  it("accepts a workflow with only the Inbox, or none", () => {
+    const inboxOnly = editable();
+    inboxOnly.stages = inboxOnly.stages.slice(0, 1);
+    expect(core.normalizeEditableWorkflowConfig(inboxOnly).stages).toHaveLength(1);
+    expect(core.parseWorkflowConfig({ version: 2, stages: [] })?.stages).toEqual([]);
   });
 
   it("preserves native section identities across presentation edits", () => {
@@ -117,7 +130,7 @@ describe("workflow configuration", () => {
     expect(loaded.stages.at(-1)).toEqual(extra);
     expect(core.mergeEditableWorkflowConfig(loaded, core.editableWorkflowConfig(loaded)))
       .toEqual(loaded);
-    expect(core.inboxStage(loaded).key).toBe("inbox");
+    expect(core.inboxStage(loaded)?.key).toBe("inbox");
   });
 
   it("requires unique plugin filters on additional inboxes and protects the main Inbox", () => {
@@ -136,7 +149,7 @@ describe("workflow configuration", () => {
     expect(() => core.normalizeEditableWorkflowConfig(next)).toThrow("Only an additional inbox");
     delete next.stages[0]!.catchesPluginId;
     next.stages[0]!.role = "stage";
-    expect(() => core.normalizeEditableWorkflowConfig(next)).toThrow("protected main Inbox");
+    expect(() => core.normalizeEditableWorkflowConfig(next)).toThrow("reserved for the main Inbox");
   });
 
   it("persists after-reading return only on inboxes", () => {
@@ -291,10 +304,23 @@ describe("thread placement precedence", () => {
     ).toBe("on-hold");
   });
 
-  it("falls back to the first non-Inbox stage when a remembered stage vanished", () => {
-    expect(
-      core.placementForThread(config, thread(), "removed-stage")?.key,
-    ).toBe("planning");
+  it("places a thread whose remembered stage vanished in no section", () => {
+    expect(core.placementForThread(config, thread(), "removed-stage")).toBeNull();
+  });
+
+  it("leaves an unread thread where it is when there is no main Inbox", () => {
+    const withoutInbox = core.cloneWorkflowConfig(config);
+    withoutInbox.stages = withoutInbox.stages.filter((stage) => stage.key !== "inbox");
+    const building = withoutInbox.stages.find((stage) => stage.key === "building")!;
+    building.sectionId = "sec_building";
+    expect(core.placementForThread(withoutInbox, thread({ lastReadAt: 0 }), "building"))
+      .toBeNull();
+    expect(core.placementForThread(
+      withoutInbox,
+      thread({ lastReadAt: 0, sectionId: building.sectionId }),
+      "building",
+    )).toBe(building);
+    expect(core.buildWorkflowSkillSlot(withoutInbox)).not.toContain("main Inbox");
   });
 
   it("keeps claimed threads in their own inbox until an explicit move", () => {
@@ -550,95 +576,118 @@ describe("stage keys and revisions", () => {
   });
 });
 
-describe("adopting sections created outside the plugin", () => {
-  function managed() {
-    return core.cloneWorkflowConfig(core.DEFAULT_WORKFLOW_CONFIG);
-  }
-
-  function withSectionIds(config: core.WorkflowConfig): core.WorkflowConfig {
-    return {
-      ...config,
-      stages: config.stages.map((stage, index) => ({
-        ...stage,
-        sectionId: `sec_${index}`,
-      })),
-    };
-  }
-
-  it("adopts an unclaimed section as a stage carrying the default rule", () => {
-    const config = withSectionIds(managed());
-    const next = core.adoptUnmanagedSections(config, [
-      { id: "sec_demos", name: "bb demos" },
-    ]);
-    const adopted = next.stages.at(-1);
-    expect(adopted).toMatchObject({
-      role: "stage",
-      sectionId: "sec_demos",
-      title: "bb demos",
-      rule: core.DEFAULT_STAGE_RULE,
+describe("syncing stages with bb's sections", () => {
+  function linked(): core.WorkflowConfig {
+    const config = core.cloneWorkflowConfig(core.DEFAULT_WORKFLOW_CONFIG);
+    config.stages.forEach((stage, index) => {
+      stage.sectionId = `sec_${index}`;
     });
-    expect(adopted?.key).toBe("bb-demos");
-    expect(() =>
-      core.normalizeEditableWorkflowConfig(core.editableWorkflowConfig(next)),
-    ).not.toThrow();
-  });
+    return config;
+  }
+  const sectionsOf = (config: core.WorkflowConfig) =>
+    config.stages.map((stage) => ({ id: stage.sectionId!, name: stage.title }));
 
-  it("folds a styled section name onto the same stage identity", () => {
-    const config = withSectionIds(managed());
-    const next = core.adoptUnmanagedSections(config, [
-      { id: "sec_demos", name: "\u{1D483}\u{1D483} demos" },
-    ]);
-    expect(next.stages.at(-1)?.title).toBe("bb demos");
-    expect(next.stages.at(-1)?.key).toBe("bb-demos");
-  });
-
-  it("leaves sections a stage already claims alone", () => {
-    const config = withSectionIds(managed());
-    const before = config.stages.length;
-    const next = core.adoptUnmanagedSections(config, [
-      { id: "sec_0", name: "Inbox" },
-      { id: "sec_1", name: "Planning" },
-    ]);
-    expect(next.stages).toHaveLength(before);
-  });
-
-  it("never adopts a section a pending removal still has to delete", () => {
-    const config = withSectionIds(managed());
-    const before = config.stages.length;
-    const next = core.adoptUnmanagedSections(
+  it("changes nothing when bb already matches", () => {
+    const config = linked();
+    const result = core.syncStagesWithSections(
       config,
-      [{ id: "sec_removed", name: "Retired" }],
-      new Set(["sec_removed"]),
+      sectionsOf(config),
+      config.stages.map((stage) => stage.sectionId!),
     );
-    expect(next.stages).toHaveLength(before);
+    expect(result.config).toEqual(config);
+    expect(result.changes).toEqual([]);
   });
 
-  it("skips a section whose name collides with an existing stage title", () => {
-    const config = withSectionIds(managed());
-    const before = config.stages.length;
-    const next = core.adoptUnmanagedSections(config, [
-      { id: "sec_dupe", name: "  planning  " },
-    ]);
-    expect(next.stages).toHaveLength(before);
+  it("drops stages whose section is gone, the main Inbox included", () => {
+    const config = linked();
+    const result = core.syncStagesWithSections(
+      config,
+      sectionsOf(config).filter((section) => !["sec_0", "sec_5"].includes(section.id)),
+      null,
+    );
+    expect(result.config.stages.map((stage) => stage.key)).not.toContain("handoff");
+    expect(result.config.stages.map((stage) => stage.key)).not.toContain("inbox");
+    expect(result.droppedInbox).toMatchObject({ key: "inbox", sectionId: "sec_0" });
+    expect(result.changes).toContain("action=stage-removed-from-bb stage=handoff section=sec_5");
   });
 
-  it("stops adopting once the workflow reaches its stage cap", () => {
-    const config = withSectionIds(managed());
+  it("takes bb's names, case-only differences included", () => {
+    const config = linked();
+    const sections = sectionsOf(config);
+    sections[3]!.name = "  building  ";
+    const result = core.syncStagesWithSections(config, sections, null);
+    expect(result.config.stages[3]).toMatchObject({ key: "building", title: "building" });
+    expect(result.changes).toEqual(["action=stage-renamed-from-bb stage=building section=sec_3"]);
+  });
+
+  it("adds new sections at their sidebar spot and follows the sidebar order", () => {
+    const config = linked();
+    const sections = [...sectionsOf(config), { id: "sec_demos", name: "Demos" }];
+    const order = ["sec_0", "sec_6", "sec_demos", "sec_1", "sec_2", "sec_3", "sec_4", "sec_5"];
+    const result = core.syncStagesWithSections(config, sections, order);
+    expect(result.config.stages.map((stage) => stage.sectionId)).toEqual(order);
+    expect(result.config.stages[2]).toMatchObject({
+      key: "demos", role: "stage", rule: core.DEFAULT_STAGE_RULE,
+    });
+    expect(result.changes).toContain("action=stage-added-from-bb stage=demos section=sec_demos");
+  });
+
+  it("keeps a stage still waiting for its section in place and lets it claim a same-named one", () => {
+    const config = linked();
+    config.stages[2]!.sectionId = null;
+    const sections = sectionsOf(config).filter((section) => section.id !== null);
+    sections[2] = { id: "sec_legacy", name: "🔎 Spec Review" };
+    const result = core.syncStagesWithSections(config, sections, null);
+    expect(result.config.stages[2]).toMatchObject({
+      key: "spec-review", sectionId: "sec_legacy", title: "🔎 Spec Review",
+    });
+
+    config.stages.push({ key: "fresh", role: "stage", title: "Fresh", rule: "New.", sectionId: null });
+    const pending = core.syncStagesWithSections(
+      config,
+      sectionsOf(linked()),
+      ["sec_6", "sec_0", "sec_1", "sec_2", "sec_3", "sec_4", "sec_5"],
+    );
+    expect(pending.config.stages.at(-1)).toMatchObject({ key: "fresh", sectionId: null });
+  });
+
+  it("restores a deleted main Inbox when a section with its name comes back", () => {
+    const config = linked();
+    const deletedInbox = { ...config.stages[0]!, returnAfterRead: true, sectionId: null };
+    config.stages.shift();
+    const result = core.syncStagesWithSections(
+      config,
+      [...sectionsOf(config), { id: "sec_new", name: "Inbox" }],
+      null,
+      deletedInbox,
+    );
+    expect(result.config.stages.at(-1)).toMatchObject({
+      key: "inbox", role: "inbox", returnAfterRead: true, sectionId: "sec_new",
+    });
+  });
+
+  it("stops adding at the stage cap and counts the rest", () => {
+    const config = linked();
     const room = core.MAX_WORKFLOW_STAGES - config.stages.length;
-    const next = core.adoptUnmanagedSections(
+    const result = core.syncStagesWithSections(
       config,
-      Array.from({ length: room + 3 }, (_unused, index) => ({
-        id: `sec_extra_${index}`,
-        name: `Extra ${index}`,
-      })),
+      [
+        ...sectionsOf(config),
+        ...Array.from({ length: room + 3 }, (_unused, index) => ({
+          id: `sec_extra_${index}`,
+          name: `Extra ${index}`,
+        })),
+      ],
+      null,
     );
-    expect(next.stages).toHaveLength(core.MAX_WORKFLOW_STAGES);
+    expect(result.config.stages).toHaveLength(core.MAX_WORKFLOW_STAGES);
+    expect(result.unmanaged).toBe(3);
   });
 
   it("does not mutate the config it was given", () => {
-    const config = withSectionIds(managed());
-    const before = config.stages.length;
-    core.adoptUnmanagedSections(config, [{ id: "sec_new", name: "Fresh" }]);
-    expect(config.stages).toHaveLength(before);
+    const config = linked();
+    const before = JSON.stringify(config);
+    core.syncStagesWithSections(config, [{ id: "sec_new", name: "Fresh" }], ["sec_new"]);
+    expect(JSON.stringify(config)).toBe(before);
   });
 });

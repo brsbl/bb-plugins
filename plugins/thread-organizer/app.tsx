@@ -45,7 +45,6 @@ import {
 } from "./core.js";
 import type { rpcContract } from "./server.js";
 import {
-  cacheWorkflowConfig,
   mountThreadOrganizerSidebar,
 } from "./sidebar-controller.js";
 
@@ -468,7 +467,6 @@ function StageCard({
           data-stage-key={stage.key}
           className="h-8 min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-1 text-sm font-semibold text-foreground outline-none hover:border-border focus:border-foreground/45 focus:bg-background"
           style={{ fieldSizing: "content", minWidth: "6ch" }}
-          maxLength={80}
           onChange={(event) => update("title", event.target.value)}
           value={stage.title}
         />
@@ -639,7 +637,6 @@ export function WorkflowSettings() {
         return;
       }
       setConfig(editableWorkflowConfig(full));
-      cacheWorkflowConfig(full);
       loadedRevisionRef.current = full.revision ?? 0;
       setChangedElsewhere(false);
     } catch (loadError) {
@@ -769,7 +766,6 @@ export function WorkflowSettings() {
         ...normalized,
         baseRevision: loadedRevisionRef.current,
       });
-      cacheWorkflowConfig(full);
       loadedRevisionRef.current = full.revision ?? 0;
       if (editRevisionRef.current === submittedRevision) {
         dirtyRef.current = false;
