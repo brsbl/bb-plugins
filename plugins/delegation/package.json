@@ -1,6 +1,6 @@
 {
   "name": "bb-plugin-delegation",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Skills and a right-panel view for running a team of bb threads: delegate work, keep each agent-to-agent conversation in its own channel, and bring back only what matters.",
   "type": "module",
   "license": "UNLICENSED",
@@ -8,6 +8,7 @@
     "dist",
     "docs",
     "README.md",
+    "PLUGIN_OVERVIEW.md",
     "skills",
     "assets"
   ],
