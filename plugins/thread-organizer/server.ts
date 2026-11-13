@@ -1042,15 +1042,13 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
             : [],
         );
         await addPendingDeletes(removed);
-        await runPendingDeletes(
-          new Set((await bb.sdk.threadSections.list()).map((section) => section.id)),
-        );
         const sectionNames = new Map(
           (await bb.sdk.threadSections.list()).map((section) => [
             section.id,
             section.name.trim(),
           ]),
         );
+        await runPendingDeletes(new Set(sectionNames.keys()));
         for (const stage of next.stages) {
           if (
             stage.sectionId === null ||
