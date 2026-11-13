@@ -1,0 +1,50 @@
+#!/usr/bin/env python3
+"""Synthetic GitHub CLI boundary for isolated demos; never contacts GitHub.
+
+Prepend this directory to the isolated bb server's PATH. Set
+GH_ACTIVITY_FIXTURE_STATE to activity (default), empty, or signed-out.
+"""
+import json
+import os
+import sys
+
+args = sys.argv[1:]
+if args == ['--version']:
+    print('gh version 0.0.0 (synthetic fixture)')
+    sys.exit(0)
+if os.environ.get('GH_ACTIVITY_FIXTURE_STATE') == 'signed-out':
+    print('To get started with GitHub CLI, please run: gh auth login', file=sys.stderr)
+    sys.exit(1)
+
+owner = 'fixture-author'
+repo = 'example-org/project-demo'
+updated = '2026-10-18T12:00:00Z'
+if args == ['api', 'user']:
+    result = {'id': 1, 'login': owner, 'url': f'https://api.github.com/users/{owner}'}
+elif len(args) > 1 and args[1].lstrip('/').startswith('notifications'):
+    result = [] if os.environ.get('GH_ACTIVITY_FIXTURE_STATE') == 'empty' else [{
+        'id': 'fixture-notification', 'reason': 'mention', 'unread': True,
+        'updated_at': updated, 'repository': {'full_name': repo},
+        'subject': {'title': 'Add keyboard shortcuts', 'type': 'PullRequest',
+                    'latest_comment_url': f'https://api.github.com/repos/{repo}/issues/comments/1',
+                    'url': f'https://api.github.com/repos/{repo}/pulls/42'},
+    }]
+elif len(args) > 1 and args[1].endswith('/issues/comments/1'):
+    result = {'id': 1, 'body': f'@{owner} please check the keyboard shortcut.',
+              'created_at': updated, 'updated_at': updated,
+              'user': {'login': 'fixture-reviewer', 'avatar_url': None}}
+elif len(args) > 1 and args[1] == 'graphql':
+    result = {'data': {'viewer': {'login': owner}, 'notification0': {'resource': {
+        'author': {'login': owner}, 'number': 42,
+        'title': 'Add keyboard shortcuts',
+        'url': f'https://github.com/{repo}/pull/42',
+        'comments': {'nodes': [{
+            'author': {'login': 'fixture-reviewer', 'avatarUrl': None},
+            'bodyText': f'@{owner} please check the keyboard shortcut.',
+            'createdAt': updated, 'databaseId': 1,
+        }]}, 'reviews': {'nodes': []}, 'reviewThreads': {'nodes': []},
+    }}}}
+else:
+    print('Unsupported fixture request', file=sys.stderr)
+    sys.exit(1)
+print(json.dumps(result))
