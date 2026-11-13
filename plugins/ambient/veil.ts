@@ -83,7 +83,8 @@ const HEADER_FIRST = `${ROOT} [data-testid="app-page-header-content-row"] > :fir
 const RIGHT_PANEL_BUTTON = 'button[aria-label*="right panel" i]';
 const SIDEBAR_CARDS = `${ROOT} :is([data-testid="sidebar-navigation-region"], [data-sidebar="content"], [data-sidebar="footer"])`;
 const SIDEBAR_FOOTER = `${ROOT} [data-sidebar="footer"]`;
-const FOOTER_TRAY = `${SIDEBAR_FOOTER}:not(:has([data-testid^="plugin-sidebar-footer-disclosure-"]))`;
+/** bb up to 0.46.0 nests the overflow fade, footer panels and the customize editor in the footer; that footer keeps its full glass card. */
+const FOOTER_TRAY = `${SIDEBAR_FOOTER}:not(:has(> [data-overflow-fade]))`;
 /** bb's default icon rail: its scrolling icon column, and Settings in the rail's footer cell. */
 const RAIL = `${ROOT} [data-testid="app-nav-rail"] > :not([data-prism-frame-layer])`;
 const RAIL_SETTINGS = `${ROOT} [data-testid="sidebar-navigation-rail"] ~ div > button[aria-label^="Settings"]`;
@@ -134,7 +135,7 @@ ${ROOT} [data-prism-frame-layer] { ${HIDE} }
 ${ROOT} [data-sidebar="inset-edge"] { ${HIDE} }
 ${ROOT} [data-sidebar="inset"]::after, ${ROOT} [data-sidebar="collapsible-body"] { border-color: transparent; background-color: transparent; }
 /* The frame carries the one Show-through tint; the card's and sidebar's own fills would draw their edges as tone steps. */
-${ROOT} [data-framed] [data-sidebar="inset"]::before, ${ROOT} [data-framed] [data-sidebar="panel"] { background-color: transparent; }
+${ROOT} [data-framed] [data-sidebar="inset"]::before, ${ROOT} [data-framed] [data-sidebar="panel"] { background-color: transparent; border-color: transparent; }
 ${SHELL}[data-ambient-glass="low"] { --ambient-blur: blur(6px); }
 ${SHELL}[data-ambient-glass="solid"] { --ambient-blur: none; --ambient-glass-fill: var(--ambient-glass-solid); }
 :is(${PANES}) { --background: ${mix("var(--ambient-background)", "var(--ambient-keep, 23%)")}; --sidebar: ${mix("var(--ambient-sidebar)", "var(--ambient-keep, 23%)")}; }
@@ -217,9 +218,13 @@ ${ROOT} [data-testid="app-desktop-sidebar-trigger"][class~="left-[84px]"] { marg
 ${ROOT} [data-testid="app-page-header-content-row"][class~="pl-[104px]"] { padding-inline-start: ${TRAFFIC_LIGHT_RESERVE}; }
 ${ROOT} ${SIDEBAR_HEADER_CONTENT} { display: flex; align-items: center; min-width: 0; max-width: 100%; min-height: 32px; overflow: hidden; }
 ${ROOT} button[data-sidebar="trigger"] { margin-inline: -4px 0; width: 32px; height: 32px; }
+/* In the desktop title bar, back and forward share one chip like the sidebar toggle beside them. */
+${ROOT} [data-framed] div:has(> button[aria-label^="Go back"]) { ${GLASS_CHIP} border-radius: 12px; height: 32px; padding-inline: 2px; margin-inline-end: 6px; }
 /* Rail icons sit on the same opaque chip as the toggle above them; the column hugs its icons. */
-${RAIL} { flex: 0 1 auto; width: auto; padding: 4px; ${GLASS_CHIP} border-radius: 12px; }
-${RAIL_SETTINGS} { ${GLASS_CHIP} border-radius: 12px; width: 34px; height: 34px; }
+${RAIL} { flex: 0 1 auto; width: auto; padding: 6px; ${GLASS_CHIP} border-radius: 12px; }
+${RAIL_SETTINGS} { ${GLASS_CHIP} border-radius: 12px; width: 38px; height: 38px; }
+/* Touch screens get bb's 36px rail buttons; Settings keeps the rail's width so the column's edges line up. */
+@media (width < 48rem) and (pointer: coarse) { ${RAIL_SETTINGS} { width: 50px; } }
 ${ROOT} [data-testid="app-sidebar-top-reserve-row"] > div:nth-child(n) { margin-inline-end: 0; min-height: 32px; }
 ${HEADER_FIRST} { flex: 0 1 auto; min-width: 0; min-height: 32px; margin-inline: -6px 6px; padding-inline-start: 12px; }
 ${HEADER_FIRST}:has([data-pane-header-focus-tab]) { background-image: linear-gradient(var(--state-active), var(--state-active)); }
@@ -248,15 +253,12 @@ ${ROOT} [data-sidebar="content"] > .px-2:first-child { padding-block-start: 12px
 @media (max-height: 560px) { ${ROOT} [data-testid="sidebar-navigation-region"] { flex: 0 1 auto; min-height: 3rem; overflow-y: auto; } }
 /* bb measures this row to decide which icons fit. Shrink-to-content makes overflow capacity depend on the icons it already hid. */
 ${SIDEBAR_FOOTER} { flex-shrink: 0; margin-block: 8px; align-self: stretch; width: auto; }
-/* The footer tray matches the Settings chip beside it: a glass strip on bb's own footer row, which bb centers on Settings.
-   Older bb nests footer panels inside the footer; that footer keeps its full glass card. */
+/* The footer tray matches the Settings chip beside it: a glass strip on bb's own footer row, which bb centers on Settings. */
 ${FOOTER_TRAY} { position: relative; isolation: isolate; background: none; box-shadow: none; ${NO_BLUR} }
-${FOOTER_TRAY}::before { ${LAYER} ${GLASS_SURFACE} border-radius: 12px; inset-inline: -1px; top: calc(50% - 17px); height: 34px; }
+${FOOTER_TRAY}::before { ${LAYER} ${GLASS_SURFACE} border-radius: 12px; inset-inline: -1px; top: calc(50% - 19px); height: 38px; }
 ${ROOT} [data-framed] [data-sidebar="footer"] { margin-block: 0; }
 /* Outside the desktop frame bb pads the footer 8px above and 7px below, so its icons sit half a pixel below center. */
-${FOOTER_TRAY}:not([data-framed] *)::before { top: calc(50% - 16.5px); }
-/* Touch screens get bb's 36px footer buttons, so the tray and Settings grow to hold them. */
-@media (max-width: 767px) and (pointer: coarse) { ${FOOTER_TRAY}:not([data-framed] *)::before { top: calc(50% - 17.5px); height: 36px; } ${RAIL_SETTINGS} { width: 36px; height: 36px; } }
+${FOOTER_TRAY}:not([data-framed] *)::before { top: calc(50% - 18.5px); }
 ${SIDEBAR_FOOTER} [data-testid^="plugin-sidebar-footer-disclosure-"] { background-color: transparent; }
 ${ROOT} [data-testid^="plugin-sidebar-footer-disclosure-"] { border-color: transparent; }
 ${SIDEBAR_FOOTER} > [data-overflow-fade], ${SIDEBAR_FOOTER} > ul > li[aria-hidden="true"]:empty { ${HIDE} }
