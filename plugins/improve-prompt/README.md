@@ -46,7 +46,7 @@ The stable plugin ID remains `prompt-shaper` for compatibility.
 
 ## How it works
 
-The plugin sends only the current draft to a standalone hidden helper thread. The helper follows the Rewrite instructions setting to rewrite the draft into one paste-ready prompt, and the result replaces the draft in place. When the prompt box targets Claude Fable 5.1, the hidden helper also uses the bundled, collision-free `fable-5-1-target-prompting` skill as target-model guidance, regardless of which model runs the helper. The helper may reuse the source thread's environment and execution settings, but it never reads or inherits that thread's transcript.
+The plugin sends only the current draft to a standalone hidden helper thread. The helper follows the Rewrite instructions setting to rewrite the draft into one paste-ready prompt, and the result replaces the draft in place. The helper may reuse the source thread's environment and execution settings, but it never reads or inherits that thread's transcript.
 
 The bundled `prompt-shaper` skill remains available for rewriting prompts in a normal thread with `/prompt-shaper`.
 
