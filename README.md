@@ -217,7 +217,7 @@ Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/c
 
 ### Compact Links
 
-Turns website URLs and local file paths into compact pills in drafts and conversations. Website links show favicons; files show their type and open through bb’s normal file flow.
+Turns website URLs into compact favicon pills in the composer, sent messages and agent replies. Click a link to open it using your bb browser preference.
 
 ![SaaS and localhost links in drafts and conversations](https://github.com/user-attachments/assets/50b2bbde-30f6-4ac2-9060-a92d04a6bc07)
 
