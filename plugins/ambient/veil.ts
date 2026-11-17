@@ -218,8 +218,9 @@ ${ROOT} [data-testid="app-desktop-sidebar-trigger"][class~="left-[84px]"] { marg
 ${ROOT} [data-testid="app-page-header-content-row"][class~="pl-[104px]"] { padding-inline-start: ${TRAFFIC_LIGHT_RESERVE}; }
 ${ROOT} ${SIDEBAR_HEADER_CONTENT} { display: flex; align-items: center; min-width: 0; max-width: 100%; min-height: 32px; overflow: hidden; }
 ${ROOT} button[data-sidebar="trigger"] { margin-inline: -4px 0; width: 32px; height: 32px; }
-/* In the desktop title bar, back and forward share one chip like the sidebar toggle beside them. */
-${ROOT} [data-framed] div:has(> button[aria-label^="Go back"]) { ${GLASS_CHIP} border-radius: 12px; height: 32px; padding-inline: 2px; margin-inline-end: 6px; }
+/* In the desktop title bar, back and forward share one chip like the sidebar toggle beside them. The in-app browser's toolbar
+   also starts with back and forward, but more controls follow, so it is not matched. */
+${ROOT} [data-framed] div:has(> button[aria-label^="Go back"]:first-child + button[aria-label^="Go forward"]:last-child) { ${GLASS_CHIP} border-radius: 12px; height: 32px; padding-inline: 2px; margin-inline-end: 6px; }
 /* Rail icons sit on the same opaque chip as the toggle above them; the column hugs its icons. */
 ${RAIL} { flex: 0 1 auto; width: auto; padding: 6px; ${GLASS_CHIP} border-radius: 12px; }
 ${RAIL_SETTINGS} { ${GLASS_CHIP} border-radius: 12px; width: 38px; height: 38px; }
