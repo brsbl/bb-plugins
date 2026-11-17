@@ -101,6 +101,10 @@ const SIDEBAR_OPEN = `${ROOT} .peer[data-state="expanded"][data-side="left"] + [
 const THREAD_TITLE_ROW =
   '[data-split-pane-id]:has([data-thread-window]) > header > [data-testid="app-page-header-content-row"]';
 const PLUGIN_PAGE_BODY = '[data-testid="plugin-panel-body"]';
+const CONTENT_SHELL = '[data-testid="app-layout-content-shell"]';
+/** A page's header row. Thread rows match too, but the more specific thread-row rules win; no :has() exclusion here, which would
+    restyle a whole thread pane on every streamed token. */
+const PAGE_HEADER_ROW = `${CONTENT_SHELL} [data-testid="app-page-header-content-row"]`;
 const PAGE_COLUMN = `:is(.max-w-5xl, [class~="max-w-[760px]"], ${PLUGIN_PAGE_BODY})`;
 
 const COLUMN_HALF = "404px";
@@ -197,7 +201,7 @@ ${PAGE}::before { left: max(var(--ambient-column-gutter, 8px), anchor(--ambient-
 /* bb's resource collection pages (Plugins, Skills) scroll in a scroll area that keeps a 12px scrollbar strip right of their column;
    the card covers it, so its right side matches its left (and reaches the window edge when the column fills the page). The hook is
    bb's data attribute: a class selector inside :has() would restyle the whole page on every class change in it. */
-@media (min-width: 768px) { ${PAGE}:has([data-resource-collection-viewport]:not(#thread-detail-secondary-panel *))::before { right: max(8px, calc(anchor(--ambient-page-column right, 20px) - 12px)); } }
+@media (min-width: 768px) { ${PAGE}:has([data-resource-collection-viewport]:not(#thread-detail-secondary-panel *)):not(:has(${PLUGIN_PAGE_BODY}))::before { right: max(8px, calc(anchor(--ambient-page-column right, 20px) - 12px)); } }
 ${PAGE}:has([data-testid="app-page-header-content-row"])::before { top: calc(var(--bb-app-chrome-row-height, 3rem) + var(--ambient-card-shift)); }
 /* In the desktop window a page with its header inside it (plugin pages, Automations) starts at the window top; its card starts on
    the content line. Outside the frame, a page whose header sits above it moves with bb's raised title row. */
@@ -212,6 +216,23 @@ ${PAGE} .bg-card[class*="hover:bg-"]:hover { background-color: color-mix(in okla
 @media (min-width: 768px) { ${ROOT} .peer[data-collapsible="rail"][data-side="left"] + [data-sidebar="inset"] { --ambient-column-gutter: calc(var(--ambient-edge) + var(--ambient-gap) - var(--ambient-rail-cell-slack) - 1px); } }
 @media (min-width: 768px) { ${SIDEBAR_OPEN} { --ambient-column-gutter: 0px; } ${SIDEBAR_OPEN} [data-testid="app-page-header-content-row"] > :first-child { margin-inline-start: -16px; } }
 @media (min-width: 768px) { ${ROOT} ${THREAD_TITLE_ROW} { padding-inline-start: max(32px, 50% - ${COLUMN_HALF} + 6px); } ${ROOT} ${THREAD_TITLE_ROW}[class~="pl-[104px]"] { padding-inline-start: max(${TRAFFIC_LIGHT_RESERVE}, 50% - ${COLUMN_HALF} + 6px); } ${ROOT} ${THREAD_TITLE_ROW}[class*="pl-[calc(var(--bb-window-title-bar-controls-end)"] { padding-inline-start: max(${COLLAPSED_TITLE_BAR_RESERVE}, 50% - ${COLUMN_HALF} + 6px); } ${SIDEBAR_OPEN} ${THREAD_TITLE_ROW} { padding-inline-start: max(0px, 50% - ${COLUMN_HALF} + 16px); } }
+/* Header pills sit on the edges of the card under them. Threads: the actions pill ends where the 808px thread card ends. */
+@media (min-width: 768px) { ${ROOT} ${THREAD_TITLE_ROW} { padding-inline-end: max(0px, 50% - ${COLUMN_HALF} + 8px); } }
+/* Pages center a card as wide as their column, which depends on the page type; each sets half its width and the header row follows it
+   the same way thread rows follow the thread card (bb's reserve beside the title-bar controls stays the minimum). Unknown pages keep
+   bb's layout: the 100vw default never wins the max(). Class selectors (not [class~=]) keep these :has() checks cheap. */
+${ROOT} { --ambient-page-half: 100vw; }
+${ROOT} ${CONTENT_SHELL}:not(:has([data-thread-window])):has(> main .max-w-\\[760px\\]:not(#thread-detail-secondary-panel *)) { --ambient-page-half: 380px; }
+${ROOT} ${CONTENT_SHELL}:not(:has([data-thread-window])):has(> main .max-w-5xl:not(#thread-detail-secondary-panel *)) { --ambient-page-half: 512px; }
+${ROOT} ${CONTENT_SHELL}:not(:has([data-thread-window])):has(> main [data-resource-collection-viewport]:not(#thread-detail-secondary-panel *)) { --ambient-page-half: 518px; }
+${ROOT} ${CONTENT_SHELL}:not(:has([data-thread-window])):has(> main ${PLUGIN_PAGE_BODY}:not(#thread-detail-secondary-panel *)) { --ambient-page-half: ${COLUMN_HALF}; }
+@media (min-width: 768px) {
+  ${ROOT} ${PAGE_HEADER_ROW} { padding-inline: max(0px, 50% - var(--ambient-page-half) + 6px) max(0px, 50% - var(--ambient-page-half) + 8px); }
+  ${ROOT} ${PAGE_HEADER_ROW}[class~="pl-[32px]"] { padding-inline-start: max(32px, 50% - var(--ambient-page-half) + 6px); }
+  ${ROOT} ${PAGE_HEADER_ROW}[class~="pl-[104px]"] { padding-inline-start: max(${TRAFFIC_LIGHT_RESERVE}, 50% - var(--ambient-page-half) + 6px); }
+  ${ROOT} ${PAGE_HEADER_ROW}[class*="pl-[calc(var(--bb-window-title-bar-controls-end)"] { padding-inline-start: max(${COLLAPSED_TITLE_BAR_RESERVE}, 50% - var(--ambient-page-half) + 6px); }
+  ${SIDEBAR_OPEN} ${PAGE_HEADER_ROW} { padding-inline-start: max(0px, 50% - var(--ambient-page-half) + 16px); }
+}
 ${THREAD}::after { content: ""; position: absolute; z-index: 1; pointer-events: none; top: 1px; height: 28px; left: calc(${COLUMN_LEFT} + 1px); right: calc(${COLUMN_RIGHT} + 1px); border-radius: 19px 19px 0 0; background: linear-gradient(to bottom, ${mix("var(--ambient-background)", "18%")}, transparent); }
 ${THREAD} [data-timeline-row-list] :is([data-message-column].border, [data-message-column] .border) { border-color: ${mix("var(--ink)", "8%")}; }
 ${THREAD} [data-markdown-preview] div:has(> div > table) { width: 100% !important; margin-inline: 0 !important; }
