@@ -200,7 +200,7 @@ ${PAGE_MAIN} #thread-detail-secondary-panel ${PAGE_COLUMN} { anchor-name: none; 
 ${PAGE}::before { left: max(var(--ambient-column-gutter, 8px), anchor(--ambient-page-column left, 8px)); right: max(8px, anchor(--ambient-page-column right, 8px)); }
 /* bb's resource collection pages (Plugins, Skills) scroll in a scroll area that keeps a 12px scrollbar strip right of their column;
    the card covers it, so its right side matches its left (and reaches the window edge when the column fills the page). The hook is
-   bb's data attribute: a class selector inside :has() would restyle the whole page on every class change in it. */
+   bb's data attribute: an attribute selector on class ([class~=…]) inside :has() would restyle the whole page on every class change. */
 @media (min-width: 768px) { ${PAGE}:has([data-resource-collection-viewport]:not(#thread-detail-secondary-panel *)):not(:has(${PLUGIN_PAGE_BODY}))::before { right: max(8px, calc(anchor(--ambient-page-column right, 20px) - 12px)); } }
 ${PAGE}:has([data-testid="app-page-header-content-row"])::before { top: calc(var(--bb-app-chrome-row-height, 3rem) + var(--ambient-card-shift)); }
 /* In the desktop window a page with its header inside it (plugin pages, Automations) starts at the window top; its card starts on
@@ -220,14 +220,20 @@ ${PAGE} .bg-card[class*="hover:bg-"]:hover { background-color: color-mix(in okla
 @media (min-width: 768px) { ${ROOT} ${THREAD_TITLE_ROW} { padding-inline-end: max(0px, 50% - ${COLUMN_HALF} + 8px); } }
 /* Pages center a card as wide as their column, which depends on the page type; each sets half its width and the header row follows it
    the same way thread rows follow the thread card (bb's reserve beside the title-bar controls stays the minimum). Unknown pages keep
-   bb's layout: the 100vw default never wins the max(). Class selectors (not [class~=]) keep these :has() checks cheap. */
+   bb's layout: the 100vw default never wins the max(). Real class selectors (not [class~=…]) keep these :has() checks cheap. */
 ${ROOT} { --ambient-page-half: 100vw; }
-${ROOT} ${CONTENT_SHELL}:not(:has([data-thread-window])):has(> main .max-w-\\[760px\\]:not(#thread-detail-secondary-panel *)) { --ambient-page-half: 380px; }
-${ROOT} ${CONTENT_SHELL}:not(:has([data-thread-window])):has(> main .max-w-5xl:not(#thread-detail-secondary-panel *)) { --ambient-page-half: 512px; }
-${ROOT} ${CONTENT_SHELL}:not(:has([data-thread-window])):has(> main [data-resource-collection-viewport]:not(#thread-detail-secondary-panel *)) { --ambient-page-half: 518px; }
-${ROOT} ${CONTENT_SHELL}:not(:has([data-thread-window])):has(> main ${PLUGIN_PAGE_BODY}:not(#thread-detail-secondary-panel *)) { --ambient-page-half: ${COLUMN_HALF}; }
+${ROOT} ${CONTENT_SHELL}:not(:has([data-thread-window])):has(> main .max-w-\\[760px\\]:not(#thread-detail-secondary-panel *)) { --ambient-page-half: 380px; --ambient-page-row-transition: 0s; }
+${ROOT} ${CONTENT_SHELL}:not(:has([data-thread-window])):has(> main .max-w-5xl:not(#thread-detail-secondary-panel *)) { --ambient-page-half: 512px; --ambient-page-row-transition: 0s; }
+${ROOT} ${CONTENT_SHELL}:not(:has([data-thread-window])):has(> main [data-resource-collection-viewport]:not(#thread-detail-secondary-panel *)) { --ambient-page-half: 518px; --ambient-page-row-transition: 0s; }
+${ROOT} ${CONTENT_SHELL}:not(:has([data-thread-window])):has(> main ${PLUGIN_PAGE_BODY}:not(#thread-detail-secondary-panel *)) { --ambient-page-half: ${COLUMN_HALF}; --ambient-page-row-transition: 0s; }
+/* With the right panel open the column centers in the left part only, and in a split each pane has its own header; both keep bb's
+   layout. bb hides the closed panel with aria-hidden and renders the focus scrim only in split panes. */
+${ROOT} ${CONTENT_SHELL}:has(> main #thread-detail-secondary-panel-handle + [data-panel] > aside:not([aria-hidden="true"])) { --ambient-page-half: 100vw; --ambient-page-row-transition: 200ms; }
+${ROOT} ${CONTENT_SHELL}:has(> main [data-pane-focus-scrim]:not(#thread-detail-secondary-panel *)) { --ambient-page-half: 100vw; --ambient-page-row-transition: 200ms; }
 @media (min-width: 768px) {
   ${ROOT} ${PAGE_HEADER_ROW} { padding-inline: max(0px, 50% - var(--ambient-page-half) + 6px) max(0px, 50% - var(--ambient-page-half) + 8px); }
+  /* bb animates this padding; on a page that would slide the pill after a card that moves at once. */
+  ${ROOT} ${PAGE_HEADER_ROW} { transition-duration: var(--ambient-page-row-transition, 200ms); }
   ${ROOT} ${PAGE_HEADER_ROW}[class~="pl-[32px]"] { padding-inline-start: max(32px, 50% - var(--ambient-page-half) + 6px); }
   ${ROOT} ${PAGE_HEADER_ROW}[class~="pl-[104px]"] { padding-inline-start: max(${TRAFFIC_LIGHT_RESERVE}, 50% - var(--ambient-page-half) + 6px); }
   ${ROOT} ${PAGE_HEADER_ROW}[class*="pl-[calc(var(--bb-window-title-bar-controls-end)"] { padding-inline-start: max(${COLLAPSED_TITLE_BAR_RESERVE}, 50% - var(--ambient-page-half) + 6px); }
