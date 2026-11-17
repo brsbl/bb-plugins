@@ -329,6 +329,10 @@ ${SIDEBAR_FOOTER} > [data-overflow-fade], ${SIDEBAR_FOOTER} > ul > li[aria-hidde
 :is(${SIDEBAR_CARDS}, ${RIGHT_PANEL}) :is(.sticky, [data-sidebar-sticky-tier], [data-sidebar-sticky-stack]), ${OVERLAY} :is(.sticky:not(.bg-sidebar, .bg-background, .bg-popover), [data-sidebar-sticky-tier], [data-sidebar-sticky-stack]), :is(${SIDEBAR_CARDS}) [data-sidebar-sticky-stack]::before { ${NO_BLUR} }
 :is(${SIDEBAR_CARDS}) [data-sidebar-sticky-stack] [data-sidebar-sticky-tier] { position: relative; top: auto; }
 ${RIGHT_PANEL} { ${GLASS_SURFACE} inset: var(--ambient-chip-top) 8px 8px 0; height: auto; max-width: calc(100% - 8px); border-radius: 20px; overflow: hidden; --background: transparent; --sidebar: transparent; }
+/* A thread in the right panel (Side chat) uses the panel as its card: no centered card of its own, the same solid tint behind its text. */
+${RIGHT_PANEL} [data-thread-window]::before, ${RIGHT_PANEL} [data-thread-window]::after { ${HIDE} }
+${RIGHT_PANEL} [data-thread-window] { background-color: var(--ambient-glass-solid); }
+${RIGHT_PANEL} [data-thread-window] > * { clip-path: none; }
 /* Split panes' cards sit one gap apart: the invisible 1px separator overlaps the next pane instead of adding to the gap. */
 ${ROOT} [role="separator"][data-split-resize-grid-boundary] { margin-inline-end: -1px; }
 ${ROOT} [role="separator"][data-split-resize-grid-boundary] + div { --ambient-column-gutter: 0px; }
