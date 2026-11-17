@@ -75,8 +75,8 @@ rather than inventing a transition. Do not move the thread merely to record an
 end state after finishing a step. If the user corrects a move, apply the
 correct stage immediately.
 
-Do not create, rename, or delete native sections; the plugin reconciles them
-from the user’s settings.
+Do not create, rename, or delete native sections; they belong to the user, and
+the plugin follows the changes they make in bb's sidebar or its settings.
 
 ## Respect entry prompts
 

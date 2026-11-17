@@ -179,6 +179,12 @@ function createHarness(
       title?: string | null;
     }) => {
       const thread = getTestThread(threadId);
+      if (
+        typeof sectionId === "string" &&
+        !sections.some((section) => section.id === sectionId)
+      ) {
+        throw new Error("Section not found");
+      }
       const updated = makeThreadResponse({
         ...thread,
         ...(sectionId !== undefined ? { sectionId } : {}),
@@ -329,6 +335,27 @@ function createHarness(
       sections.push(section);
       return section;
     },
+    /** A rename made in bb's sidebar. */
+    renameInBb(id: string, name: string) {
+      sections.find((section) => section.id === id)!.name = name;
+    },
+    /** A delete made in bb's sidebar: its threads move to no section. */
+    deleteInBb(id: string) {
+      for (const [threadId, thread] of threads) {
+        if (thread.sectionId === id) {
+          threads.set(threadId, makeThreadResponse({ ...thread, sectionId: null }));
+        }
+      }
+      sections = sections.filter((section) => section.id !== id);
+    },
+    /** A drag in bb's sidebar, which only updates the thread list's order. */
+    setSidebarOrder(sectionIds: readonly string[]) {
+      threadListOrder.value = [
+        "pinned",
+        ...sectionIds.map((id) => `section:${id}`),
+        "threads",
+      ];
+    },
     addThread(changes: Partial<TestThread> & { id: string }) {
       threads.set(changes.id, makeThreadResponse(changes));
     },
@@ -396,6 +423,7 @@ describe("Thread Organizer server", () => {
     expect(organizer.harness.inspection.registrations.rpcMethods).toEqual([
       "getConfig",
       "saveConfig",
+      "syncFromBb",
       "listThreadSourcePlugins",
     ]);
     expect(
@@ -425,6 +453,7 @@ describe("Thread Organizer server", () => {
     expect(organizer.harness.inspection.registrations.rpcMethods).toEqual([
       "getConfig",
       "saveConfig",
+      "syncFromBb",
       "listThreadSourcePlugins",
     ]);
     expect(
@@ -639,23 +668,21 @@ describe("Thread Organizer server", () => {
     await organizer.harness.lifecycle.dispose();
   });
 
-  it("migrates an emoji-prefixed default in place and preserves its id", async () => {
+  it("claims an emoji-prefixed default by name and keeps bb's name", async () => {
     const organizer = createHarness({ legacyPlanning: true });
     await plugin(organizer.bb);
     const config = await configFor(organizer);
     const planning = config.stages.find((stage) => stage.key === "planning")!;
 
-    expect(planning.sectionId).toBe("sec_legacy_planning");
-    expect(organizer.sections()).toContainEqual(
-      expect.objectContaining({
-        id: "sec_legacy_planning",
-        name: "Planning",
-      }),
-    );
+    expect(planning).toMatchObject({
+      sectionId: "sec_legacy_planning",
+      title: "📋 Planning",
+    });
+    expect(organizer.updateSection).not.toHaveBeenCalled();
     await organizer.harness.lifecycle.dispose();
   });
 
-  it("adopts icon-era default section names by name when no config is stored", async () => {
+  it("claims icon-era default section names by name when no config is stored", async () => {
     const organizer = createHarness({ iconEraSections: true });
     await plugin(organizer.bb);
     const config = await configFor(organizer);
@@ -671,19 +698,7 @@ describe("Thread Organizer server", () => {
       "Building",
       "Handoff",
     ]);
-    expect(organizer.sections()).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          id: "sec_icon_spec_review",
-          name: "Spec Review",
-        }),
-        expect.objectContaining({
-          id: "sec_icon_testing",
-          name: "Testing / Deploy",
-        }),
-        expect.objectContaining({ id: "sec_icon_on_hold", name: "On Hold" }),
-      ]),
-    );
+    expect(organizer.updateSection).not.toHaveBeenCalled();
     await organizer.harness.lifecycle.dispose();
   });
 
@@ -990,14 +1005,15 @@ describe("Thread Organizer server", () => {
       expect.objectContaining({ pluginId: "thread-list", method: "setPreference" }),
     );
 
-    const writes = organizer.callRpc.mock.calls.length;
+    const writes = () =>
+      organizer.callRpc.mock.calls.filter(([{ method }]) => method === "setPreference").length;
+    const writesBefore = writes();
     await saveStagePatch(organizer, "planning", { rule: "Plan it." });
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(organizer.callRpc.mock.calls.length).toBe(writes);
+    expect(writes()).toBe(writesBefore);
     await organizer.harness.lifecycle.dispose();
   });
 
-  it("lands the latest reorder last even when an earlier sidebar write is slow", async () => {
+  it("finishes each reorder's sidebar write before the next save reads it", async () => {
     const organizer = createHarness();
     await plugin(organizer.bb);
     const base = await configFor(organizer);
@@ -1021,9 +1037,11 @@ describe("Thread Organizer server", () => {
       await organizer.harness.behavior.callRpc("saveConfig", edited);
     };
 
-    await moveFirst("handoff");
-    await moveFirst("on-hold");
+    const first = moveFirst("handoff");
+    await vi.waitFor(() => expect(held).toBe(true));
+    const second = moveFirst("on-hold");
     release();
+    await Promise.all([first, second]);
     await vi.waitFor(() => {
       const order = organizer.threadListOrder.value;
       expect(order.indexOf(entry("on-hold"))).toBe(1);
@@ -1644,7 +1662,7 @@ describe("Thread Organizer server", () => {
     await organizer.harness.lifecycle.dispose();
   });
 
-  it("migrates remembered work before deleting a removed stage", async () => {
+  it("deletes a removed stage's section and leaves its threads with no section", async () => {
     const organizer = createHarness();
     await plugin(organizer.bb);
     const current = await configFor(organizer);
@@ -1659,68 +1677,388 @@ describe("Thread Organizer server", () => {
     edited.stages = edited.stages.filter((stage) => stage.key !== "handoff");
     await organizer.harness.behavior.callRpc("saveConfig", edited);
 
-    expect(organizer.current().sectionId).toBe(
-      current.stages.find((stage) => stage.key === "planning")!.sectionId,
-    );
     expect(organizer.deleteSection).toHaveBeenCalledWith({
       id: handoff.sectionId,
     });
+    expect(organizer.current().sectionId).toBeNull();
+    await expect(
+      organizer.bb.storage.kv.get("thread:v3:thr_test"),
+    ).resolves.toMatchObject({ rememberedStageKey: null });
     await organizer.harness.lifecycle.dispose();
   });
 
-  it.each(["migration", "deletion"] as const)(
-    "resumes a partially failed %s cleanup after plugin restart",
-    async (failure) => {
-      const organizer = createHarness();
-      await plugin(organizer.bb);
-      const current = await configFor(organizer);
-      organizer.setThread({ status: "active" });
-      await organizer.harness.behavior.runCli(["phase", "handoff"], {
-        threadId: "thr_test",
-      });
-      const handoff = current.stages.find((stage) => stage.key === "handoff")!;
-      const edited = editableWorkflowConfig(current);
-      edited.stages = edited.stages.filter((stage) => stage.key !== "handoff");
-      if (failure === "migration") {
-        organizer.updateThread.mockRejectedValueOnce(
-          new Error("migration failed"),
-        );
-      } else {
-        organizer.deleteSection.mockRejectedValueOnce(
-          new Error("deletion failed"),
-        );
-      }
+  it("retries a failed section delete on the next sync and never adopts it back", async () => {
+    const organizer = createHarness();
+    await plugin(organizer.bb);
+    const current = await configFor(organizer);
+    organizer.setThread({ status: "active" });
+    await organizer.harness.behavior.runCli(["phase", "handoff"], {
+      threadId: "thr_test",
+    });
+    const handoff = current.stages.find((stage) => stage.key === "handoff")!;
+    const edited = editableWorkflowConfig(current);
+    edited.stages = edited.stages.filter((stage) => stage.key !== "handoff");
+    let failDeletes = true;
+    const deleteSection = organizer.deleteSection.getMockImplementation()!;
+    organizer.deleteSection.mockImplementation(async (input) => {
+      if (failDeletes) throw new Error("deletion failed");
+      return deleteSection(input);
+    });
 
-      if (failure === "migration") {
-        // One thread's move failing no longer fails the save: the config is
-        // persisted and the pending cleanup resumes on the next load.
-        await organizer.harness.behavior.callRpc("saveConfig", edited);
-        expect(organizer.deleteSection).not.toHaveBeenCalled();
-      } else {
-        await expect(
-          organizer.harness.behavior.callRpc("saveConfig", edited),
-        ).rejects.toThrow("deletion failed");
-      }
+    const saved = (await organizer.harness.behavior.callRpc(
+      "saveConfig",
+      edited,
+    )) as WorkflowConfig;
+    expect(saved.stages.some((stage) => stage.key === "handoff")).toBe(false);
+    expect(organizer.sections().some((section) => section.id === handoff.sectionId))
+      .toBe(true);
 
-      const replacement = await organizer.harness.lifecycle.reload(plugin);
-      const recovered = (await replacement.harness.behavior.callRpc(
-        "getConfig",
-        {},
-      )) as WorkflowConfig;
-      expect(recovered.stages.some((stage) => stage.key === "handoff")).toBe(
-        false,
-      );
-      expect(
-        organizer
-          .sections()
-          .some((section) => section.id === handoff.sectionId),
-      ).toBe(false);
-      expect(organizer.current().sectionId).toBe(
-        recovered.stages.find((stage) => stage.key === "planning")!.sectionId,
-      );
-      await replacement.harness.lifecycle.dispose();
-    },
-  );
+    failDeletes = false;
+    const replacement = await organizer.harness.lifecycle.reload(plugin);
+    const recovered = await configFor(replacement as typeof organizer);
+    expect(recovered.stages.some((stage) => stage.key === "handoff")).toBe(false);
+    expect(organizer.sections().some((section) => section.id === handoff.sectionId))
+      .toBe(false);
+    expect(organizer.current().sectionId).toBeNull();
+    await replacement.harness.lifecycle.dispose();
+  });
+});
+
+describe("two-way section sync", () => {
+  type Organizer = ReturnType<typeof createHarness>;
+  const sectionOf = (config: WorkflowConfig, key: string) =>
+    config.stages.find((stage) => stage.key === key)!.sectionId!;
+  const logs = (organizer: Organizer) =>
+    organizer.harness.inspection.logEntries.map((entry) => entry.message);
+  const created = (organizer: Organizer) =>
+    logs(organizer).filter((line) => line.includes("action=workflow-section-created"));
+  async function started(organizer: Organizer = createHarness()) {
+    await plugin(organizer.bb);
+    return { organizer, config: await configFor(organizer) };
+  }
+  async function restarted(organizer: Organizer): Promise<Organizer> {
+    return (await organizer.harness.lifecycle.reload(plugin)) as Organizer;
+  }
+
+  it("drops a section deleted in bb and never rebuilds it across restart or save", async () => {
+    const { organizer, config } = await started();
+    const handoff = sectionOf(config, "handoff");
+    organizer.setThread({ status: "active", sectionId: handoff });
+    const createdAtStart = created(organizer).length;
+
+    organizer.deleteInBb(handoff);
+    organizer.emitSectionListChanged();
+    await vi.waitFor(async () =>
+      expect((await configFor(organizer)).stages.some((stage) => stage.key === "handoff"))
+        .toBe(false),
+    );
+    expect(logs(organizer)).toContain(
+      `action=stage-removed-from-bb stage=handoff section=${handoff}`,
+    );
+
+    const replacement = await restarted(organizer);
+    await saveStagePatch(replacement, "planning", { rule: "Plan it." });
+    organizer.emitChanged("status-changed");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect((await configFor(replacement)).stages.some((stage) => stage.key === "handoff"))
+      .toBe(false);
+    expect(organizer.sections().map((section) => section.name)).not.toContain("Handoff");
+    expect(organizer.current().sectionId).toBeNull();
+    expect(created(organizer).length).toBe(createdAtStart);
+    await replacement.harness.lifecycle.dispose();
+  });
+
+  it("takes a rename made in bb, keeps it after restart and shows it in section list", async () => {
+    const { organizer, config } = await started();
+    organizer.renameInBb(sectionOf(config, "building"), "Shipping");
+    organizer.emitSectionListChanged();
+    await vi.waitFor(async () =>
+      expect((await configFor(organizer)).stages.find((stage) => stage.key === "building"))
+        .toMatchObject({ title: "Shipping" }),
+    );
+
+    const replacement = await restarted(organizer);
+    expect((await replacement.harness.behavior.runCli(["section", "list"], {})).stdout)
+      .toContain("building          Shipping");
+    expect(organizer.updateSection).not.toHaveBeenCalled();
+    expect(logs(organizer)).toContain(
+      `action=stage-renamed-from-bb stage=building section=${sectionOf(config, "building")}`,
+    );
+    await replacement.harness.lifecycle.dispose();
+  });
+
+  it("keeps a rename in bb that differs only in capitals", async () => {
+    const { organizer, config } = await started();
+    organizer.addSection("content");
+    organizer.renameInBb(sectionOf(config, "building"), "Content");
+    organizer.emitSectionListChanged();
+    await vi.waitFor(async () => {
+      const titles = (await configFor(organizer)).stages.map((stage) => stage.title);
+      expect(titles).toEqual(expect.arrayContaining(["Content", "content"]));
+    });
+    const replacement = await restarted(organizer);
+    expect((await configFor(replacement)).stages.map((stage) => stage.title))
+      .toEqual(expect.arrayContaining(["Content", "content"]));
+    expect(created(organizer).length).toBe(config.stages.length);
+    await replacement.harness.lifecycle.dispose();
+  });
+
+  it("follows a sidebar drag, including sections hidden from the sidebar", async () => {
+    const { organizer, config } = await started();
+    const ids = config.stages.map((stage) => stage.sectionId!);
+    // The thread list keeps hidden sections in its stored order too.
+    const dragged = [ids[0]!, ids[6]!, ...ids.slice(1, 6)];
+    organizer.setSidebarOrder(dragged);
+
+    const synced = (await organizer.harness.behavior.callRpc(
+      "syncFromBb",
+      {},
+    )) as WorkflowConfig;
+    expect(synced.stages.map((stage) => stage.sectionId)).toEqual(dragged);
+    expect(synced.revision).toBe((config.revision ?? 0) + 1);
+    expect((await organizer.harness.behavior.runCli(["section", "list"], {})).stdout
+      .split("\n")[1]).toContain("on-hold");
+    expect(logs(organizer).some((line) => line.startsWith("action=order-from-bb")))
+      .toBe(true);
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("adds a section created in bb at its sidebar spot", async () => {
+    const { organizer, config } = await started();
+    const ids = config.stages.map((stage) => stage.sectionId!);
+    const demos = organizer.addSection("Demos");
+    organizer.setSidebarOrder([ids[0]!, ids[1]!, demos.id, ...ids.slice(2)]);
+    organizer.emitSectionListChanged();
+
+    await vi.waitFor(async () => {
+      const keys = (await configFor(organizer)).stages.map((stage) => stage.key);
+      expect(keys.indexOf("demos")).toBe(2);
+    });
+    expect(logs(organizer)).toContain(
+      `action=stage-added-from-bb stage=demos section=${demos.id}`,
+    );
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("refuses a save from a panel opened before a delete in bb", async () => {
+    const { organizer, config } = await started();
+    const stale = editableWorkflowConfig(config);
+    organizer.deleteInBb(sectionOf(config, "handoff"));
+
+    await expect(
+      organizer.harness.behavior.callRpc("saveConfig", stale),
+    ).rejects.toThrow(WORKFLOW_CHANGED_ELSEWHERE_MESSAGE);
+    expect(organizer.sections().map((section) => section.name)).not.toContain("Handoff");
+    expect((await configFor(organizer)).stages.some((stage) => stage.key === "handoff"))
+      .toBe(false);
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("pushes a settings rename to bb and refuses one that clashes", async () => {
+    const { organizer, config } = await started();
+    await saveStagePatch(organizer, "building", { title: "Shipping" });
+    expect(organizer.sections().find((section) => section.id === sectionOf(config, "building")))
+      .toMatchObject({ name: "Shipping" });
+    await expect(saveStagePatch(organizer, "building", { title: "Planning" }))
+      .rejects.toThrow('A section named "Planning" already exists');
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("respects a deleted Inbox: keeps working without it and restores it by name", async () => {
+    const { organizer, config } = await started();
+    const inbox = sectionOf(config, "inbox");
+    await saveStagePatch(organizer, "inbox", { returnAfterRead: true });
+    organizer.setThread({ status: "idle", lastReadAt: 0, latestAttentionAt: 20 });
+    await organizer.harness.behavior.emitThreadEvent("thread.idle", {
+      thread: organizer.current(), lastAssistantText: null,
+    });
+    expect(organizer.current().sectionId).toBe(inbox);
+    const createdBefore = created(organizer).length;
+
+    organizer.deleteInBb(inbox);
+    organizer.emitSectionListChanged();
+    organizer.emitChanged("title-changed");
+    await vi.waitFor(async () =>
+      expect((await configFor(organizer)).stages.some((stage) => stage.key === "inbox"))
+        .toBe(false),
+    );
+    const replacement = await restarted(organizer);
+    organizer.setThread({ latestAttentionAt: 30 });
+    await replacement.harness.behavior.emitThreadEvent("thread.idle", {
+      thread: organizer.current(), lastAssistantText: null,
+    });
+    expect(organizer.current().sectionId).toBeNull();
+    expect(created(organizer).length).toBe(createdBefore);
+    expect(organizer.sections().some((section) => section.name === "Inbox")).toBe(false);
+    expect(logs(organizer).some((line) => /section not found/iu.test(line))).toBe(false);
+
+    const restored = organizer.addSection("Inbox");
+    organizer.emitSectionListChanged();
+    await vi.waitFor(async () =>
+      expect((await configFor(replacement)).stages.find((stage) => stage.key === "inbox"))
+        .toMatchObject({ sectionId: restored.id, returnAfterRead: true }),
+    );
+    await replacement.harness.lifecycle.dispose();
+  });
+
+  it("drops stages whose sections are already gone on upgrade without moving threads", async () => {
+    const seed = createHarness();
+    await plugin(seed.bb);
+    const stored = await configFor(seed);
+    await seed.harness.lifecycle.dispose();
+
+    const organizer = createHarness({
+      unmanagedSections: stored.stages
+        .filter((stage) => stage.key !== "handoff" && stage.key !== "on-hold")
+        .map((stage) => ({ id: stage.sectionId!, name: stage.title })),
+    });
+    await organizer.bb.storage.kv.set("workflow-config:v1", stored);
+    organizer.setThread({ status: "idle", lastReadAt: 20, latestAttentionAt: 10 });
+    await organizer.bb.storage.kv.set("thread:v3:thr_test", {
+      version: 5, rememberedStageKey: "handoff", lastLandedStageKey: "handoff",
+    });
+    await plugin(organizer.bb);
+
+    const keys = (await configFor(organizer)).stages.map((stage) => stage.key);
+    expect(keys).not.toContain("handoff");
+    expect(keys).not.toContain("on-hold");
+    expect(organizer.create).not.toHaveBeenCalled();
+    expect(organizer.current()).toMatchObject({ sectionId: null, archivedAt: null });
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("syncs instead of retrying a move into a section bb no longer has", async () => {
+    const { organizer, config } = await started();
+    const handoff = sectionOf(config, "handoff");
+    await organizer.harness.behavior.runCli(["phase", "handoff"], { threadId: "thr_test" });
+    organizer.deleteInBb(handoff);
+    organizer.updateThread.mockRejectedValueOnce(new Error("Section not found"));
+    organizer.setThread({ status: "active", sectionId: null });
+
+    await organizer.harness.behavior.emitThreadEvent("thread.active", {
+      thread: organizer.current(),
+    });
+    await vi.waitFor(async () =>
+      expect((await configFor(organizer)).stages.some((stage) => stage.key === "handoff"))
+        .toBe(false),
+    );
+    expect(logs(organizer).some((line) => line.includes("action=reconcile-failed")))
+      .toBe(false);
+    expect(organizer.current().sectionId).toBeNull();
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("forgets a deleted section's stage even when the move into it raced the delete", async () => {
+    const { organizer, config } = await started();
+    await organizer.harness.behavior.runCli(["phase", "handoff"], { threadId: "thr_test" });
+    organizer.deleteInBb(sectionOf(config, "handoff"));
+    organizer.setThread({ status: "active" });
+    await organizer.harness.behavior.emitThreadEvent("thread.active", {
+      thread: organizer.current(),
+    });
+    organizer.addSection("Handoff");
+    organizer.emitSectionListChanged();
+    await vi.waitFor(async () =>
+      expect((await configFor(organizer)).stages.some((stage) => stage.key === "handoff"))
+        .toBe(true),
+    );
+    organizer.emitChanged("status-changed");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(organizer.current().sectionId).toBeNull();
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("keeps an earlier failed delete pending across later saves", async () => {
+    const { organizer, config } = await started();
+    const handoff = sectionOf(config, "handoff");
+    let failDeletes = true;
+    const deleteSection = organizer.deleteSection.getMockImplementation()!;
+    organizer.deleteSection.mockImplementation(async (input) => {
+      if (failDeletes) throw new Error("deletion failed");
+      return deleteSection(input);
+    });
+    const edited = editableWorkflowConfig(config);
+    edited.stages = edited.stages.filter((stage) => stage.key !== "handoff");
+    await organizer.harness.behavior.callRpc("saveConfig", edited);
+    await saveStagePatch(organizer, "planning", { rule: "Plan it." });
+    expect((await configFor(organizer)).stages.some((stage) => stage.sectionId === handoff))
+      .toBe(false);
+    failDeletes = false;
+    await saveStagePatch(organizer, "planning", { rule: "Plan it again." });
+    expect(organizer.sections().some((section) => section.id === handoff)).toBe(false);
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("leaves a read thread with no section when the Inbox it waits in is deleted", async () => {
+    const { organizer, config } = await started();
+    await organizer.harness.behavior.runCli(["phase", "planning"], { threadId: "thr_test" });
+    const inbox = sectionOf(config, "inbox");
+    organizer.setThread({ status: "idle", lastReadAt: 20, latestAttentionAt: 20, sectionId: inbox });
+    organizer.emitChanged("order-changed");
+    await vi.waitFor(async () =>
+      expect(await organizer.bb.storage.kv.get("thread:v3:thr_test"))
+        .toMatchObject({ lastSectionId: inbox }),
+    );
+
+    organizer.deleteInBb(inbox);
+    organizer.emitChanged("title-changed");
+    organizer.emitSectionListChanged();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const replacement = await restarted(organizer);
+    expect(organizer.current().sectionId).toBeNull();
+    await replacement.harness.lifecycle.dispose();
+  });
+
+  it("changes nothing when bb's sections cannot be listed", async () => {
+    const { organizer, config } = await started();
+    organizer.listSections.mockRejectedValueOnce(new Error("offline"));
+    const synced = (await organizer.harness.behavior.callRpc(
+      "syncFromBb",
+      {},
+    )) as WorkflowConfig;
+    expect(synced).toEqual(config);
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("keeps managing at most 24 sections and logs the rest", async () => {
+    const organizer = createHarness({
+      unmanagedSections: Array.from({ length: 20 }, (_, index) => ({
+        id: `sec_extra_${index}`,
+        name: `Extra ${index}`,
+      })),
+    });
+    await plugin(organizer.bb);
+    expect((await configFor(organizer)).stages).toHaveLength(24);
+    expect(logs(organizer)).toContain(
+      "action=stage-limit-reached limit=24 unmanaged=3",
+    );
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("serves the last good config instead of the defaults when the stored one is unreadable", async () => {
+    const { organizer } = await started();
+    await saveStagePatch(organizer, "planning", { rule: "Plan it." });
+    await organizer.bb.storage.kv.set("workflow-config:v1", { version: 2, stages: "broken" });
+    const createdBefore = organizer.create.mock.calls.length;
+
+    const replacement = await restarted(organizer);
+    expect((await configFor(replacement)).stages.find((stage) => stage.key === "planning"))
+      .toMatchObject({ rule: "Plan it." });
+    expect(organizer.create.mock.calls.length).toBe(createdBefore);
+    await replacement.harness.lifecycle.dispose();
+  });
+
+  it("keeps working with only the Inbox", async () => {
+    const { organizer, config } = await started();
+    for (const stage of config.stages) {
+      if (stage.key !== "inbox") organizer.deleteInBb(stage.sectionId!);
+    }
+    const replacement = await restarted(organizer);
+    expect((await configFor(replacement)).stages.map((stage) => stage.key)).toEqual(["inbox"]);
+    await saveStagePatch(replacement, "inbox", { returnAfterRead: true });
+    await replacement.harness.lifecycle.dispose();
+  });
 });
 
 describe("config CLI", () => {
@@ -2011,7 +2349,7 @@ describe("config CLI", () => {
 
     expect(await cli(organizer, ["section", "add", "Review"])).toMatchObject({
       exitCode: 2,
-      stderr: expect.stringContaining("duplicated"),
+      stderr: expect.stringContaining('A section named "Review" already exists'),
     });
     expect(
       await cli(organizer, ["section", "add", "Later", "--after", "nope"]),
@@ -2090,15 +2428,15 @@ describe("config CLI", () => {
     const organizer = createHarness();
     await plugin(organizer.bb);
     const first = await configFor(organizer);
-    expect(first.revision).toBe(0);
+    const base = first.revision!;
 
     const edited = editableWorkflowConfig(first);
-    expect(edited.baseRevision).toBe(0);
+    expect(edited.baseRevision).toBe(base);
     const second = (await organizer.harness.behavior.callRpc(
       "saveConfig",
       edited,
     )) as WorkflowConfig;
-    expect(second.revision).toBe(1);
+    expect(second.revision).toBe(base + 1);
 
     await expect(
       organizer.harness.behavior.callRpc("saveConfig", edited),
@@ -2109,22 +2447,19 @@ describe("config CLI", () => {
         stages: edited.stages,
       }),
     ).rejects.toThrow();
-    expect((await configFor(organizer)).revision).toBe(1);
+    expect((await configFor(organizer)).revision).toBe(base + 1);
 
     const third = (await organizer.harness.behavior.callRpc(
       "saveConfig",
       editableWorkflowConfig(second),
     )) as WorkflowConfig;
-    expect(third.revision).toBe(2);
+    expect(third.revision).toBe(base + 2);
     await organizer.harness.lifecycle.dispose();
   });
 
-  it("keeps a save whose sweep hits a failing thread and completes it on the next save", async () => {
+  it("keeps a save whose sweep hits a failing thread", async () => {
     const organizer = createHarness();
     await plugin(organizer.bb);
-    await saveStagePatch(organizer, "planning", { rule: "Warm up." });
-    expect(await organizer.bb.storage.kv.get(PENDING_KEY)).toBeFalsy();
-
     organizer.getThread.mockRejectedValueOnce(new Error("gone"));
     const saved = await saveStagePatch(organizer, "planning", {
       rule: "Plan carefully.",
@@ -2132,88 +2467,30 @@ describe("config CLI", () => {
     expect(
       saved.stages.find((stage) => stage.key === "planning"),
     ).toMatchObject({ rule: "Plan carefully." });
-    expect(await organizer.bb.storage.kv.get(PENDING_KEY)).toBeTruthy();
-
-    await saveStagePatch(organizer, "planning", { rule: "Plan carefully!" });
-    expect(await organizer.bb.storage.kv.get(PENDING_KEY)).toBeFalsy();
+    expect((await stageOf(organizer, "planning"))?.rule).toBe("Plan carefully.");
     await organizer.harness.lifecycle.dispose();
   });
 
-  it("keeps serving when resuming a pending operation fails during load", async () => {
+  it("turns a removal left pending by an earlier version into a delete on load", async () => {
     const seed = createHarness();
     await plugin(seed.bb);
     const config = await configFor(seed);
     await seed.harness.lifecycle.dispose();
 
-    const organizer = createHarness();
+    const organizer = createHarness({
+      unmanagedSections: [{ id: "sec_removed", name: "Old stage" }],
+    });
     await organizer.bb.storage.kv.set(PENDING_KEY, {
       version: 1,
       nextConfig: config,
-      removedStages: [],
-    });
-    organizer.listThreads.mockRejectedValueOnce(new Error("offline"));
-    await plugin(organizer.bb);
-    expect(await cli(organizer, ["section", "list"])).toMatchObject({
-      exitCode: 0,
-      stdout: expect.stringContaining("planning"),
-    });
-    expect(await organizer.bb.storage.kv.get(PENDING_KEY)).toMatchObject({
-      attempts: 1,
-    });
-    await organizer.harness.lifecycle.dispose();
-  });
-
-  it("gives up on a pending operation after three failed loads", async () => {
-    const seed = createHarness();
-    await plugin(seed.bb);
-    const config = await configFor(seed);
-    await seed.harness.lifecycle.dispose();
-
-    const organizer = createHarness();
-    await organizer.bb.storage.kv.set(PENDING_KEY, {
-      version: 1,
-      nextConfig: config,
-      removedStages: [],
+      removedStages: [{ key: "old-stage", sectionId: "sec_removed" }],
       attempts: 3,
     });
     await plugin(organizer.bb);
+    expect(organizer.deleteSection).toHaveBeenCalledWith({ id: "sec_removed" });
     expect(await organizer.bb.storage.kv.get(PENDING_KEY)).toBeFalsy();
-    expect(await cli(organizer, ["section", "list"])).toMatchObject({
-      exitCode: 0,
-    });
-    await organizer.harness.lifecycle.dispose();
-  });
-
-  it("keeps earlier removals until a sweep completes, then deletes their sections", async () => {
-    const organizer = createHarness();
-    await plugin(organizer.bb);
-    await saveStagePatch(organizer, "planning", { rule: "Warm up." });
-    const current = await configFor(organizer);
-    const handoff = current.stages.find((stage) => stage.key === "handoff")!;
-    const without = editableWorkflowConfig(current);
-    without.stages = without.stages.filter((stage) => stage.key !== "handoff");
-
-    organizer.getThread.mockRejectedValueOnce(new Error("gone"));
-    await organizer.harness.behavior.callRpc("saveConfig", without);
-    expect(organizer.deleteSection).not.toHaveBeenCalled();
-    expect(await organizer.bb.storage.kv.get(PENDING_KEY)).toMatchObject({
-      removedStages: [{ key: "handoff", sectionId: handoff.sectionId }],
-    });
-
-    organizer.getThread.mockRejectedValueOnce(new Error("still gone"));
-    await saveStagePatch(organizer, "planning", { rule: "Plan carefully." });
-    expect(organizer.deleteSection).not.toHaveBeenCalled();
-    expect(await organizer.bb.storage.kv.get(PENDING_KEY)).toMatchObject({
-      removedStages: expect.arrayContaining([
-        expect.objectContaining({ key: "handoff" }),
-      ]),
-    });
-
-    await saveStagePatch(organizer, "planning", { rule: "Plan carefully!" });
-    expect(organizer.deleteSection).toHaveBeenCalledWith({
-      id: handoff.sectionId,
-    });
-    expect(await organizer.bb.storage.kv.get(PENDING_KEY)).toBeFalsy();
+    expect((await configFor(organizer)).stages.some((stage) => stage.title === "Old stage"))
+      .toBe(false);
     await organizer.harness.lifecycle.dispose();
   });
 
@@ -2514,8 +2791,8 @@ describe("entry prompts", () => {
     edited.stages = edited.stages.filter((stage) => stage.key !== "on-hold");
     await organizer.harness.behavior.callRpc("saveConfig", edited);
     await expect(threadState(organizer)).resolves.toMatchObject({
-      rememberedStageKey: "planning",
-      lastLandedStageKey: "planning",
+      rememberedStageKey: null,
+      lastLandedStageKey: null,
       pendingEntryPrompt: null,
     });
     await organizer.harness.lifecycle.dispose();
@@ -2546,7 +2823,7 @@ describe("entry prompts", () => {
     await organizer.harness.lifecycle.dispose();
   });
 
-  it("records landings without firing when a config save adopts an occupied section", async () => {
+  it("records landings without firing when a sync adopts an occupied section", async () => {
     const organizer = createHarness();
     await plugin(organizer.bb);
     const adopted = await organizer.create({ name: "Review" });
@@ -2557,18 +2834,10 @@ describe("entry prompts", () => {
       sectionId: adopted.id,
     });
 
-    const edited = editableWorkflowConfig(await configFor(organizer));
-    edited.stages.push({
-      key: "review",
-      role: "stage",
-      title: "Review",
+    const saved = await saveStagePatch(organizer, "review", {
       rule: "A PR is ready for its review.",
       entryPrompt: "Review it.",
     });
-    const saved = (await organizer.harness.behavior.callRpc(
-      "saveConfig",
-      edited,
-    )) as WorkflowConfig;
     expect(saved.stages.find((stage) => stage.key === "review")?.sectionId).toBe(
       adopted.id,
     );
