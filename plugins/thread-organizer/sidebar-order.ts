@@ -100,17 +100,7 @@ export type ThreadListRpc = (
   input: null | { key: string; value: string[] },
 ) => Promise<unknown>;
 
-/**
- * Moves the sidebar's workflow sections into the configured order. Sections
- * outside the workflow keep their slots. `sectionIds` lists every thread
- * section in server order. Resolves without writing when the sidebar already
- * matches.
- */
-export async function syncSidebarOrder(
-  config: WorkflowConfig,
-  sectionIds: readonly string[],
-  call: ThreadListRpc,
-): Promise<void> {
+async function readStoredOrder(call: ThreadListRpc): Promise<string[]> {
   const listed = await call("listPreferences", null);
   const preferences =
     typeof listed === "object" && listed !== null
@@ -126,6 +116,41 @@ export async function syncSidebarOrder(
   ) {
     throw new Error("The thread list returned an invalid section order");
   }
+  return current;
+}
+
+/**
+ * Section ids top to bottom as the sidebar orders them, hidden ones
+ * included. Like the thread list, ids bb no longer has are ignored and
+ * sections without a stored slot follow the last one that has one, in
+ * server order. `sectionIds` lists every thread section in server order.
+ */
+export async function readSidebarSectionOrder(
+  call: ThreadListRpc,
+  sectionIds: readonly string[],
+): Promise<string[]> {
+  const existing = new Set(sectionIds);
+  const ordered = expandSectionsPlaceholder(await readStoredOrder(call), sectionIds)
+    .flatMap((entry) =>
+      entry.startsWith("section:") ? [entry.slice("section:".length)] : [],
+    )
+    .filter((id) => existing.has(id));
+  const placed = new Set(ordered);
+  return [...ordered, ...sectionIds.filter((id) => !placed.has(id))];
+}
+
+/**
+ * Moves the sidebar's workflow sections into the configured order. Sections
+ * outside the workflow keep their slots. `sectionIds` lists every thread
+ * section in server order. Resolves without writing when the sidebar already
+ * matches.
+ */
+export async function syncSidebarOrder(
+  config: WorkflowConfig,
+  sectionIds: readonly string[],
+  call: ThreadListRpc,
+): Promise<void> {
+  const current = await readStoredOrder(call);
   const expanded = expandSectionsPlaceholder(current, sectionIds);
   const next = orderWithConfiguredSections(expanded, config);
   if (next === null) return;
