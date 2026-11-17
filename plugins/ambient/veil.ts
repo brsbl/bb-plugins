@@ -244,6 +244,12 @@ ${ROOT} div.fixed > ${RIGHT_PANEL_BUTTON} { ${GLASS_CHIP} border-radius: 12px; w
 ${ROOT} [data-framed] div.fixed:has(> ${RIGHT_PANEL_BUTTON}) { top: 10px; right: var(--ambient-edge); }
 ${ROOT} [data-sidebar="panel"] { background-color: var(--background); border-inline-end-color: transparent; }
 :is(${CHROME_PILLS}) { ${GLASS_CHIP} border-radius: 12px; padding-inline: 6px; }
+/* Content sits 13px inside every chrome pill: an icon button gets it from the pill's 6px plus its own 6px inset (and the 1px edge),
+   text and bare icons from 12px of padding. bb pads some of these buttons on one side only. */
+:is(${CHROME_PILLS}):is([data-testid="app-page-header-content-row"] > :first-child) { padding-inline: 12px; }
+${HEADER_FIRST} button[aria-label="Thread actions"] { margin-inline-end: -6px; }
+${ROOT} ${SIDEBAR_HEADER_CONTENT} > :is(button, a) { padding-inline: 6px; }
+${ROOT} ${HEADER_ACTIONS} button[aria-label^="Open workspace"] { padding-inline-start: 6px; }
 ${ROOT} ${SIDEBAR_RESERVE_PILL} { margin-inline: -6px; }
 ${ROOT} [data-testid="app-desktop-sidebar-trigger"][class~="left-[84px]"] { margin-inline-start: 6px; }
 ${ROOT} [data-testid="app-page-header-content-row"][class~="pl-[104px]"] { padding-inline-start: ${TRAFFIC_LIGHT_RESERVE}; }
@@ -322,7 +328,7 @@ ${ROOT} [data-sidebar="content"] > .px-2:first-child { padding-block-start: 12px
 ${SIDEBAR_FOOTER} { flex-shrink: 0; margin-block: 8px; align-self: stretch; width: auto; }
 ${ROOT} [data-framed] [data-sidebar="footer"] { margin-block: 0; }
 /* The footer tray is a glass strip as tall as the Settings chip beside it, as wide as the cards above it, on the same bottom edge. */
-${FOOTER_TRAY} { position: relative; isolation: isolate; background: none; box-shadow: none; ${NO_BLUR} block-size: 38px; padding-block: 0; margin-block: var(--ambient-gap) calc(var(--ambient-edge) - var(--ambient-footer-seam, 0px)); }
+${FOOTER_TRAY} { position: relative; isolation: isolate; background: none; box-shadow: none; ${NO_BLUR} block-size: 38px; padding-block: 0; padding-inline: 6px; margin-block: var(--ambient-gap) calc(var(--ambient-edge) - var(--ambient-footer-seam, 0px)); }
 /* In the rail layout the footer shares a row with Settings: it fills the row's width and sits at its bottom. */
 ${ROOT} [data-testid="sidebar-footer-body"] [data-sidebar="footer"]:not(:has(> [data-overflow-fade])) { flex: 1 1 0%; min-inline-size: 0; align-self: flex-end; }
 /* The glass covers bb's 1px transparent footer border too, so it is exactly the footer's 38px. */
