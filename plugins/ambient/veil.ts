@@ -141,7 +141,10 @@ ${SHELL} {
 ${ROOT} [data-framed] { background-image: none; background-color: var(--background); }
 /* One spacing system for the chrome: every outer surface sits --ambient-edge from the window, neighbors sit --ambient-gap apart,
    and controls in one row share its top and bottom. The other values place bb's own rows on that grid in each layout. */
-${ROOT} { --ambient-edge: 8px; --ambient-gap: 8px; --ambient-chip-top: 8px; --ambient-card-shift: 0px; --ambient-rail-lift: -4px; --ambient-rail-cell-slack: 10px; }
+/* On macOS bb raises the title row onto the traffic-light axis even outside the desktop frame (narrow windows); the cards follow it
+   by the same amount so they stay one gap under the chips. Elsewhere this is 0. */
+${ROOT} { --ambient-edge: 8px; --ambient-gap: 8px; --ambient-chip-top: 8px;
+  --ambient-card-shift: calc(var(--bb-macos-traffic-light-center-y, calc(var(--bb-app-chrome-row-height, 3rem) / 2)) - var(--bb-app-chrome-row-height, 3rem) / 2); --ambient-rail-lift: -4px; --ambient-rail-cell-slack: 10px; }
 /* The desktop window's frame lip draws no edge under the scene, so it would only double the inset; without it the window card's
    1px edge plus Ambient's 8px inset is the edge. Title-bar chips sit on the traffic-light axis, and the content line (rail, New
    thread, thread and page cards) starts one gap under them. bb's title bar is 50px for the cards' and rail's own offsets
@@ -179,9 +182,9 @@ ${THREAD} > * { clip-path: inset(0 0 ${COLUMN_BOTTOM} 0); }
 ${THREAD}::before { ${LAYER} ${GLASS_SURFACE} background-color: var(--ambient-glass-solid); border-radius: 20px; top: 0; bottom: ${COLUMN_BOTTOM}; left: ${COLUMN_LEFT}; right: ${COLUMN_RIGHT}; }
 /* In the desktop window the card starts on the content line, like the rail and New thread beside it. The thread window clips its
    overflow, so it lets a card raised above its box through. */
-${ROOT} [data-framed] [data-split-pane-id] [data-thread-window] { overflow-clip-margin: max(0px, -1 * var(--ambient-card-shift)); }
-${ROOT} [data-framed] [data-split-pane-id] [data-thread-window]::before, ${ROOT} [data-framed] ${PAGE_MAIN}:not(:has([data-testid="app-page-header-content-row"]))::before { top: var(--ambient-card-shift); }
-${ROOT} [data-framed] [data-split-pane-id] [data-thread-window]::after { top: calc(var(--ambient-card-shift) + 1px); }
+${ROOT} [data-split-pane-id] [data-thread-window] { overflow-clip-margin: max(0px, -1 * var(--ambient-card-shift)); }
+${ROOT} [data-split-pane-id] [data-thread-window]::before, ${ROOT} [data-framed] ${PAGE_MAIN}:not(:has([data-testid="app-page-header-content-row"]))::before { top: var(--ambient-card-shift); }
+${ROOT} [data-split-pane-id] [data-thread-window]::after { top: calc(var(--ambient-card-shift) + 1px); }
 ${THREAD} [data-overflow-fade] { ${HIDE} }
 ${PAGE} { position: relative; isolation: isolate; }
 ${PAGE}::before { ${LAYER} ${GLASS_SURFACE} border-radius: 20px; inset: 0 8px 8px; }
@@ -190,7 +193,10 @@ ${PAGE} ${PLUGIN_PAGE_BODY} { margin-left: max(calc(var(--ambient-column-gutter,
 ${PAGE_MAIN} ${PAGE_COLUMN}:not(${PAGE_COLUMN} *) { anchor-name: --ambient-page-column; }
 ${PAGE_MAIN} #thread-detail-secondary-panel ${PAGE_COLUMN} { anchor-name: none; }
 ${PAGE}::before { left: max(var(--ambient-column-gutter, 8px), anchor(--ambient-page-column left, 8px)); right: max(8px, anchor(--ambient-page-column right, 8px)); }
-${PAGE}:has([data-testid="app-page-header-content-row"])::before { top: var(--bb-app-chrome-row-height, 3rem); }
+/* Pages that scroll in bb's scroll area keep a 12px scrollbar strip right of their column; the card covers it, so its right side
+   matches its left (and reaches the window edge when the column fills the page). */
+@media (min-width: 768px) { ${PAGE}:has([class~="md:pr-3"] ${PAGE_COLUMN})::before { right: max(8px, calc(anchor(--ambient-page-column right, 20px) - 12px)); } }
+${PAGE}:has([data-testid="app-page-header-content-row"])::before { top: calc(var(--bb-app-chrome-row-height, 3rem) + var(--ambient-card-shift)); }
 @media (max-width: 767px) { ${PAGE} header:has([data-testid="app-page-header-content-row"]) + div { clip-path: inset(0 8px 8px round 0 0 20px 20px); } }
 ${PAGE} { --card: ${mix("var(--ambient-card)", "55%")}; }
 /* Plugin controls own their surfaces; a search input may sit inside an already painted field. */
