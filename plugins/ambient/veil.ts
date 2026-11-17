@@ -194,10 +194,15 @@ ${PAGE} ${PLUGIN_PAGE_BODY} { margin-left: max(calc(var(--ambient-column-gutter,
 ${PAGE_MAIN} ${PAGE_COLUMN}:not(${PAGE_COLUMN} *) { anchor-name: --ambient-page-column; }
 ${PAGE_MAIN} #thread-detail-secondary-panel ${PAGE_COLUMN} { anchor-name: none; }
 ${PAGE}::before { left: max(var(--ambient-column-gutter, 8px), anchor(--ambient-page-column left, 8px)); right: max(8px, anchor(--ambient-page-column right, 8px)); }
-/* Pages that scroll in bb's scroll area keep a 12px scrollbar strip right of their column; the card covers it, so its right side
-   matches its left (and reaches the window edge when the column fills the page). */
-@media (min-width: 768px) { ${PAGE}:has([class~="md:pr-3"] ${PAGE_COLUMN})::before { right: max(8px, calc(anchor(--ambient-page-column right, 20px) - 12px)); } }
+/* bb's resource collection pages (Plugins, Skills) scroll in a scroll area that keeps a 12px scrollbar strip right of their column;
+   the card covers it, so its right side matches its left (and reaches the window edge when the column fills the page). The hook is
+   bb's data attribute: a class selector inside :has() would restyle the whole page on every class change in it. */
+@media (min-width: 768px) { ${PAGE}:has([data-resource-collection-viewport]:not(#thread-detail-secondary-panel *))::before { right: max(8px, calc(anchor(--ambient-page-column right, 20px) - 12px)); } }
 ${PAGE}:has([data-testid="app-page-header-content-row"])::before { top: calc(var(--bb-app-chrome-row-height, 3rem) + var(--ambient-card-shift)); }
+/* In the desktop window a page with its header inside it (plugin pages, Automations) starts at the window top; its card starts on
+   the content line. Outside the frame, a page whose header sits above it moves with bb's raised title row. */
+${ROOT} [data-framed] ${PAGE_MAIN}:has([data-testid="app-page-header-content-row"])::before { top: var(--ambient-content-top); }
+${ROOT} [data-testid="app-layout-content-shell"] > header + ${PAGE_MAIN.replace('[data-testid="app-layout-content-shell"] > ', '')}::before { top: var(--ambient-card-shift); }
 @media (max-width: 767px) { ${PAGE} header:has([data-testid="app-page-header-content-row"]) + div { clip-path: inset(0 8px 8px round 0 0 20px 20px); } }
 ${PAGE} { --card: ${mix("var(--ambient-card)", "55%")}; }
 /* Plugin controls own their surfaces; a search input may sit inside an already painted field. */
