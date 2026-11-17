@@ -182,7 +182,8 @@ ${THREAD} > * { clip-path: inset(0 0 ${COLUMN_BOTTOM} 0); }
 ${THREAD}::before { ${LAYER} ${GLASS_SURFACE} background-color: var(--ambient-glass-solid); border-radius: 20px; top: 0; bottom: ${COLUMN_BOTTOM}; left: ${COLUMN_LEFT}; right: ${COLUMN_RIGHT}; }
 /* In the desktop window the card starts on the content line, like the rail and New thread beside it. The thread window clips its
    overflow, so it lets a card raised above its box through. */
-${ROOT} [data-split-pane-id] [data-thread-window] { overflow-clip-margin: max(0px, -1 * var(--ambient-card-shift)); }
+/* Chrome takes only a plain length here (math computes to 0); 4px covers the 2px the card rises in a narrow macOS window. */
+${ROOT} [data-split-pane-id] [data-thread-window] { overflow-clip-margin: 4px; }
 ${ROOT} [data-split-pane-id] [data-thread-window]::before, ${ROOT} [data-framed] ${PAGE_MAIN}:not(:has([data-testid="app-page-header-content-row"]))::before { top: var(--ambient-card-shift); }
 ${ROOT} [data-split-pane-id] [data-thread-window]::after { top: calc(var(--ambient-card-shift) + 1px); }
 ${THREAD} [data-overflow-fade] { ${HIDE} }
