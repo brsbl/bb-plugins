@@ -248,6 +248,8 @@ ${ROOT} ${SIDEBAR_RESERVE_PILL} { margin-inline: -6px; }
 ${ROOT} [data-testid="app-desktop-sidebar-trigger"][class~="left-[84px]"] { margin-inline-start: 6px; }
 ${ROOT} [data-testid="app-page-header-content-row"][class~="pl-[104px]"] { padding-inline-start: ${TRAFFIC_LIGHT_RESERVE}; }
 ${ROOT} ${SIDEBAR_HEADER_CONTENT} { display: flex; align-items: center; min-width: 0; max-width: 100%; min-height: 32px; overflow: hidden; }
+/* Like the other title-row chips, the header pill is 32px tall on touch screens too; bb's 36px touch buttons fit inside it. */
+${ROOT} ${SIDEBAR_HEADER_CONTENT}:not(:empty) { max-height: 32px; } ${ROOT} ${SIDEBAR_HEADER_CONTENT} button { max-height: 32px; }
 ${ROOT} button[data-sidebar="trigger"] { margin-inline: -4px 0; width: 32px; height: 32px; }
 /* Outside the desktop title bar the toggle heads the rail column, so it starts on the same edge. bb insets it by the rail padding,
    less 2px except on touch phones. */
@@ -304,7 +306,8 @@ ${RAIL_SIDEBAR} :is([data-sidebar="content"], [data-sidebar="footer"], [data-tes
    under the list share the cards' column and sit one gap above the tray, while the card above keeps its own height. */
 ${RAIL_SIDEBAR} [data-testid="app-sidebar-body"] > [data-sidebar="content"] { margin-block-end: 0; }
 ${RAIL_SIDEBAR} [data-testid="app-sidebar-body"] > [data-sidebar="content"] ~ div:not([data-testid]) { padding-inline: calc(var(--ambient-edge) + var(--ambient-gap) - var(--ambient-rail-cell-slack)) calc(var(--ambient-gap) - 1px); margin-block-start: auto; padding-block-start: 0; }
-${RAIL_SIDEBAR} [data-testid="app-sidebar-body"] > [data-sidebar="content"] ~ div:not([data-testid]) > :first-child { margin-block-start: var(--ambient-gap); }
+/* The gap goes on the first panel (bb's overflow fade, positioned absolutely, may come first), so an empty container takes no space. */
+${RAIL_SIDEBAR} [data-testid="app-sidebar-body"] > [data-sidebar="content"] ~ div:not([data-testid]) > :first-child:not([data-overflow-fade]), ${RAIL_SIDEBAR} [data-testid="app-sidebar-body"] > [data-sidebar="content"] ~ div:not([data-testid]) > [data-overflow-fade]:first-child + * { margin-block-start: var(--ambient-gap); }
 ${SECTION_BACK} + [data-sidebar="content"] { border-block-start-color: transparent; border-start-start-radius: 0; border-start-end-radius: 0; box-shadow: 0 12px 32px -16px ${mix("var(--ink)", "35%")}; }
 ${SECTION_BACK} + [data-sidebar="content"] > .px-2:first-child { padding-block-start: 8px; }
 :is(${SIDEBAR_CARDS}, ${OVERLAY}) .w-px.bg-border-hairline, :is(${SIDEBAR_CARDS}, ${OVERLAY}) [class*="before:bg-border-hairline"]::before { ${HIDE} }
@@ -322,7 +325,8 @@ ${ROOT} [data-framed] [data-sidebar="footer"] { margin-block: 0; }
 ${FOOTER_TRAY} { position: relative; isolation: isolate; background: none; box-shadow: none; ${NO_BLUR} block-size: 38px; padding-block: 0; margin-block: var(--ambient-gap) calc(var(--ambient-edge) - var(--ambient-footer-seam, 0px)); }
 /* In the rail layout the footer shares a row with Settings: it fills the row's width and sits at its bottom. */
 ${ROOT} [data-testid="sidebar-footer-body"] [data-sidebar="footer"]:not(:has(> [data-overflow-fade])) { flex: 1 1 0%; min-inline-size: 0; align-self: flex-end; }
-${FOOTER_TRAY}::before { ${LAYER} ${GLASS_SURFACE} border-radius: 12px; inset: 0; }
+/* The glass covers bb's 1px transparent footer border too, so it is exactly the footer's 38px. */
+${FOOTER_TRAY}::before { ${LAYER} ${GLASS_SURFACE} border-radius: 12px; inset: -1px; }
 ${SIDEBAR_FOOTER} [data-testid^="plugin-sidebar-footer-disclosure-"] { background-color: transparent; }
 ${ROOT} [data-testid^="plugin-sidebar-footer-disclosure-"] { border-color: transparent; }
 ${SIDEBAR_FOOTER} > [data-overflow-fade], ${SIDEBAR_FOOTER} > ul > li[aria-hidden="true"]:empty { ${HIDE} }
