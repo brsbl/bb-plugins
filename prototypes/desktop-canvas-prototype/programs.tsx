@@ -514,7 +514,6 @@ function ThreadWindow({ window: desktopWindow, threadId }: { window: DesktopWind
           { label: "Browser", icon: "Globe", disabled: !browserAvailable, run: () => openTab("browser") },
           { label: "Terminal", icon: "Terminal", run: () => openTab("terminal") },
           "separator",
-          { label: "Open in bb", icon: "ExternalLink", run: () => actions.open(threadId) },
           ...(current === undefined ? [] : threadMenu({ ...context, desktop: latest }, current, null, { includeOpen: false })),
         ];
       }}
