@@ -814,7 +814,6 @@ body[data-ambient-glass] .bbd-icon:not([aria-selected="true"]) .bbd-icon-label {
 
 .bbd-start-body {
   display: grid;
-  align-content: start;
   padding: 6px;
 }
 
