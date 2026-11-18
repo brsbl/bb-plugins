@@ -40,3 +40,37 @@ it("rejects a corrupted browser archive before extraction and gives one recovery
     expect(existsSync(join(work, "browser"))).toBe(false);
   } finally { vi.unstubAllGlobals(); vi.unstubAllEnvs(); rmSync(work, { recursive: true, force: true }); }
 });
+
+it("buckets duration without forwarding seconds or content to bb", async () => {
+  const { durationBucket, reportClipExport } = await import("./skills/how-it-works/scripts/clip-analytics.mjs");
+  for (const [seconds, bucket] of [[1, "under_15s"], [14.99, "under_15s"], [15, "15_30s"], [30, "15_30s"], [30.01, "30_60s"], [60, "30_60s"], [60.01, "over_60s"]]) expect(durationBucket(seconds)).toBe(bucket);
+  for (const invalid of [0, -1, NaN, Infinity]) expect(() => durationBucket(invalid)).toThrow();
+  const run = vi.fn();
+  reportClipExport({ anatomy: true, format: "mp4", size: "square", seconds: 30, prompt: "private", path: "/private" }, run);
+  expect(run).toHaveBeenCalledExactlyOnceWith(expect.any(String), ["playgrounds", "clip-exported", "--kind", "anatomy", "--format", "mp4", "--size", "square", "--duration-bucket", "15_30s"], { stdio: "ignore", timeout: 3000 });
+  expect(() => reportClipExport({ anatomy: false, format: "gif", size: "square", seconds: 10 }, () => { throw new Error("offline"); })).not.toThrow();
+});
+
+it("counts only files saved successfully, including partial MP4/GIF copy failure", async () => {
+  const { saveClipOutputs } = await import("./skills/how-it-works/scripts/clip-analytics.mjs");
+  const { mkdtempSync, writeFileSync, rmSync } = await import("node:fs");
+  const { join } = await import("node:path");
+  const dir = mkdtempSync(join(process.cwd(), ".clip-output-test-"));
+  try {
+    const out = join(dir, "source.mp4"), output = join(dir, "saved.mp4"), gif = join(dir, "source.gif"), gifOutput = join(dir, "saved.gif");
+    const options = { out, output, gif, gifOutput, anatomy: true, size: "square", seconds: 30 };
+    const report = vi.fn();
+    expect(() => saveClipOutputs(options, report)).toThrow();
+    expect(report).not.toHaveBeenCalled();
+    for (const file of [out, out + ".json", out + ".end.png"]) writeFileSync(file, "test");
+    expect(() => saveClipOutputs(options, report)).toThrow();
+    expect(report).toHaveBeenCalledExactlyOnceWith({ anatomy: true, format: "mp4", size: "square", seconds: 30 });
+    report.mockClear();
+    expect(() => saveClipOutputs(options, report)).toThrow();
+    expect(report).not.toHaveBeenCalled();
+    for (const file of [output, output + ".json", output + ".end.png"]) rmSync(file);
+    writeFileSync(gif, "test");
+    saveClipOutputs(options, report);
+    expect(report.mock.calls.map(([event]) => event.format)).toEqual(["mp4", "gif"]);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
