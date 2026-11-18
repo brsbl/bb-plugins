@@ -69,8 +69,8 @@ export function useFooterItems(): FooterItem[] {
 const PANEL_STYLE_ID = "bbd-panel-window-style";
 const PANEL_SELECTOR = '[data-testid^="plugin-sidebar-footer-disclosure-"]';
 const PANEL_TITLE_HEIGHT = 30;
-// A transformed or filtered ancestor would trap the fixed panel inside the collapsed sidebar, so those effects are
-// lifted, but only between the sidebar root and the panel; bb and other plugins keep theirs everywhere else.
+// A transformed, filtered or clipped ancestor would trap the fixed panel inside the collapsed sidebar, so those effects
+// are lifted, but only between the sidebar root and the panel; bb and other plugins keep theirs everywhere else.
 const PANEL_STYLE = `
 body[data-bbd-panel-window] .peer[data-side]:has(${PANEL_SELECTOR}),
 body[data-bbd-panel-window] .peer[data-side] :has(${PANEL_SELECTOR}) {
@@ -80,6 +80,7 @@ body[data-bbd-panel-window] .peer[data-side] :has(${PANEL_SELECTOR}) {
   -webkit-backdrop-filter: none !important;
   will-change: auto !important;
   contain: none !important;
+  clip-path: none !important;
 }
 body[data-bbd-panel-window] ${PANEL_SELECTOR} {
   position: fixed !important;
@@ -156,8 +157,30 @@ function placePanel() {
   root.setProperty("--bbd-panel-bottom", `${window.innerHeight - taskbar.top + 10}px`);
 }
 
+// bb marks the collapsed sidebar body inert, which would leave the panel window unclickable. The panel's inert
+// ancestors are lifted only while it is shown as a window, and marked so the same elements get it back afterwards.
+const LIFTED_INERT = "data-bbd-lifted-inert";
+
+function liftInert(panel: HTMLElement) {
+  for (let element = panel.parentElement; element !== null; element = element.parentElement) {
+    if (!element.hasAttribute("inert")) continue;
+    element.removeAttribute("inert");
+    element.setAttribute(LIFTED_INERT, "");
+  }
+}
+
+function restoreInert() {
+  const collapsed = sidebarCollapsed();
+  for (const element of document.querySelectorAll(`[${LIFTED_INERT}]`)) {
+    element.removeAttribute(LIFTED_INERT);
+    if (collapsed) element.setAttribute("inert", "");
+  }
+}
+
 function showPanelsAsWindows(active: boolean) {
-  if (active) {
+  const panel = openPanel();
+  if (active && panel !== null) {
+    liftInert(panel);
     if (document.getElementById(PANEL_STYLE_ID) === null) {
       const style = document.createElement("style");
       style.id = PANEL_STYLE_ID;
@@ -167,6 +190,7 @@ function showPanelsAsWindows(active: boolean) {
     placePanel();
     document.body.dataset.bbdPanelWindow = "true";
   } else {
+    restoreInert();
     delete document.body.dataset.bbdPanelWindow;
   }
 }
