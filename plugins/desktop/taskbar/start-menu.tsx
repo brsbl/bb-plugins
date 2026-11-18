@@ -47,12 +47,16 @@ export function StartMenu({ onClose }: { onClose: () => void }) {
     onClose();
     action();
   };
-  // Left: things you do. Right: things you open, with built-in and plugin apps in one A–Z list.
-  const programs = (["new-thread", "new-app", "new-folder", "sticky-note"] as const).map(launcher);
-  const tools = (["finder", "search", "run"] as const).map(launcher);
+  // Left: what you start, a rule, then the tools you open.
+  const programs: Launcher[][] = [
+    (["new-thread", "new-app", "new-folder", "sticky-note"] as const).map(launcher),
+    (["internet-explorer", "media-player", "paint", "command-prompt"] as const).map(launcher),
+  ];
   const places: { section: string; items: Launcher[] }[] = [
-    { section: "Apps", items: byLabel([launcher("internet-explorer"), launcher("media-player"), launcher("paint"), launcher("command-prompt"), ...apps]) },
-    { section: "Games", items: byLabel([launcher("minesweeper"), launcher("solitaire"), launcher("pinball"), launcher("maze")]) },
+    // Apps other plugins registered, such as ones built with New app; the section appears once there is one.
+    ...(apps.length === 0 ? [] : [{ section: "Apps", items: byLabel(apps) }]),
+    { section: "Games", items: [launcher("minesweeper"), launcher("solitaire"), launcher("pinball"), launcher("maze")] },
+    { section: "", items: [launcher("finder"), launcher("search"), launcher("run")] },
   ];
   const itemProps = (item: Launcher) => ({
     type: "button" as const,
@@ -71,27 +75,23 @@ export function StartMenu({ onClose }: { onClose: () => void }) {
       </div>
       <div className="bbd-start-columns">
         <div className="bbd-start-body">
-          {programs.map((item) => (
-            <button key={item.id} className="bbd-start-item" {...itemProps(item)}>
-              {item.art(30)}
-              <span>
-                <strong>{item.label}</strong>
-                <small>{item.detail}</small>
-              </span>
-            </button>
-          ))}
-          <div className="bbd-start-rule my-1" aria-hidden />
-          {tools.map((item) => (
-            <button key={item.id} className="bbd-start-place" {...itemProps(item)}>
-              {item.art(22)}
-              <span>{item.label}</span>
-            </button>
-          ))}
+          {programs.map((group, index) => [
+            index === 0 ? null : <div key={`rule-${index}`} className="bbd-start-rule my-1" aria-hidden />,
+            ...group.map((item) => (
+              <button key={item.id} className="bbd-start-item" {...itemProps(item)}>
+                {item.art(30)}
+                <span>
+                  <strong>{item.label}</strong>
+                  <small>{item.detail}</small>
+                </span>
+              </button>
+            )),
+          ])}
         </div>
         <div className="bbd-start-places">
           {places.map((group, index) => (
             <div key={group.section || index} className="grid">
-              <span className="bbd-start-section">{group.section}</span>
+              {group.section === "" ? <div className="bbd-start-rule" aria-hidden /> : <span className="bbd-start-section">{group.section}</span>}
               {group.items.map((item) => (
                 <button key={item.id} className="bbd-start-place" {...itemProps(item)}>
                   {item.art(22)}

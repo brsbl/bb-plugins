@@ -851,11 +851,6 @@ body[data-ambient-glass] .bbd-icon:not([aria-selected="true"]) .bbd-icon-label {
   color: var(--bbd-white);
 }
 
-/* Compact rows under the left column's actions line their icons up with the tall rows above. */
-.bbd-start-body .bbd-start-place {
-  padding: 3px 12px;
-}
-
 .bbd-start-places .bbd-start-section {
   padding: 2px 6px 0;
   color: oklch(0.45 0.08 262);

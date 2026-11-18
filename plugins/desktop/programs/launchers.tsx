@@ -97,8 +97,8 @@ export function useLaunchers(): LauncherCatalog {
     solitaire: program({ kind: "solitaire" }),
     pinball: program({ kind: "pinball" }),
     maze: program({ kind: "maze" }),
-    "command-prompt": program({ kind: "command-prompt" }),
-    paint: program({ kind: "paint" }),
+    "command-prompt": program({ kind: "command-prompt" }, "Open a shell on your machine"),
+    paint: program({ kind: "paint" }, "Draw and save pictures"),
     "sticky-note": {
       detail: "Pin a note in the margin",
       art: (size) => <NotePadArt size={size} />,
