@@ -422,6 +422,9 @@ function NewThreadWindow({ window: desktopWindow, groupKey }: { window: DesktopW
   );
 }
 
+/** How narrow a thread may get to make room for Info beside it. */
+const MIN_THREAD_BESIDE = 420;
+
 function ThreadWindow({ window: desktopWindow, threadId }: { window: DesktopWindow; threadId: string }) {
   const context = useMenuContext();
   const { desktop, actions, manager } = context;
@@ -480,6 +483,18 @@ function ThreadWindow({ window: desktopWindow, threadId }: { window: DesktopWind
       manager.move(desktopWindow.id, moved, Object.fromEntries(attachedRects.map((window) => [window.id, { ...window.rect, x: window.rect.x + shift }])));
       manager.open(spec, beside);
       return;
+    }
+    // Still no room on the right: slide the group to the screen's left edge and narrow the thread so Info docks beside it.
+    if (preferred === "right") {
+      const left = Math.min(thread.x, ...attachedRects.map((window) => window.rect.x));
+      const shift = visible.x - left;
+      const threadWidth = visible.x + visible.width - (thread.x + shift) - 8 - width;
+      if (threadWidth >= MIN_THREAD_BESIDE) {
+        const moved = { ...thread, x: thread.x + shift, width: threadWidth };
+        manager.move(desktopWindow.id, moved, Object.fromEntries(attachedRects.map((window) => [window.id, { ...window.rect, x: window.rect.x + shift }])));
+        manager.open(spec, besideRect(moved, "right", width));
+        return;
+      }
     }
     manager.open(spec, clampInto(inside, visible));
   };
