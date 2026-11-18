@@ -161,8 +161,18 @@ function TaskButtons({ width }: { width: number }) {
   const focused = tasks.find((window) => window.id === manager.focusedId) ?? tasks.find((window) => manager.windows.some((other) => other.id === manager.focusedId && isAttached(other, window)));
   if (focused !== undefined && !shown.includes(focused)) shown[shown.length - 1] = focused;
   const hidden = tasks.filter((window) => !shown.includes(window));
+  const controls = useCanvasControls();
+  // Off screen, a front window reads as gone; its button brings it into view rather than minimizing it.
+  const onScreen = (window: DesktopWindow) => {
+    if (window.maximized || window.dock !== undefined) return true;
+    const camera = controls.getCamera();
+    const area = controls.getWorkArea();
+    const left = camera.x + window.rect.x * camera.zoom;
+    const top = camera.y + window.rect.y * camera.zoom;
+    return left < area.x + area.width && left + window.rect.width * camera.zoom > area.x && top < area.y + area.height && top + window.rect.height * camera.zoom > area.y;
+  };
   const activate = (window: DesktopWindow) => {
-    if (focused?.id === window.id && !window.minimized) manager.minimize(window.id, true);
+    if (focused?.id === window.id && !window.minimized && onScreen(window)) manager.minimize(window.id, true);
     else manager.focus(window.id, { reveal: true });
   };
   const taskMenu = (window: DesktopWindow): MenuEntry[] => [
