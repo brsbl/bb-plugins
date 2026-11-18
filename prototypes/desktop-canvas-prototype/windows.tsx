@@ -17,7 +17,8 @@ import { experimental_Icon as Icon } from "@get-bb/plugin-sdk/app";
 import { DOCK_RESERVE, UNMEASURED_VIEWPORT, useCamera, useCanvasControls, useViewport, useWorkArea } from "./camera";
 import { clampInto, resizeRect, revealCamera, toWorld, visibleRect, type Camera, type Point, type Rect, type ResizeEdge } from "./core";
 import { closeBrowserTab } from "./browser";
-import { useMenu } from "./menu";
+import { useMenu, type MenuEntry } from "./menu";
+import type { DesktopContextValue } from "./data";
 import { closeTerminalSession } from "./terminal";
 import { STORAGE_KEY, defaultRect, dockedRect, isAttached, loadWindows, serializeWindows, threadIdOf, windowId, windowReducer, type DesktopWindow, type DockSide, type WindowSpec } from "./window-state";
 
@@ -453,7 +454,7 @@ export function WindowFrame({
   title,
   icon,
   iconClassName,
-  titleActions,
+  menu: windowMenu,
   statusBar,
   children,
   bodyProps,
@@ -465,7 +466,8 @@ export function WindowFrame({
   /** Threads have no glyph, as in bb's sidebar. */
   icon?: string;
   iconClassName?: string;
-  titleActions?: ReactNode;
+  /** The window's own actions, shown first in its … menu above Dock left, Dock right and Undock. */
+  menu?: (desktop: DesktopContextValue) => MenuEntry[];
   statusBar?: ReactNode;
   children: ReactNode;
   bodyProps?: Record<string, string>;
@@ -599,12 +601,18 @@ export function WindowFrame({
     manager.move(id, { ...rect, x: rect.x + delta[0] * step, y: rect.y + delta[1] * step });
   };
 
-  const positionMenu = (event: ReactMouseEvent<HTMLButtonElement>) =>
-    menu.openFrom(event.currentTarget, [
-      { label: "Dock left", icon: "PanelLeft", checked: dock === "left", run: () => manager.dock(id, "left") },
-      { label: "Dock right", icon: "PanelRight", checked: dock === "right", run: () => manager.dock(id, "right") },
-      ...(docked ? ["separator" as const, { label: "Undock", icon: "AppWindow", run: () => manager.dock(id, null) }] : []),
-    ]);
+  // One … button holds everything but minimize, maximize and close.
+  const moreMenu = (event: ReactMouseEvent<HTMLButtonElement>) =>
+    menu.openFrom(event.currentTarget, (latest) => {
+      const own = windowMenu?.(latest) ?? [];
+      return [
+        ...own,
+        ...(own.length > 0 ? ["separator" as const] : []),
+        { label: "Dock left", icon: "PanelLeft", checked: dock === "left", run: () => manager.dock(id, "left") },
+        { label: "Dock right", icon: "PanelRight", checked: dock === "right", run: () => manager.dock(id, "right") },
+        ...(docked ? [{ label: "Undock", icon: "AppWindow", run: () => manager.dock(id, null) }] : []),
+      ];
+    });
 
   if (desktopWindow.minimized && !keepMounted) return null;
 
@@ -656,8 +664,7 @@ export function WindowFrame({
           {icon === undefined ? null : <Icon name={icon} className={iconClassName} />}
           <span>{title}</span>
         </span>
-        {titleActions}
-        <TitleButton icon={dock === "left" ? "PanelLeft" : "PanelRight"} label="Position" onClick={positionMenu} />
+        <TitleButton icon="MoreHorizontal" label="More" onClick={moreMenu} />
         <TitleButton icon="Minus" label="Minimize" onClick={() => manager.minimize(id, true)} />
         <TitleButton icon={maximized ? "Minimize2" : "Maximize2"} label={maximized ? "Restore" : "Maximize"} onClick={() => manager.toggleMaximize(id)} />
         <TitleButton icon="X" label="Close" variant="close" onClick={() => manager.close(id)} />

@@ -248,7 +248,6 @@ body[data-ambient-glass] .cdc-canvas { background-color: transparent; }
   position: absolute;
   display: flex;
   flex-direction: column;
-  padding: 0 4px 4px;
   transform-origin: 0 0;
   pointer-events: auto;
   outline: none;
@@ -269,13 +268,12 @@ body[data-ambient-glass] .cdc-canvas { background-color: transparent; }
 .cdc-window[hidden] { display: none; }
 
 .cdc-window[data-maximized] {
-  padding: 0;
   border-width: 0 0 1px;
   border-radius: 0;
   box-shadow: none;
 }
+.cdc-window[data-maximized] > .cdc-window-body, .cdc-window[data-dock] > .cdc-window-body { border-radius: 0; }
 
-.cdc-window[data-maximized] > .cdc-window-body { border-width: 1px 0 0; border-radius: 0; }
 
 /* Docked: flush against the canvas edge beside bb's panel, with only the inner corner rounded. */
 .cdc-window[data-dock] { box-shadow: none; border-top-width: 0; }
@@ -349,9 +347,9 @@ body[data-ambient-glass] .cdc-canvas { background-color: transparent; }
   flex: 1;
   min-height: 0;
   overflow: hidden;
-  border-radius: 9px;
+  /* The window's one border is its frame; the content sits flush inside it, rounded to the frame's lower corners. */
+  border-radius: 0 0 11px 11px;
   background: var(--cdc-glass-solid);
-  border: 1px solid var(--cdc-hairline);
 }
 
 .cdc-window-body > * { height: 100%; }
@@ -450,8 +448,7 @@ body[data-ambient-glass] .cdc-canvas { background-color: transparent; }
 @container (max-width: 460px) {
   .cdc-toolbar-label { display: none; }
 }
-.cdc-nav, .cdc-segmented { display: flex; flex: none; align-items: center; gap: 2px; }
-.cdc-segmented { margin-left: auto; }
+.cdc-nav { display: flex; flex: none; align-items: center; gap: 2px; }
 
 .cdc-search {
   display: flex;
@@ -769,12 +766,6 @@ body[data-ambient-glass] .cdc-canvas { background-color: transparent; }
 /* A thread window: what the agent is doing, the thread's tools, then bb's chat. */
 
 .cdc-thread { display: flex; flex-direction: column; height: 100%; }
-.cdc-thread-strip { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex: none; min-height: 36px; padding: 2px 6px 2px 12px; border-bottom: 1px solid var(--cdc-hairline); }
-.cdc-thread-activity { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: var(--text-xs); color: var(--muted-foreground); }
-.cdc-thread-activity > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cdc-thread-activity[data-tone="attention"], .cdc-thread-activity[data-tone="running"] { color: var(--foreground); }
-.cdc-thread-activity [data-icon-root] { width: 12px; height: 12px; animation: cdc-spin 0.9s linear infinite; }
-.cdc-thread-tools { display: flex; flex: none; gap: 2px; }
 .cdc-thread-chat { flex: 1; min-height: 0; }
 
 /* Browser windows */
@@ -852,3 +843,4 @@ body:has(.cdc-dock) [data-sonner-toaster][data-y-position="bottom"] { bottom: ca
 
 /* While the canvas is shown, a sideways swipe that a window can't scroll never becomes the browser's Back gesture. */
 html:has(.cdc-desktop), body:has(.cdc-desktop) { overscroll-behavior-x: none; }
+.cdc-window-body:has(+ .cdc-statusbar) { border-radius: 0; }
