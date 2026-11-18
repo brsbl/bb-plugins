@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findFreeRect, fitCamera, folderSummary, trackNeedsInput, gridPositions, nextFreePosition, resizeRect, revealCamera, tileRects, toScreen, toWorld, zoomAt, type DesktopThread } from "./core";
+import { findFreeRect, fitCamera, folderSummary, trackNeedsInput, gridPositions, nextFreePosition, resizeRect, revealBeside, revealCamera, tileRects, toScreen, toWorld, zoomAt, type DesktopThread } from "./core";
 
 describe("camera", () => {
   it("zooms around the anchor, so the point under the pointer stays put", () => {
@@ -100,5 +100,24 @@ describe("placement beside a folder", () => {
       expect(occupied.some((other) => overlaps(next, other))).toBe(false);
       occupied.push(next);
     }
+  });
+});
+
+describe("revealBeside", () => {
+  const area = { x: 0, y: 0, width: 1000, height: 700 };
+  const camera = { x: 0, y: 0, zoom: 0.5 };
+  it("shows both at 100% when they fit", () => {
+    const next = revealBeside(camera, { x: 400, y: 0, width: 300, height: 300 }, { x: 0, y: 0, width: 300, height: 300 }, area);
+    expect(next.zoom).toBe(1);
+    expect(next.x).toBeGreaterThanOrEqual(24);
+    expect(next.x + 700).toBeLessThanOrEqual(1000 - 24);
+  });
+  it("puts the new window on the side away from its source when both don't fit", () => {
+    const rect = { x: 712, y: 0, width: 760, height: 640 };
+    const next = revealBeside(camera, rect, { x: 0, y: 0, width: 680, height: 480 }, area);
+    expect(next.zoom).toBe(1);
+    // The new window's right edge sits at the screen's right margin, leaving its source's right part in view.
+    expect(next.x + rect.x + rect.width).toBe(1000 - 24);
+    expect(next.x + 680).toBeGreaterThan(0);
   });
 });

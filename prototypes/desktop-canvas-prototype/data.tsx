@@ -45,6 +45,9 @@ export interface DesktopContextValue {
   openThread: (threadId: string) => void;
   /** The canvas places thread windows beside their folders; until it mounts, threads open in the current view. */
   setThreadOpener: (opener: ((threadId: string) => void) | null) => void;
+  /** Opens a folder's window beside its icon, once the icon is on the canvas (a new folder's arrives with the refresh). */
+  openFolder: (key: string) => void;
+  setFolderOpener: (opener: ((key: string) => void) | null) => void;
   dropThread: (target: Collection, drag: ThreadDrag) => Promise<void>;
   restoreThread: (threadId: string) => Promise<void>;
   /** Closes the thread's window, then archives it. */
@@ -226,6 +229,14 @@ export function DesktopDataProvider({ children }: { children: ReactNode }) {
     if (opener.current !== null) opener.current(threadId);
     else managerRef.current.open({ kind: "thread", threadId });
   }, []);
+  const folderOpener = useRef<((key: string) => void) | null>(null);
+  const setFolderOpener = useCallback((next: ((key: string) => void) | null) => {
+    folderOpener.current = next;
+  }, []);
+  const openFolder = useCallback((key: string) => {
+    if (folderOpener.current !== null) folderOpener.current(key);
+    else managerRef.current.open({ kind: "finder", key });
+  }, []);
 
   const dropThread = useCallback(
     async (target: Collection, drag: ThreadDrag) => {
@@ -285,13 +296,15 @@ export function DesktopDataProvider({ children }: { children: ReactNode }) {
             refresh,
             openThread,
             setThreadOpener,
+            openFolder,
+            setFolderOpener,
             dropThread,
             restoreThread,
             archiveThread,
           },
     [
       snapshot, requestedAt, preferences, updatePreferences, saving, organization, threadById, archivedThreads, live.experimental_archived,
-      foldersOf, projectName, call, refresh, openThread, setThreadOpener, dropThread, restoreThread, archiveThread,
+      foldersOf, projectName, call, refresh, openThread, setThreadOpener, openFolder, setFolderOpener, dropThread, restoreThread, archiveThread,
     ],
   );
 

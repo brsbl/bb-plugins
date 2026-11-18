@@ -5,11 +5,11 @@ import { RECYCLE_BIN_DROP, deleteGroups, groupMenu, threadDropTarget, viewMenuEn
 import { useCamera, useCanvasControls, useViewport, useWorkArea } from "./camera";
 import { CanvasMark } from "./canvas-mark";
 import { compareThreads, isDeletable, type Collection } from "./canvas-organization";
-import { ICON_BOX, ICON_CELL, boundsOf, cascadeRects, findFreeRect, fitCamera, folderSummary, gridPositions, nextFreePosition, tileRects, toWorld, worldRect, zoomAt, type Camera, type Point, type Rect } from "./core";
+import { ICON_BOX, ICON_CELL, boundsOf, cascadeRects, findFreeRect, fitCamera, folderSummary, revealCamera, gridPositions, nextFreePosition, tileRects, toWorld, worldRect, zoomAt, type Camera, type Point, type Rect } from "./core";
 import { errorMessage, useDesktop, type DesktopContextValue } from "./data";
 import { useMenu, type MenuEntry, type MenuTrigger } from "./menu";
 import { RESOURCE_ICON, StatusDot, collectionMembers, useMenuContext } from "./programs";
-import { READABLE_ZOOM, fitSize, isTap, usePointerTracker, useWindowManager, windowSize, type DesktopWindow, type WindowSpec } from "./windows";
+import { fitSize, isTap, usePointerTracker, useWindowManager, windowSize, type DesktopWindow, type WindowSpec } from "./windows";
 
 /**
  * The canvas: Desktop's icon desktop on an infinite, zoomable surface, showing the sidebar's groups in its order.
@@ -263,7 +263,12 @@ export function DesktopCanvas({ showComposer, showDesktop, arrangeRef }: {
 
   useCanvasGestures(controls.rootRef);
 
-  const zoomTo = (zoom: number) => controls.setCamera((current) => zoomAt(current, zoom, { x: area.x + area.width / 2, y: area.y + area.height / 2 }), { animate: true });
+  const zoomTo = (zoom: number) => controls.setCamera((current) => {
+    const next = zoomAt(current, zoom, { x: area.x + area.width / 2, y: area.y + area.height / 2 });
+    // At 100% the focused window stays on screen rather than wherever the zoom left it.
+    const focused = manager.windows.find((window) => window.id === manager.focusedId && !window.minimized && !window.maximized && window.dock === undefined);
+    return zoom === 1 && focused !== undefined ? revealCamera(next, focused.rect, area) : next;
+  }, { animate: true });
   const iconRects = () => [...positions.values()].map((point) => ({ ...point, ...ICON_BOX }));
   const fitAll = () => {
     const windows = manager.windows.filter((window) => !window.minimized && !window.maximized).map((window) => window.rect);
@@ -370,10 +375,8 @@ export function DesktopCanvas({ showComposer, showDesktop, arrangeRef }: {
     ];
     const area = controls.getWorkArea();
     const rect = findFreeRect({ ...fitSize(windowSize(spec), area), x: anchor.x + anchor.width + 32, y: anchor.y }, occupied);
-    // Show the folder alongside when both stay readable together; otherwise arrive at the new window at 100%.
-    const both = boundsOf([anchor, rect])!;
-    const zoomForBoth = Math.min(1, (area.width - 48) / both.width, (area.height - 48) / both.height);
-    manager.open(spec, rect, { reveal: zoomForBoth >= READABLE_ZOOM ? both : rect });
+    // Arrive at 100%, keeping as much of the folder or window it came from in view as the screen allows.
+    manager.open(spec, rect, { from: anchor });
   };
   const openFolder = (key: string) => {
     if (manager.windows.some((window) => window.id === `finder:${key}`)) manager.open({ kind: "finder", key });
@@ -403,6 +406,25 @@ export function DesktopCanvas({ showComposer, showDesktop, arrangeRef }: {
     const home = homeOf(threadId);
     openBeside(spec, finder?.rect ?? (home === null ? null : iconRect(home)));
   };
+  const iconRectRef = useRef(iconRect);
+  iconRectRef.current = iconRect;
+  // A new folder's icon arrives with the next snapshot; its window opens beside it then.
+  const pendingFolder = useRef<string | null>(null);
+  const openFolderRef = useRef(openFolder);
+  openFolderRef.current = openFolder;
+  useEffect(() => {
+    desktop.setFolderOpener((key) => {
+      if (iconRectRef.current(key) === null) pendingFolder.current = key;
+      else openFolderRef.current(key);
+    });
+    return () => desktop.setFolderOpener(null);
+  }, [desktop.setFolderOpener]);
+  useEffect(() => {
+    const key = pendingFolder.current;
+    if (key === null || !positions.has(key)) return;
+    pendingFolder.current = null;
+    openFolder(key);
+  });
   const openThreadRef = useRef(openThread);
   openThreadRef.current = openThread;
   useEffect(() => {

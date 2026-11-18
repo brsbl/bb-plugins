@@ -9,14 +9,14 @@ import { viewMenuEntries } from "./actions";
 import { toast } from "sonner";
 import { nativeBrowser, windowWebLink } from "./browser";
 import { openThreadLink } from "./browser-window";
-import { CanvasProvider, DOCK_RESERVE, useViewport, useWorkArea } from "./camera";
+import { CanvasProvider, DOCK_RESERVE, useCanvasControls, useViewport, useWorkArea } from "./camera";
 import { DesktopCanvas } from "./canvas";
 import { DesktopDataProvider, useDesktop } from "./data";
 import { AskTextProvider, MenuProvider, PLUGIN_SCOPE, useMenu, type MenuEntry } from "./menu";
 import { NeedsInputNotice } from "./needs-input";
 import { ProgramWindow, windowIcon, windowTitle } from "./programs";
 import { isAttached } from "./window-state";
-import { dockWidth, usePointerTracker, useWindowManager, WindowManagerProvider, type DesktopWindow } from "./windows";
+import { dockWidth, useLongPressMenu, usePointerTracker, useWindowManager, WindowManagerProvider, type DesktopWindow } from "./windows";
 import "./app.css";
 
 const PLUGIN_ID = "desktop-canvas-prototype";
@@ -142,6 +142,7 @@ function WindowLayer() {
 const DOCK_MAX_WIDTH = 960;
 /** Launcher, Composer and the dock's padding. */
 const DOCK_FIXED_WIDTH = 250;
+const DOCK_FIXED_WIDTH_COMPACT = 110;
 const TASK_WIDTH = 150;
 
 /** Taskbar buttons that don't fit collapse into one overflow button, keeping the focused window's button visible. */
@@ -153,7 +154,9 @@ function TaskButtons({ width }: { width: number }) {
   const tasks = manager.windows.filter((window) => !manager.windows.some((thread) => isAttached(window, thread)));
   // The dock stays compact: as many buttons as fit beside Launcher and Composer, the rest behind +N.
   const dockWidth = Math.min(width - 32, DOCK_MAX_WIDTH);
-  const capacity = Math.max(1, Math.floor((dockWidth - DOCK_FIXED_WIDTH - (tasks.length > 1 ? 52 : 0)) / TASK_WIDTH));
+  // On narrow screens Launcher and Composer show only their icons (see app.css).
+  const fixed = width <= 760 ? DOCK_FIXED_WIDTH_COMPACT : DOCK_FIXED_WIDTH;
+  const capacity = Math.max(1, Math.floor((dockWidth - fixed - (tasks.length > 1 ? 52 : 0)) / TASK_WIDTH));
   const shown = tasks.slice(0, capacity);
   const focused = tasks.find((window) => window.id === manager.focusedId) ?? tasks.find((window) => manager.windows.some((other) => other.id === manager.focusedId && isAttached(other, window)));
   if (focused !== undefined && !shown.includes(focused)) shown[shown.length - 1] = focused;
@@ -202,7 +205,7 @@ function Dock({ composerOpen, toggleComposer, arrangeLikeSidebar }: { composerOp
   const viewport = useViewport();
   return (
     <nav className="cdc-dock cdc-glass" data-screen aria-label="Dock">
-      <button type="button" className="cdc-dock-button" aria-haspopup="menu"
+      <button type="button" className="cdc-dock-button" aria-haspopup="menu" aria-label="Launcher" title="Launcher"
         onClick={(event) => menu.openFrom(event.currentTarget, (latest) => [
           { label: "Composer", icon: "MessageSquarePlus", run: () => { if (!composerOpen) toggleComposer(); } },
           { label: "My Threads", icon: "ListView", run: () => manager.open({ kind: "threads" }) },
@@ -213,7 +216,7 @@ function Dock({ composerOpen, toggleComposer, arrangeLikeSidebar }: { composerOp
         <Icon name="GridView" />
         <span>Launcher</span>
       </button>
-      <button type="button" className="cdc-dock-button" data-active={composerOpen || undefined} aria-expanded={composerOpen} onClick={toggleComposer}>
+      <button type="button" className="cdc-dock-button" aria-label="Composer" title="Composer" data-active={composerOpen || undefined} aria-expanded={composerOpen} onClick={toggleComposer}>
         <Icon name="MessageSquarePlus" />
         <span>Composer</span>
       </button>
@@ -299,6 +302,7 @@ function Composer({ state, setState, focusRequest, onMinimized }: { state: Compo
 
 function Shell() {
   const manager = useWindowManager();
+  useLongPressMenu(useCanvasControls().rootRef);
   const [composer, setComposerState] = useState(readComposer);
   const [focusRequest, setFocusRequest] = useState(0);
   const arrange = useRef<(() => void) | null>(null);

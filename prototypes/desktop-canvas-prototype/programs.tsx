@@ -351,7 +351,7 @@ function NewFolderWindow({ window: desktopWindow, at }: { window: DesktopWindow;
       }
       desktop.refresh();
       manager.close(desktopWindow.id);
-      manager.open({ kind: "finder", key });
+      desktop.openFolder(key);
     } catch (error) {
       toast.error(errorMessage(error));
     } finally {

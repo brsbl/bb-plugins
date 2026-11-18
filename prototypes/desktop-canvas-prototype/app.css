@@ -502,6 +502,12 @@ body[data-ambient-glass] .cdc-canvas { background-color: transparent; }
   outline: none;
 }
 
+/* In a narrow window (a phone's), the name gets the room; Status gives way and the date stays. */
+.cdc-list { container-type: inline-size; }
+@container (max-width: 460px) {
+  .cdc-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .cdc-row > :nth-child(2) { display: none; }
+}
 .cdc-row-head { min-height: 26px; font-size: var(--text-xs); font-weight: 600; color: var(--muted-foreground); touch-action: auto; }
 .cdc-row[role="option"]:hover { background: var(--cdc-hover); }
 .cdc-row[aria-selected="true"] { background: var(--cdc-press); }
@@ -624,8 +630,11 @@ body[data-ambient-glass] .cdc-canvas { background-color: transparent; }
   position: absolute;
   z-index: 5;
   bottom: 14px;
-  left: 50%;
-  transform: translateX(-50%);
+  /* Centered with auto margins rather than left: 50%, which would cap its shrink-to-fit width at half the screen. */
+  left: 0;
+  right: 0;
+  width: fit-content;
+  margin-inline: auto;
   display: flex;
   align-items: center;
   gap: 2px;

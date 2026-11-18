@@ -15,7 +15,7 @@ import {
 } from "react";
 import { experimental_Icon as Icon } from "@get-bb/plugin-sdk/app";
 import { DOCK_RESERVE, useCamera, useCanvasControls, useViewport, useWorkArea } from "./camera";
-import { fitCamera, resizeRect, revealCamera, toWorld, type Camera, type Point, type Rect, type ResizeEdge } from "./core";
+import { fitCamera, resizeRect, revealBeside, revealCamera, toWorld, type Camera, type Point, type Rect, type ResizeEdge } from "./core";
 import { closeBrowserTab } from "./browser";
 import { useMenu } from "./menu";
 import { closeTerminalSession } from "./terminal";
@@ -49,8 +49,11 @@ export interface WindowManager {
   focusedId: string | null;
   /** The edge a dragged window would dock to if dropped now. */
   dockPreview: DockSide | null;
-  /** Opens `spec` (or focuses its window) and brings it, or the `reveal` rect around it, into view at 100%. */
-  open(spec: WindowSpec, rect?: Rect, options?: { reveal?: Rect }): void;
+  /**
+   * Opens `spec` (or focuses its window) and brings it, or the `reveal` rect around it, into view at 100%; `from` keeps
+   * the window or folder it opened from in view beside it where the screen allows.
+   */
+  open(spec: WindowSpec, rect?: Rect, options?: { reveal?: Rect; from?: Rect }): void;
   /** Raises and restores a window; `reveal` also pans to it. */
   focus(id: string, options?: { reveal?: boolean }): void;
   close(id: string): void;
@@ -136,7 +139,9 @@ export function WindowManagerProvider({ children }: { children: ReactNode }) {
         const proposed = rect ?? defaultRect(spec, windowsRef.current.length, canvas.getCamera(), area);
         const placed = { ...proposed, ...fitSize(proposed, area) };
         dispatch({ type: "open", spec, rect: placed });
-        reveal(options?.reveal ?? placed);
+        const from = options?.from;
+        if (from !== undefined) canvas.setCamera((camera) => revealBeside(camera, placed, from, area), { animate: true });
+        else reveal(options?.reveal ?? placed);
       },
       focus(id, options) {
         dispatch({ type: "focus", id });
@@ -263,6 +268,67 @@ export function trackPointer(
   document.addEventListener("pointerup", up, true);
   document.addEventListener("pointercancel", lost, true);
   return () => finish(true);
+}
+
+/**
+ * Touch has no right-click: holding a finger still for half a second opens the same context menu, and the tap that
+ * ends the press doesn't also open the item. Where the browser fires its own long-press contextmenu, that one wins.
+ */
+export function useLongPressMenu(rootRef: { current: HTMLElement | null }) {
+  useEffect(() => {
+    const root = rootRef.current;
+    if (root === null) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let start: { x: number; y: number; id: number } | null = null;
+    let suppressUntil = 0;
+    const cancel = () => {
+      clearTimeout(timer);
+      timer = undefined;
+      start = null;
+    };
+    const down = (event: PointerEvent) => {
+      cancel();
+      if (event.pointerType !== "touch" || !event.isPrimary || !(event.target instanceof Element)) return;
+      const target = event.target;
+      start = { x: event.clientX, y: event.clientY, id: event.pointerId };
+      timer = setTimeout(() => {
+        if (start === null) return;
+        const { x, y } = start;
+        cancel();
+        suppressUntil = Date.now() + 800;
+        target.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: x, clientY: y, button: 2 }));
+      }, 500);
+    };
+    const move = (event: PointerEvent) => {
+      if (start !== null && event.pointerId === start.id && Math.hypot(event.clientX - start.x, event.clientY - start.y) > 10) cancel();
+    };
+    const swallow = (event: Event) => {
+      if (Date.now() > suppressUntil) return;
+      event.preventDefault();
+      event.stopPropagation();
+    };
+    const nativeMenu = (event: MouseEvent) => {
+      if (event.isTrusted) {
+        if (Date.now() <= suppressUntil) swallow(event);
+        else cancel();
+      }
+    };
+    root.addEventListener("pointerdown", down, true);
+    root.addEventListener("pointermove", move, true);
+    root.addEventListener("pointerup", cancel, true);
+    root.addEventListener("pointercancel", cancel, true);
+    root.addEventListener("click", swallow, true);
+    root.addEventListener("contextmenu", nativeMenu, true);
+    return () => {
+      cancel();
+      root.removeEventListener("pointerdown", down, true);
+      root.removeEventListener("pointermove", move, true);
+      root.removeEventListener("pointerup", cancel, true);
+      root.removeEventListener("pointercancel", cancel, true);
+      root.removeEventListener("click", swallow, true);
+      root.removeEventListener("contextmenu", nativeMenu, true);
+    };
+  }, [rootRef]);
 }
 
 /** Component ownership also cancels capture when the owner unmounts. */
@@ -499,7 +565,9 @@ export function WindowFrame({
         <TitleButton icon={maximized ? "Minimize2" : "Maximize2"} label={maximized ? "Restore" : "Maximize"} onClick={() => manager.toggleMaximize(id)} />
         <TitleButton icon="X" label="Close" variant="close" onClick={() => manager.close(id)} />
       </header>
-      <div className="cdc-window-body" data-window-content {...bodyProps}>{children}</div>
+      <div className="cdc-window-body" data-window-content {...bodyProps}
+        // Crossfades with the overview label, so the title never sits on top of still-visible content.
+        style={overviewOpacity > 0 ? { opacity: 1 - overviewOpacity } : undefined}>{children}</div>
       {statusBar === undefined ? null : <footer className="cdc-statusbar">{statusBar}</footer>}
       {overviewOpacity > 0 ? (
         // Zoomed out, the window reads as its title and status at a legible size; drag anywhere, double-click to fly in.
