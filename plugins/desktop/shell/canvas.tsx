@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import {
   GridViewGlyph,
   MediaPlayerArt,
+  NewAppArt,
   NewFolderArt,
   NewThreadArt,
   NotePadArt,
@@ -368,6 +369,7 @@ export function DesktopCanvas() {
   const commands: MenuEntry[] = [
     { label: "New folder", icon: <NewFolderArt size={16} />, run: () => manager.open({ kind: "new-folder" }) },
     { label: "New thread", icon: <NewThreadArt size={16} />, run: () => manager.open({ kind: "new-thread", groupKey: null }) },
+    { label: "New app", icon: <NewAppArt size={16} />, run: () => manager.open({ kind: "new-app" }) },
     "separator",
     { label: "My Threads", icon: <ThreadsArt size={16} />, run: () => manager.open({ kind: "threads" }) },
     { label: "Recycle Bin", icon: <RecycleBinArt size={14} />, run: () => manager.open({ kind: "recycle-bin" }) },

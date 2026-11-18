@@ -89,6 +89,7 @@ export function useLaunchers(): LauncherCatalog {
     finder: program({ kind: "desktop-finder" }, "Browse your desktop items"),
     "new-thread": program({ kind: "new-thread", groupKey: null }, "Start a conversation"),
     "new-folder": program({ kind: "new-folder" }, "Group threads on the desktop"),
+    "new-app": program({ kind: "new-app" }, "Have an agent build one"),
     threads: program({ kind: "threads" }),
     "recycle-bin": program({ kind: "recycle-bin" }),
     "media-player": program({ kind: "media-player" }, "Visualize your microphone"),
