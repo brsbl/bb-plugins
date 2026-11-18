@@ -456,7 +456,9 @@ function ThreadWindow({ window: desktopWindow, threadId }: { window: DesktopWind
     const fits = (rect: Rect) => clampInto(rect, visible).x === rect.x && clampInto(rect, visible).y === rect.y
       && others.every((other) => rect.x + rect.width <= other.x || other.x + other.width <= rect.x);
     const sides = [besideRect(desktopWindow.rect, preferred, width), besideRect(desktopWindow.rect, preferred === "right" ? "left" : "right", width)];
-    const rect = sides.find(fits) ?? clampInto({ ...sides[0]!, y: desktopWindow.rect.y + 44 + 36 * others.length, height: Math.max(240, sides[0]!.height - 44) }, visible);
+    const thread = desktopWindow.rect;
+    const inside = { ...sides[0]!, x: preferred === "right" ? thread.x + thread.width - width : thread.x, y: thread.y + 44, height: Math.max(240, thread.height - 44) };
+    const rect = sides.find(fits) ?? clampInto(inside, visible);
     manager.open(spec, rect);
   };
   // Like Desktop, each click opens another tab; the window sits beside the thread, cascading.
