@@ -386,8 +386,12 @@ export function DesktopCanvas({ showComposer, showDesktop, arrangeRef }: {
     const icons = [...positions.values()].map((point) => ({ ...point, ...ICON_BOX }));
     // Free room on screen, clear of every window and folder; failing that, clear of the folders (over other windows,
     // which come forward and back), and only then over folders other than the one it came from.
+    // Before covering anything, try a smaller window in free room: folders and other windows stay visible.
+    const smaller = { ...desired, width: Math.max(400, Math.round(size.width * 0.7)), height: Math.max(440, Math.round(size.height * 0.8)) };
     const free = findFreeRectIn(desired, [...windows, ...icons, anchor], visible)
+      ?? findFreeRectIn(smaller, [...windows, ...icons, anchor], visible)
       ?? findFreeRectIn(desired, [...icons, anchor], visible)
+      ?? findFreeRectIn(smaller, [...icons, anchor], visible)
       ?? findFreeRectIn(desired, [...windows, anchor], visible);
     if (free !== null) {
       manager.open(spec, free);
