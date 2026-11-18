@@ -459,8 +459,29 @@ function ThreadWindow({ window: desktopWindow, threadId }: { window: DesktopWind
     const thread = desktopWindow.rect;
     // Below the thread's title bar and tool strip, so its own controls and the Info and Related toggles stay reachable.
     const inside = { ...sides[0]!, x: preferred === "right" ? thread.x + thread.width - width : thread.x, y: thread.y + 84, height: Math.max(240, thread.height - 84) };
-    const rect = sides.find(fits) ?? clampInto(inside, visible);
-    manager.open(spec, rect);
+    const free = sides.find(fits);
+    if (free !== undefined) {
+      manager.open(spec, free);
+      return;
+    }
+    // No room beside it as it stands: slide the thread, and what's attached to it, just far enough that the panel docks
+    // beside it on screen; the canvas stays put. Only when the screen can't hold both does it open inside the thread.
+    const attachedRects = manager.windows.filter((window) => !window.minimized && isAttached(window, desktopWindow));
+    for (const side of [preferred, preferred === "right" ? "left" : "right"] as const) {
+      const shift = side === "right"
+        ? Math.min(0, visible.x + visible.width - (thread.x + thread.width + 8 + width))
+        : Math.max(0, visible.x - (thread.x - 8 - width));
+      const moved = { ...thread, x: thread.x + shift };
+      const beside = besideRect(moved, side, width);
+      const group = [moved, beside, ...attachedRects.map((window) => ({ ...window.rect, x: window.rect.x + shift }))];
+      const onScreen = group.every((rect) => rect.x >= visible.x - 0.5 && rect.x + rect.width <= visible.x + visible.width + 0.5);
+      const clear = others.every((other) => beside.x + beside.width <= other.x + shift || other.x + shift + other.width <= beside.x);
+      if (!onScreen || !clear) continue;
+      manager.move(desktopWindow.id, moved, Object.fromEntries(attachedRects.map((window) => [window.id, { ...window.rect, x: window.rect.x + shift }])));
+      manager.open(spec, beside);
+      return;
+    }
+    manager.open(spec, clampInto(inside, visible));
   };
   // Like Desktop, each click opens another tab; the window sits beside the thread, cascading.
   const openTab = (kind: "browser" | "terminal") => {
