@@ -75,6 +75,8 @@ Use the real XP icon when bb has an XP counterpart. When it does not, build from
 | Media Player | Windows Media Player 10: ring in four colors, white disc, blue play triangle | `MediaPlayerArt` |
 | Note pad | Notepad: spiral-bound pad with a pale-blue page and green ruled lines | `NotePadArt` |
 | New thread | XP speech bubble (as on Information) plus starburst | `NewThreadArt` |
+| New app | An app window plus starburst | `NewAppArt` |
+| Apps | Two stacked app windows | `AppsArt` |
 | My Threads (every thread) | My Documents: folder with the item tucked in, here a speech bubble; named "My …" like XP's personal folders | `ThreadsArt` |
 | Plugins | Add or Remove Programs pattern: software box with a CD | `PluginsArt` |
 | Skills | No XP counterpart; a glossy open book with a bookmark in XP style | `SkillsArt` |
@@ -103,7 +105,7 @@ Reuse these before building anything new.
 
 | Need | Use |
 | --- | --- |
-| A Start menu entry | `programs` (left column, with a detail line) or `places` (right column, grouped by section) in `StartMenu`; every entry can be added to Quick Launch by id |
+| A Start menu entry | `programs` (left column, with a detail line) or `places` (right column, grouped by section) in `StartMenu`; every entry can be added to Quick Launch by id. Apps other plugins register go in the Apps list (`AppsFlyout`, `.bbd-start-flyout`), not in a column |
 | A window | `WindowFrame` (title bar, minimize, maximize, close, status bar, resize) |
 | A toolbar row in a window | `.bbd-menubar` |
 | An XP program menu | `ProgramMenuBar` in `apps/xp-chrome.tsx`: compact Tahoma labels, separators, checks, shortcuts, disabled commands, arrow-key navigation and Escape |
@@ -119,7 +121,7 @@ Reuse these before building anything new.
 | A desktop icon | `.bbd-icon` with `.bbd-icon-art` and `.bbd-icon-label` |
 | A status | `StatusIcon` plus the `describeStatus` text |
 | A notification | The tray balloon (`page/balloon.tsx`), one at a time |
-| Another plugin's own UI as a program | The desktop app bridge (`bridge.ts`, `window.bbDesktopApps` version 1): the plugin registers an app and portals its UI into `AppWindow`. Plugin authors follow `skills/desktop-apps` |
+| Another plugin's own UI as an app | The desktop app bridge (`bridge.ts`, `window.bbDesktopApps` version 1): the plugin registers an app and portals its UI into `AppWindow`. Plugin authors follow `skills/desktop-apps` |
 | Another plugin's sidebar footer panel | Nothing to build: with the sidebar collapsed, the tray shows any footer disclosure as an XP window (`usePanelWindows`). bb keeps rendering the panel; Desktop only restyles and repositions it |
 
 ### Bundled XP programs

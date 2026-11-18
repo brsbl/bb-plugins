@@ -55,7 +55,7 @@ Each `Window` component renders its own `WindowFrame`, so a program controls its
 
 | Directory | Programs |
 | --- | --- |
-| `programs/threads/` | Instant Message, Buddy List, Buddy Info, thread tabs, explorer windows (folder, My Threads, More, Recycle Bin), New folder, New thread |
+| `programs/threads/` | Instant Message, Buddy List, Buddy Info, thread tabs, explorer windows (folder, My Threads, More, Recycle Bin), New folder, New thread, New app |
 | `programs/` | bb Explorer (`internet-explorer.tsx`), Terminal (`command-prompt.tsx`), Media Player, third-party app windows |
 | `games/`, `apps/` | Minesweeper, Solitaire, Pinball, 3D Maze, Paint |
 
@@ -65,8 +65,8 @@ Thread status wording and ranking (`statusTone`, `folderSummary`, `statusKind`, 
 
 `programs/launchers.tsx` is the single catalog of launchable things. Each launcher has a stable id, a label, art, and an action: open a window spec, run a bb command, navigate, or a custom handler. The Start menu, Quick Launch and the taskbar all read it:
 
-- Quick Launch persists launcher ids through the `setPreferences` RPC. The ids live in `programs/launcher-ids.ts` and are a stored contract; add new ones, never rename or remove one. Programs other plugins register use `app:<key>`.
-- The Start menu lists launcher ids by column and section. Adding a program to the Start menu is one line.
+- Quick Launch persists launcher ids through the `setPreferences` RPC. The ids live in `programs/launcher-ids.ts` and are a stored contract; add new ones, never rename or remove one. Apps other plugins register use `app:<key>`.
+- The Start menu lists launcher ids by column and section. Adding a program to the Start menu is one line. Apps other plugins register sit in the Apps list at the foot of the left column (`AppsFlyout`); until there is one, that row is New app itself.
 - Show Desktop remembers which windows it minimized in a module-level store, so the second click restores exactly those.
 
 ## Shell
@@ -107,7 +107,7 @@ These outlive a release. Changing one needs a migration.
 | Native tab ids: `bb-desktop-internet-explorer`, `bb-desktop-thread-browser-<tab>`, `bb-desktop:command-prompt`, `bb-desktop:thread-terminal:<tab>` | `services/browser.ts`, `services/terminal.ts` |
 | Quick Launch launcher ids, defaulting to `DEFAULT_QUICK_LAUNCH`; the server accepts at most 24 ids of 160 characters | `programs/launcher-ids.ts`, `core.ts`, `server.ts` |
 | Desktop icon layout keys: `recycle-bin`, `more`, `note:<id>`, group keys | `shell/canvas.tsx`, `server.ts` |
-| Draft keys `desktop:new-thread:<group>` | `programs/threads/new-thread.tsx` |
+| Draft keys `desktop:new-thread:<group>` and `desktop:new-app` | `programs/threads/new-thread.tsx` |
 | `window.bbDesktopApps` version 1 and the `bb-desktop-apps:ready` event | `bridge.ts`, `skills/desktop-apps` |
 | Server RPC and storage, and the `thread-list` plugin's `listPreferences` RPC it reads for sidebar order | `server.ts`, `shell/data.tsx`, `skills/desktop` |
 
