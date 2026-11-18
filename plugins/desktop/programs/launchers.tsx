@@ -23,7 +23,7 @@ export interface Launcher {
 }
 
 export interface LauncherCatalog {
-  /** Programs other plugins registered, in registration order. */
+  /** Apps other plugins registered, in registration order. */
   apps: Launcher[];
   launcher: (id: LauncherId) => Launcher;
   /** Everything Quick Launch can show, in the order its menu lists them. */
