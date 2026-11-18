@@ -76,9 +76,11 @@ const COMPACT_COMPOSER = `${ROOT} [data-testid="root-compose-compact-composer"]`
 /** bb pads the plugin sidebar header past the traffic lights and toggle, so it never becomes a pill itself; its plugin content does. */
 const SIDEBAR_RESERVE_PILL = '[data-testid="app-sidebar-top-reserve-row"] > div:not([data-sidebar-header-slot])';
 const SIDEBAR_HEADER_CONTENT = "[data-sidebar-header-slot] > [data-bb-plugin-root]";
+/** Settings puts bb's own search field in the section sidebar header; it becomes a pill like plugin header content. */
+const SIDEBAR_HEADER_SEARCH = "[data-sidebar-header-slot] > label";
 // AppPageHeader no longer marks its actions wrapper; its second child still owns the action groups.
 const HEADER_ACTIONS = '[data-testid="app-page-header-content-row"] > :nth-child(2)';
-const CHROME_PILLS = `${ROOT} :is([data-testid="app-page-header-content-row"] > :first-child, ${HEADER_ACTIONS}, ${SIDEBAR_RESERVE_PILL}, ${SIDEBAR_HEADER_CONTENT}:not(:empty), button[data-sidebar="trigger"])`;
+const CHROME_PILLS = `${ROOT} :is([data-testid="app-page-header-content-row"] > :first-child, ${HEADER_ACTIONS}, ${SIDEBAR_RESERVE_PILL}, ${SIDEBAR_HEADER_CONTENT}:not(:empty), ${SIDEBAR_HEADER_SEARCH}, button[data-sidebar="trigger"])`;
 const HEADER_FIRST = `${ROOT} [data-testid="app-page-header-content-row"] > :first-child`;
 const RIGHT_PANEL_BUTTON = 'button[aria-label*="right panel" i]';
 const SIDEBAR_CARDS = `${ROOT} :is([data-testid="sidebar-navigation-region"], [data-sidebar="content"], [data-sidebar="footer"])`;
@@ -101,6 +103,10 @@ const SIDEBAR_OPEN = `${ROOT} .peer[data-state="expanded"][data-side="left"] + [
 const THREAD_TITLE_ROW =
   '[data-split-pane-id]:has([data-thread-window]) > header > [data-testid="app-page-header-content-row"]';
 const PLUGIN_PAGE_BODY = '[data-testid="plugin-panel-body"]';
+const CONTENT_SHELL = '[data-testid="app-layout-content-shell"]';
+/** A page's header row. Thread rows match too, but the more specific thread-row rules win; no :has() exclusion here, which would
+    restyle a whole thread pane on every streamed token. */
+const PAGE_HEADER_ROW = `${CONTENT_SHELL} [data-testid="app-page-header-content-row"]`;
 const PAGE_COLUMN = `:is(.max-w-5xl, [class~="max-w-[760px]"], ${PLUGIN_PAGE_BODY})`;
 
 const COLUMN_HALF = "404px";
@@ -141,7 +147,10 @@ ${SHELL} {
 ${ROOT} [data-framed] { background-image: none; background-color: var(--background); }
 /* One spacing system for the chrome: every outer surface sits --ambient-edge from the window, neighbors sit --ambient-gap apart,
    and controls in one row share its top and bottom. The other values place bb's own rows on that grid in each layout. */
-${ROOT} { --ambient-edge: 8px; --ambient-gap: 8px; --ambient-chip-top: 8px; --ambient-card-shift: 0px; --ambient-rail-lift: -4px; --ambient-rail-cell-slack: 10px; }
+/* On macOS bb raises the title row onto the traffic-light axis even outside the desktop frame (narrow windows); the cards follow it
+   by the same amount so they stay one gap under the chips. Elsewhere this is 0. */
+${ROOT} { --ambient-edge: 8px; --ambient-gap: 8px; --ambient-chip-top: 8px;
+  --ambient-card-shift: calc(var(--bb-macos-traffic-light-center-y, calc(var(--bb-app-chrome-row-height, 3rem) / 2)) - var(--bb-app-chrome-row-height, 3rem) / 2); --ambient-rail-lift: -4px; --ambient-rail-cell-slack: 10px; }
 /* The desktop window's frame lip draws no edge under the scene, so it would only double the inset; without it the window card's
    1px edge plus Ambient's 8px inset is the edge. Title-bar chips sit on the traffic-light axis, and the content line (rail, New
    thread, thread and page cards) starts one gap under them. bb's title bar is 50px for the cards' and rail's own offsets
@@ -179,9 +188,10 @@ ${THREAD} > * { clip-path: inset(0 0 ${COLUMN_BOTTOM} 0); }
 ${THREAD}::before { ${LAYER} ${GLASS_SURFACE} background-color: var(--ambient-glass-solid); border-radius: 20px; top: 0; bottom: ${COLUMN_BOTTOM}; left: ${COLUMN_LEFT}; right: ${COLUMN_RIGHT}; }
 /* In the desktop window the card starts on the content line, like the rail and New thread beside it. The thread window clips its
    overflow, so it lets a card raised above its box through. */
-${ROOT} [data-framed] [data-split-pane-id] [data-thread-window] { overflow-clip-margin: max(0px, -1 * var(--ambient-card-shift)); }
-${ROOT} [data-framed] [data-split-pane-id] [data-thread-window]::before, ${ROOT} [data-framed] ${PAGE_MAIN}:not(:has([data-testid="app-page-header-content-row"]))::before { top: var(--ambient-card-shift); }
-${ROOT} [data-framed] [data-split-pane-id] [data-thread-window]::after { top: calc(var(--ambient-card-shift) + 1px); }
+/* Chrome takes only a plain length here (math computes to 0); 4px covers the 2px the card rises in a narrow macOS window. */
+${ROOT} [data-split-pane-id] [data-thread-window] { overflow-clip-margin: 4px; }
+${ROOT} [data-split-pane-id] [data-thread-window]::before, ${ROOT} [data-framed] ${PAGE_MAIN}:not(:has([data-testid="app-page-header-content-row"]))::before { top: var(--ambient-card-shift); }
+${ROOT} [data-split-pane-id] [data-thread-window]::after { top: calc(var(--ambient-card-shift) + 1px); }
 ${THREAD} [data-overflow-fade] { ${HIDE} }
 ${PAGE} { position: relative; isolation: isolate; }
 ${PAGE}::before { ${LAYER} ${GLASS_SURFACE} border-radius: 20px; inset: 0 8px 8px; }
@@ -190,7 +200,15 @@ ${PAGE} ${PLUGIN_PAGE_BODY} { margin-left: max(calc(var(--ambient-column-gutter,
 ${PAGE_MAIN} ${PAGE_COLUMN}:not(${PAGE_COLUMN} *) { anchor-name: --ambient-page-column; }
 ${PAGE_MAIN} #thread-detail-secondary-panel ${PAGE_COLUMN} { anchor-name: none; }
 ${PAGE}::before { left: max(var(--ambient-column-gutter, 8px), anchor(--ambient-page-column left, 8px)); right: max(8px, anchor(--ambient-page-column right, 8px)); }
-${PAGE}:has([data-testid="app-page-header-content-row"])::before { top: var(--bb-app-chrome-row-height, 3rem); }
+/* bb's resource collection pages (Plugins, Skills) scroll in a scroll area that keeps a 12px scrollbar strip right of their column;
+   the card covers it, so its right side matches its left (and reaches the window edge when the column fills the page). The hook is
+   bb's data attribute: an attribute selector on class ([class~=…]) inside :has() would restyle the whole page on every class change. */
+@media (min-width: 768px) { ${PAGE}:has([data-resource-collection-viewport]:not(#thread-detail-secondary-panel *)):not(:has(${PLUGIN_PAGE_BODY}))::before { right: max(8px, calc(anchor(--ambient-page-column right, 20px) - 12px)); } }
+${PAGE}:has([data-testid="app-page-header-content-row"])::before { top: calc(var(--bb-app-chrome-row-height, 3rem) + var(--ambient-card-shift)); }
+/* In the desktop window a page with its header inside it (plugin pages, Automations) starts at the window top; its card starts on
+   the content line. Outside the frame, a page whose header sits above it moves with bb's raised title row. */
+${ROOT} [data-framed] ${PAGE_MAIN}:has([data-testid="app-page-header-content-row"])::before { top: var(--ambient-content-top); }
+${ROOT} [data-testid="app-layout-content-shell"] > header + ${PAGE_MAIN.replace('[data-testid="app-layout-content-shell"] > ', '')}::before { top: var(--ambient-card-shift); }
 @media (max-width: 767px) { ${PAGE} header:has([data-testid="app-page-header-content-row"]) + div { clip-path: inset(0 8px 8px round 0 0 20px 20px); } }
 ${PAGE} { --card: ${mix("var(--ambient-card)", "55%")}; }
 /* Plugin controls own their surfaces; a search input may sit inside an already painted field. */
@@ -200,6 +218,29 @@ ${PAGE} .bg-card[class*="hover:bg-"]:hover { background-color: color-mix(in okla
 @media (min-width: 768px) { ${ROOT} .peer[data-collapsible="rail"][data-side="left"] + [data-sidebar="inset"] { --ambient-column-gutter: calc(var(--ambient-edge) + var(--ambient-gap) - var(--ambient-rail-cell-slack) - 1px); } }
 @media (min-width: 768px) { ${SIDEBAR_OPEN} { --ambient-column-gutter: 0px; } ${SIDEBAR_OPEN} [data-testid="app-page-header-content-row"] > :first-child { margin-inline-start: -16px; } }
 @media (min-width: 768px) { ${ROOT} ${THREAD_TITLE_ROW} { padding-inline-start: max(32px, 50% - ${COLUMN_HALF} + 6px); } ${ROOT} ${THREAD_TITLE_ROW}[class~="pl-[104px]"] { padding-inline-start: max(${TRAFFIC_LIGHT_RESERVE}, 50% - ${COLUMN_HALF} + 6px); } ${ROOT} ${THREAD_TITLE_ROW}[class*="pl-[calc(var(--bb-window-title-bar-controls-end)"] { padding-inline-start: max(${COLLAPSED_TITLE_BAR_RESERVE}, 50% - ${COLUMN_HALF} + 6px); } ${SIDEBAR_OPEN} ${THREAD_TITLE_ROW} { padding-inline-start: max(0px, 50% - ${COLUMN_HALF} + 16px); } }
+/* Header pills sit on the edges of the card under them. Threads: the actions pill ends where the 808px thread card ends. */
+@media (min-width: 768px) { ${ROOT} ${THREAD_TITLE_ROW} { padding-inline-end: max(0px, 50% - ${COLUMN_HALF} + 8px); } }
+/* Pages center a card as wide as their column, which depends on the page type; each sets half its width and the header row follows it
+   the same way thread rows follow the thread card (bb's reserve beside the title-bar controls stays the minimum). Unknown pages keep
+   bb's layout: the 100vw default never wins the max(). Real class selectors (not [class~=…]) keep these :has() checks cheap. */
+${ROOT} { --ambient-page-half: 100vw; }
+${ROOT} ${CONTENT_SHELL}:not(:has([data-thread-window])):has(> main .max-w-\\[760px\\]:not(#thread-detail-secondary-panel *)) { --ambient-page-half: 380px; --ambient-page-row-transition: 0s; }
+${ROOT} ${CONTENT_SHELL}:not(:has([data-thread-window])):has(> main .max-w-5xl:not(#thread-detail-secondary-panel *)) { --ambient-page-half: 512px; --ambient-page-row-transition: 0s; }
+${ROOT} ${CONTENT_SHELL}:not(:has([data-thread-window])):has(> main [data-resource-collection-viewport]:not(#thread-detail-secondary-panel *)) { --ambient-page-half: 518px; --ambient-page-row-transition: 0s; }
+${ROOT} ${CONTENT_SHELL}:not(:has([data-thread-window])):has(> main ${PLUGIN_PAGE_BODY}:not(#thread-detail-secondary-panel *)) { --ambient-page-half: ${COLUMN_HALF}; --ambient-page-row-transition: 0s; }
+/* With the right panel open the column centers in the left part only, and in a split each pane has its own header; both keep bb's
+   layout. bb hides the closed panel with aria-hidden and renders the focus scrim only in split panes. */
+${ROOT} ${CONTENT_SHELL}:has(> main #thread-detail-secondary-panel-handle + [data-panel] > aside:not([aria-hidden="true"])) { --ambient-page-half: 100vw; --ambient-page-row-transition: 200ms; }
+${ROOT} ${CONTENT_SHELL}:has(> main [data-pane-focus-scrim]:not(#thread-detail-secondary-panel *)) { --ambient-page-half: 100vw; --ambient-page-row-transition: 200ms; }
+@media (min-width: 768px) {
+  ${ROOT} ${PAGE_HEADER_ROW} { padding-inline: max(0px, 50% - var(--ambient-page-half) + 6px) max(0px, 50% - var(--ambient-page-half) + 8px); }
+  /* bb animates this padding; on a page that would slide the pill after a card that moves at once. */
+  ${ROOT} ${PAGE_HEADER_ROW} { transition-duration: var(--ambient-page-row-transition, 200ms); }
+  ${ROOT} ${PAGE_HEADER_ROW}[class~="pl-[32px]"] { padding-inline-start: max(32px, 50% - var(--ambient-page-half) + 6px); }
+  ${ROOT} ${PAGE_HEADER_ROW}[class~="pl-[104px]"] { padding-inline-start: max(${TRAFFIC_LIGHT_RESERVE}, 50% - var(--ambient-page-half) + 6px); }
+  ${ROOT} ${PAGE_HEADER_ROW}[class*="pl-[calc(var(--bb-window-title-bar-controls-end)"] { padding-inline-start: max(${COLLAPSED_TITLE_BAR_RESERVE}, 50% - var(--ambient-page-half) + 6px); }
+  ${SIDEBAR_OPEN} ${PAGE_HEADER_ROW} { padding-inline-start: max(0px, 50% - var(--ambient-page-half) + 16px); }
+}
 ${THREAD}::after { content: ""; position: absolute; z-index: 1; pointer-events: none; top: 1px; height: 28px; left: calc(${COLUMN_LEFT} + 1px); right: calc(${COLUMN_RIGHT} + 1px); border-radius: 19px 19px 0 0; background: linear-gradient(to bottom, ${mix("var(--ambient-background)", "18%")}, transparent); }
 ${THREAD} [data-timeline-row-list] :is([data-message-column].border, [data-message-column] .border) { border-color: ${mix("var(--ink)", "8%")}; }
 ${THREAD} [data-markdown-preview] div:has(> div > table) { width: 100% !important; margin-inline: 0 !important; }
@@ -249,6 +290,8 @@ ${ROOT} [data-sidebar="panel"] { background-color: var(--background); border-inl
 :is(${CHROME_PILLS}):is([data-testid="app-page-header-content-row"] > :first-child) { padding-inline: 12px; }
 ${HEADER_FIRST} button[aria-label="Thread actions"] { margin-inline-end: -6px; }
 ${ROOT} ${SIDEBAR_HEADER_CONTENT} > :is(button, a) { padding-inline: 6px; }
+${ROOT} ${SIDEBAR_HEADER_SEARCH} { min-height: 32px; max-height: 32px; padding-inline: 12px 6px; }
+${ROOT} ${SIDEBAR_HEADER_SEARCH}:is(:hover, :focus-within) { background-image: linear-gradient(var(--state-hover), var(--state-hover)); }
 ${ROOT} ${HEADER_ACTIONS} button[aria-label^="Open workspace"] { padding-inline-start: 6px; }
 ${ROOT} ${SIDEBAR_RESERVE_PILL} { margin-inline: -6px; }
 ${ROOT} [data-testid="app-desktop-sidebar-trigger"][class~="left-[84px]"] { margin-inline-start: 6px; }
