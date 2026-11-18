@@ -167,9 +167,11 @@ function TaskButtons({ width }: { width: number }) {
     if (window.maximized || window.dock !== undefined) return true;
     const camera = controls.getCamera();
     const area = controls.getWorkArea();
-    const left = camera.x + window.rect.x * camera.zoom;
+    // On screen means enough of its title bar to see and grab, not a sliver of its edge.
+    const left = Math.max(area.x, camera.x + window.rect.x * camera.zoom);
+    const right = Math.min(area.x + area.width, camera.x + (window.rect.x + window.rect.width) * camera.zoom);
     const top = camera.y + window.rect.y * camera.zoom;
-    return left < area.x + area.width && left + window.rect.width * camera.zoom > area.x && top < area.y + area.height && top + window.rect.height * camera.zoom > area.y;
+    return right - left >= 120 && top >= area.y - 8 && top + 32 * camera.zoom <= area.y + area.height;
   };
   const activate = (window: DesktopWindow) => {
     if (focused?.id === window.id && !window.minimized && onScreen(window)) manager.minimize(window.id, true);

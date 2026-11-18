@@ -352,7 +352,8 @@ function NewFolderWindow({ window: desktopWindow, at }: { window: DesktopWindow;
       }
       desktop.refresh();
       manager.close(desktopWindow.id);
-      desktop.openFolder(key);
+      // Where its icon is going: the spot you right-clicked, known before the new layout arrives.
+      desktop.openFolder(key, at);
     } catch (error) {
       toast.error(errorMessage(error));
     } finally {

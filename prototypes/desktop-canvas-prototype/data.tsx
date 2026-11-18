@@ -46,8 +46,8 @@ export interface DesktopContextValue {
   /** The canvas places thread windows beside their folders; until it mounts, threads open in the current view. */
   setThreadOpener: (opener: ((threadId: string) => void) | null) => void;
   /** Opens a folder's window beside its icon, once the icon is on the canvas (a new folder's arrives with the refresh). */
-  openFolder: (key: string) => void;
-  setFolderOpener: (opener: ((key: string) => void) | null) => void;
+  openFolder: (key: string, iconAt?: Point | null) => void;
+  setFolderOpener: (opener: ((key: string, iconAt?: Point | null) => void) | null) => void;
   dropThread: (target: Collection, drag: ThreadDrag) => Promise<void>;
   restoreThread: (threadId: string) => Promise<void>;
   /** Closes the thread's window, then archives it. */
@@ -229,12 +229,12 @@ export function DesktopDataProvider({ children }: { children: ReactNode }) {
     if (opener.current !== null) opener.current(threadId);
     else managerRef.current.open({ kind: "thread", threadId });
   }, []);
-  const folderOpener = useRef<((key: string) => void) | null>(null);
-  const setFolderOpener = useCallback((next: ((key: string) => void) | null) => {
+  const folderOpener = useRef<((key: string, iconAt?: Point | null) => void) | null>(null);
+  const setFolderOpener = useCallback((next: ((key: string, iconAt?: Point | null) => void) | null) => {
     folderOpener.current = next;
   }, []);
-  const openFolder = useCallback((key: string) => {
-    if (folderOpener.current !== null) folderOpener.current(key);
+  const openFolder = useCallback((key: string, iconAt?: Point | null) => {
+    if (folderOpener.current !== null) folderOpener.current(key, iconAt);
     else managerRef.current.open({ kind: "finder", key });
   }, []);
 

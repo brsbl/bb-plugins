@@ -385,7 +385,7 @@ export function DesktopCanvas({ showComposer, showDesktop, arrangeRef }: {
     const icons = [...positions.values()].map((point) => ({ ...point, ...ICON_BOX }));
     // Free room on screen, clear of every window and folder; failing that, clear of the folders (over other windows,
     // which come forward and back), and only then over folders other than the one it came from.
-    const free = findFreeRectIn(desired, [...windows, ...icons], visible)
+    const free = findFreeRectIn(desired, [...windows, ...icons, anchor], visible)
       ?? findFreeRectIn(desired, [...icons, anchor], visible)
       ?? findFreeRectIn(desired, [...windows, anchor], visible);
     if (free !== null) {
@@ -448,10 +448,13 @@ export function DesktopCanvas({ showComposer, showDesktop, arrangeRef }: {
   // A new folder's icon arrives with the next snapshot; its window opens beside it then.
   const pendingFolder = useRef<string | null>(null);
   const openFolderRef = useRef(openFolder);
+  const openBesideRef = useRef(openBeside);
+  openBesideRef.current = openBeside;
   openFolderRef.current = openFolder;
   useEffect(() => {
-    desktop.setFolderOpener((key) => {
-      if (iconRectRef.current(key) === null) pendingFolder.current = key;
+    desktop.setFolderOpener((key, iconAt) => {
+      if (iconAt) openBesideRef.current({ kind: "finder", key }, { ...iconAt, ...ICON_BOX });
+      else if (iconRectRef.current(key) === null) pendingFolder.current = key;
       else openFolderRef.current(key);
     });
     return () => desktop.setFolderOpener(null);

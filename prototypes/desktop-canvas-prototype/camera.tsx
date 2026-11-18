@@ -2,6 +2,8 @@ import { createContext, useCallback, useContext, useEffect, useLayoutEffect, use
 import { clampZoom, toWorld, type Camera, type Point, type Rect } from "./core";
 
 /** Room the floating dock keeps at the bottom of the screen; maximized windows and Fit all stop above it. */
+/** The viewport before the canvas has measured itself. */
+export const UNMEASURED_VIEWPORT = { width: 1200, height: 800 };
 export const DOCK_RESERVE = 76;
 /** The zoom controls' band at the top: windows are placed and framed below it, so they never cover a title bar. */
 export const TOP_RESERVE = 60;
@@ -85,7 +87,7 @@ export function CanvasProvider({ className, rootProps, children }: { className: 
   const [camera, setCameraState] = useState(readCamera);
   const cameraRef = useRef(camera);
   cameraRef.current = camera;
-  const [viewport, setViewport] = useState({ width: 1200, height: 800 });
+  const [viewport, setViewport] = useState(UNMEASURED_VIEWPORT);
   const [insets, setInsetsState] = useState<Insets>({ left: 0, right: 0 });
   const area = useMemo<Rect>(
     () => ({ x: insets.left, y: TOP_RESERVE, width: Math.max(0, viewport.width - insets.left - insets.right), height: Math.max(0, viewport.height - DOCK_RESERVE - TOP_RESERVE) }),

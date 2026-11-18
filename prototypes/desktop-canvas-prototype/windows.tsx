@@ -14,7 +14,7 @@ import {
   type ReactNode,
 } from "react";
 import { experimental_Icon as Icon } from "@get-bb/plugin-sdk/app";
-import { DOCK_RESERVE, useCamera, useCanvasControls, useViewport, useWorkArea } from "./camera";
+import { DOCK_RESERVE, UNMEASURED_VIEWPORT, useCamera, useCanvasControls, useViewport, useWorkArea } from "./camera";
 import { clampInto, resizeRect, revealCamera, toWorld, visibleRect, type Camera, type Point, type Rect, type ResizeEdge } from "./core";
 import { closeBrowserTab } from "./browser";
 import { useMenu } from "./menu";
@@ -67,6 +67,8 @@ export interface WindowManager {
   focus(id: string, options?: { reveal?: boolean }): void;
   /** Zooms the canvas to 100% on a window: the explicit "fly in" from a zoomed-out window. */
   flyTo(id: string): void;
+  /** Brings every open window that no longer fits the screen back into view, at the screen's size. */
+  keepInView(): void;
   close(id: string): void;
   closeWhere(predicate: (window: DesktopWindow) => boolean): void;
   /** `attached` gives the thread's companions their new rects when they moved with it. */
@@ -135,11 +137,15 @@ export function WindowManagerProvider({ children }: { children: ReactNode }) {
     const bringIntoView = (window: DesktopWindow) => {
       if (!floating(window)) return;
       const visible = view();
+      // A window larger than the screen (opened on a wider one) comes back at the screen's size.
+      const sized = { ...window.rect, ...fitSize(window.rect, visible) };
+      const resized = sized.width !== window.rect.width || sized.height !== window.rect.height;
+      if (resized) window = { ...window, rect: sized };
       // All of it when it fits on screen (so nothing ends up under the dock), else at least its title bar.
       const fits = window.rect.width <= visible.width && window.rect.height <= visible.height;
       const must = fits ? window.rect : { x: window.rect.x, y: window.rect.y, width: Math.min(window.rect.width, visible.width), height: TITLE_HEIGHT };
       const placed = clampInto(must, visible);
-      if (placed.x === must.x && placed.y === must.y) return;
+      if (placed.x === must.x && placed.y === must.y && !resized) return;
       const moved = { ...window.rect, x: placed.x, y: placed.y };
       const dx = moved.x - window.rect.x;
       const dy = moved.y - window.rect.y;
@@ -165,6 +171,12 @@ export function WindowManagerProvider({ children }: { children: ReactNode }) {
         dispatch({ type: "focus", id });
         const target = windowsRef.current.find((window) => window.id === id);
         if (options?.reveal && target !== undefined) bringIntoView(target);
+      },
+      keepInView() {
+        for (const window of windowsRef.current) {
+          if (window.minimized || windowsRef.current.some((thread) => isAttached(window, thread))) continue;
+          bringIntoView(window);
+        }
       },
       flyTo(id) {
         const target = windowsRef.current.find((window) => window.id === id);
@@ -203,6 +215,17 @@ export function WindowManagerProvider({ children }: { children: ReactNode }) {
       goForward: (id) => dispatch({ type: "go", id, direction: "forward" }),
     };
   }, [canvas, dockPreview, view, state.windows]);
+
+  // When the screen gets smaller (a window resized, a phone rotated), windows that no longer fit come back into view.
+  const lastViewport = useRef<{ width: number; height: number } | null>(null);
+  useEffect(() => {
+    if (viewport === UNMEASURED_VIEWPORT) return;
+    const last = lastViewport.current;
+    lastViewport.current = viewport;
+    if (last === null) return;
+    const shrank = viewport.width < last.width || viewport.height < last.height;
+    if (shrank) manager.keepInView();
+  }, [viewport.width, viewport.height]);
 
   return <WindowManagerContext.Provider value={manager}>{children}</WindowManagerContext.Provider>;
 }
@@ -340,7 +363,8 @@ export function useLongPressMenu(rootRef: { current: HTMLElement | null }) {
     root.addEventListener("pointermove", move, true);
     root.addEventListener("pointerup", cancel, true);
     root.addEventListener("pointercancel", cancel, true);
-    root.addEventListener("click", swallow, true);
+    // The menu opens outside the canvas; the click that ends the press must not pick the item under the finger.
+    document.addEventListener("click", swallow, true);
     root.addEventListener("contextmenu", nativeMenu, true);
     return () => {
       cancel();
@@ -348,7 +372,7 @@ export function useLongPressMenu(rootRef: { current: HTMLElement | null }) {
       root.removeEventListener("pointermove", move, true);
       root.removeEventListener("pointerup", cancel, true);
       root.removeEventListener("pointercancel", cancel, true);
-      root.removeEventListener("click", swallow, true);
+      document.removeEventListener("click", swallow, true);
       root.removeEventListener("contextmenu", nativeMenu, true);
     };
   }, [rootRef]);
