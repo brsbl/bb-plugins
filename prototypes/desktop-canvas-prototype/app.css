@@ -794,7 +794,6 @@ body[data-ambient-glass] .cdc-canvas { background-color: transparent; }
 
 .cdc-info { display: flex; flex-direction: column; gap: 14px; height: 100%; padding: 14px; overflow: auto; }
 .cdc-info-header { display: flex; align-items: center; gap: 10px; }
-.cdc-info-header > :first-child { width: 28px; height: 28px; flex: none; }
 .cdc-info-header > div { display: flex; flex-direction: column; min-width: 0; gap: 2px; }
 .cdc-info-header strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 .cdc-info-header span { font-size: var(--text-xs); color: var(--muted-foreground); }
