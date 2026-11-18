@@ -457,7 +457,8 @@ function ThreadWindow({ window: desktopWindow, threadId }: { window: DesktopWind
       && others.every((other) => rect.x + rect.width <= other.x || other.x + other.width <= rect.x);
     const sides = [besideRect(desktopWindow.rect, preferred, width), besideRect(desktopWindow.rect, preferred === "right" ? "left" : "right", width)];
     const thread = desktopWindow.rect;
-    const inside = { ...sides[0]!, x: preferred === "right" ? thread.x + thread.width - width : thread.x, y: thread.y + 44, height: Math.max(240, thread.height - 44) };
+    // Below the thread's title bar and tool strip, so its own controls and the Info and Related toggles stay reachable.
+    const inside = { ...sides[0]!, x: preferred === "right" ? thread.x + thread.width - width : thread.x, y: thread.y + 84, height: Math.max(240, thread.height - 84) };
     const rect = sides.find(fits) ?? clampInto(inside, visible);
     manager.open(spec, rect);
   };

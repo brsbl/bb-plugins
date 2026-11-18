@@ -437,6 +437,14 @@ export function DesktopCanvas({ showComposer, showDesktop, arrangeRef }: {
   };
   const iconRectRef = useRef(iconRect);
   iconRectRef.current = iconRect;
+  // A folder or section deleted anywhere (here, in the sidebar, in another browser) takes its open windows with it,
+  // including a Finder that navigated into it.
+  useEffect(() => {
+    const gone = (key: string) => (key.startsWith("folder:") || key.startsWith("section:")) && !desktop.organization.byKey.has(key);
+    if (manager.windows.some((window) => window.spec.kind === "finder" && gone(window.spec.key))) {
+      manager.closeWhere((window) => window.spec.kind === "finder" && gone(window.spec.key));
+    }
+  }, [desktop.organization, manager]);
   // A new folder's icon arrives with the next snapshot; its window opens beside it then.
   const pendingFolder = useRef<string | null>(null);
   const openFolderRef = useRef(openFolder);

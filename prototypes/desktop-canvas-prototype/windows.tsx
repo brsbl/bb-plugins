@@ -36,11 +36,16 @@ export const dockWidth = (viewportWidth: number) => Math.round(Math.min(400, vie
 /** Below this zoom a window's own text stops being readable, and it shows its overview label instead. */
 export const READABLE_ZOOM = 0.7;
 
-/** A window larger than what's on screen opens at the visible size, so all of it, title bar included, is in view. */
+/**
+ * A window larger than what's on screen opens at the visible size, so all of it, title bar included, is in view; but
+ * never below a size its content can lay out in (zoomed far in, it then keeps its title bar in view).
+ */
 export const fitSize = (size: { width: number; height: number }, view: Rect) => ({
-  width: Math.min(size.width, Math.max(240, view.width)),
-  height: Math.min(size.height, Math.max(240, view.height)),
+  width: Math.min(size.width, Math.max(MIN_OPEN_WIDTH, view.width)),
+  height: Math.min(size.height, Math.max(MIN_OPEN_HEIGHT, view.height)),
 });
+const MIN_OPEN_WIDTH = 320;
+const MIN_OPEN_HEIGHT = 440;
 
 /** A title bar's height, in canvas units: the part of a window that must be on screen to grab it. */
 const TITLE_HEIGHT = 40;
@@ -469,6 +474,12 @@ export function WindowFrame({
     track(event, (delta, pointerEvent) => {
       const scaled = { x: delta.x / view.zoom, y: delta.y / view.zoom };
       latest = edge ? resizeRect(origin, edge, scaled) : { ...origin, x: origin.x + scaled.x, y: origin.y + scaled.y };
+      // The dock floats over the canvas's bottom band: a window's bottom edge stops above it, so its follow-up box and
+      // resize corner stay reachable.
+      const bottom = toWorld(view, { x: 0, y: area.y + area.height }).y;
+      if (latest.y + latest.height > bottom && latest.height * view.zoom <= area.height) {
+        latest = edge?.includes("s") ? { ...latest, height: Math.max(200, bottom - latest.y) } : { ...latest, y: bottom - latest.height };
+      }
       element.dataset.dragging = edge ? "resize" : "move";
       element.removeAttribute("data-maximized");
       element.removeAttribute("data-dock");
