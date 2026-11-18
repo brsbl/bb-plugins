@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { createPortal } from "react-dom";
-import { ChevronRightGlyph, PowerGlyph } from "../art";
+import { ChevronRightGlyph, DetailsArt, PowerGlyph } from "../art";
 import { toggleDesktop } from "../enabled";
 import { useLaunchers, type Launcher } from "../programs/launchers";
 import { useDesktop } from "../shell/data";
@@ -155,7 +155,8 @@ function AppsFlyout({ open, setOpen, create, apps, itemProps }: {
           }
         }}
       >
-        <span>Apps</span>
+        <DetailsArt size={30} />
+        <span className="flex-1">Apps</span>
         <ChevronRightGlyph className="bbd-start-all-arrow size-3.5" strokeWidth={2.5} />
       </button>
       {open && position !== null

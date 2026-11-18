@@ -850,13 +850,13 @@ body[data-ambient-glass] .bbd-icon:not([aria-selected="true"]) .bbd-icon-label {
   color: var(--bbd-white);
 }
 
-/* XP's All Programs row: bold, with a green arrow, at the foot of the left column. */
+/* XP's All Programs row at the foot of the left column, lined up with the rows above, with a green arrow. */
 .bbd-start-all {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  padding: 6px 10px;
+  gap: 10px;
+  padding: 5px 8px;
+  text-align: left;
   border-radius: 3px;
   font-size: var(--text-xs);
   font-weight: 700;
