@@ -76,9 +76,11 @@ const COMPACT_COMPOSER = `${ROOT} [data-testid="root-compose-compact-composer"]`
 /** bb pads the plugin sidebar header past the traffic lights and toggle, so it never becomes a pill itself; its plugin content does. */
 const SIDEBAR_RESERVE_PILL = '[data-testid="app-sidebar-top-reserve-row"] > div:not([data-sidebar-header-slot])';
 const SIDEBAR_HEADER_CONTENT = "[data-sidebar-header-slot] > [data-bb-plugin-root]";
+/** Settings puts bb's own search field in the section sidebar header; it becomes a pill like plugin header content. */
+const SIDEBAR_HEADER_SEARCH = "[data-sidebar-header-slot] > label";
 // AppPageHeader no longer marks its actions wrapper; its second child still owns the action groups.
 const HEADER_ACTIONS = '[data-testid="app-page-header-content-row"] > :nth-child(2)';
-const CHROME_PILLS = `${ROOT} :is([data-testid="app-page-header-content-row"] > :first-child, ${HEADER_ACTIONS}, ${SIDEBAR_RESERVE_PILL}, ${SIDEBAR_HEADER_CONTENT}:not(:empty), button[data-sidebar="trigger"])`;
+const CHROME_PILLS = `${ROOT} :is([data-testid="app-page-header-content-row"] > :first-child, ${HEADER_ACTIONS}, ${SIDEBAR_RESERVE_PILL}, ${SIDEBAR_HEADER_CONTENT}:not(:empty), ${SIDEBAR_HEADER_SEARCH}, button[data-sidebar="trigger"])`;
 const HEADER_FIRST = `${ROOT} [data-testid="app-page-header-content-row"] > :first-child`;
 const RIGHT_PANEL_BUTTON = 'button[aria-label*="right panel" i]';
 const SIDEBAR_CARDS = `${ROOT} :is([data-testid="sidebar-navigation-region"], [data-sidebar="content"], [data-sidebar="footer"])`;
@@ -288,6 +290,8 @@ ${ROOT} [data-sidebar="panel"] { background-color: var(--background); border-inl
 :is(${CHROME_PILLS}):is([data-testid="app-page-header-content-row"] > :first-child) { padding-inline: 12px; }
 ${HEADER_FIRST} button[aria-label="Thread actions"] { margin-inline-end: -6px; }
 ${ROOT} ${SIDEBAR_HEADER_CONTENT} > :is(button, a) { padding-inline: 6px; }
+${ROOT} ${SIDEBAR_HEADER_SEARCH} { min-height: 32px; max-height: 32px; padding-inline: 12px 6px; }
+${ROOT} ${SIDEBAR_HEADER_SEARCH}:is(:hover, :focus-within) { background-image: linear-gradient(var(--state-hover), var(--state-hover)); }
 ${ROOT} ${HEADER_ACTIONS} button[aria-label^="Open workspace"] { padding-inline-start: 6px; }
 ${ROOT} ${SIDEBAR_RESERVE_PILL} { margin-inline: -6px; }
 ${ROOT} [data-testid="app-desktop-sidebar-trigger"][class~="left-[84px]"] { margin-inline-start: 6px; }
