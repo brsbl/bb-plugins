@@ -435,6 +435,24 @@ export function WindowFrame({
   const menu = useMenu();
   const track = usePointerTracker();
   const frameRef = useRef<HTMLElement>(null);
+  // bb's chat measures itself as it first renders; scaled, it misjudges its scroll and shows an empty pane. A window
+  // opened at another zoom lays out unscaled and out of sight until its content has rendered, then takes the zoom.
+  const [settling, setSettling] = useState(() => !desktopWindow.maximized && desktopWindow.dock === undefined && camera.zoom !== 1);
+  useEffect(() => {
+    if (!settling) return;
+    const start = performance.now();
+    let done = false;
+    const timer = setInterval(() => {
+      const element = frameRef.current;
+      const chat = element?.querySelector("[data-chat-thread]") ?? null;
+      const ready = chat === null || chat.querySelector("p, [data-message-id]") !== null;
+      if (done || !(ready || performance.now() - start > 2500)) return;
+      done = true;
+      clearInterval(timer);
+      setTimeout(() => setSettling(false), chat === null ? 0 : 200);
+    }, 100);
+    return () => clearInterval(timer);
+  }, [settling]);
   const { id, rect, maximized, dock } = desktopWindow;
   const focused = manager.focusedId === id;
   const docked = dock !== undefined;
@@ -553,7 +571,8 @@ export function WindowFrame({
     width: placement.width,
     height: placement.height,
     zIndex: desktopWindow.z,
-    transform: placement.scale === 1 ? "none" : `scale(${placement.scale})`,
+    transform: placement.scale === 1 || settling ? "none" : `scale(${placement.scale})`,
+    visibility: settling ? "hidden" : undefined,
     "--cdc-zoom": placement.scale,
   } as CSSProperties;
 
