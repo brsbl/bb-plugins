@@ -3,7 +3,6 @@ import { toast } from "sonner";
 import {
   experimental_Icon as Icon,
   experimental_NewThreadComposer as NewThreadComposer,
-  experimental_ProviderIcon as ProviderIcon,
   experimental_useSidebarThreadActions as useSidebarThreadActions,
   ThreadChat,
   type NewThreadRequest,
@@ -60,7 +59,6 @@ function ThreadStatus({ thread }: { thread: PluginSidebarThread }) {
   );
 }
 
-/** Threads carry no glyph, as in bb's sidebar, unless the sidebar shows provider icons. */
 /** Back and Forward, in a folder window's … menu. */
 function navEntries(desktopWindow: DesktopWindow, manager: WindowManager): MenuEntry[] {
   const back = desktopWindow.history?.back.length ?? 0;
@@ -416,8 +414,7 @@ const MIN_THREAD_BESIDE = 420;
 
 function ThreadWindow({ window: desktopWindow, threadId }: { window: DesktopWindow; threadId: string }) {
   const context = useMenuContext();
-  const { desktop, actions, manager } = context;
-  const menu = useMenu();
+  const { desktop, manager } = context;
   const thread = desktop.threadById.get(threadId);
   const archived = thread?.isArchived === true;
   const agent = useAgentName(thread?.providerId);
@@ -449,8 +446,8 @@ function ThreadWindow({ window: desktopWindow, threadId }: { window: DesktopWind
       && others.every((other) => rect.x + rect.width <= other.x || other.x + other.width <= rect.x);
     const sides = [besideRect(desktopWindow.rect, preferred, width), besideRect(desktopWindow.rect, preferred === "right" ? "left" : "right", width)];
     const thread = desktopWindow.rect;
-    // Below the thread's title bar and tool strip, so its own controls and the Info and Related toggles stay reachable.
-    const inside = { ...sides[0]!, x: preferred === "right" ? thread.x + thread.width - width : thread.x, y: thread.y + 84, height: Math.max(240, thread.height - 84) };
+    // Below the thread's title bar, so its own controls and its … menu stay reachable.
+    const inside = { ...sides[0]!, x: preferred === "right" ? thread.x + thread.width - width : thread.x, y: thread.y + 44, height: Math.max(240, thread.height - 44) };
     const free = sides.find(fits);
     if (free !== undefined) {
       manager.open(spec, free);

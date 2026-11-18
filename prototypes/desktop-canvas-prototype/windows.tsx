@@ -441,9 +441,9 @@ function applyPlacement(element: HTMLElement, placement: Placement) {
   element.style.transform = placement.scale === 1 ? "none" : `scale(${placement.scale})`;
 }
 
-function TitleButton({ icon, label, onClick, variant }: { icon: string; label: string; onClick: (event: ReactMouseEvent<HTMLButtonElement>) => void; variant?: "close" }) {
+function TitleButton({ icon, label, onClick, variant, opensMenu }: { icon: string; label: string; onClick: (event: ReactMouseEvent<HTMLButtonElement>) => void; variant?: "close"; opensMenu?: boolean }) {
   return (
-    <button type="button" className="cdc-title-button" data-variant={variant} aria-label={label} title={label} onClick={onClick}>
+    <button type="button" className="cdc-title-button" data-variant={variant} aria-label={label} title={label} aria-haspopup={opensMenu ? "menu" : undefined} onClick={onClick}>
       <Icon name={icon} />
     </button>
   );
@@ -664,7 +664,7 @@ export function WindowFrame({
           {icon === undefined ? null : <Icon name={icon} className={iconClassName} />}
           <span>{title}</span>
         </span>
-        <TitleButton icon="MoreHorizontal" label="More" onClick={moreMenu} />
+        <TitleButton icon="MoreHorizontal" label="More" opensMenu onClick={moreMenu} />
         <TitleButton icon="Minus" label="Minimize" onClick={() => manager.minimize(id, true)} />
         <TitleButton icon={maximized ? "Minimize2" : "Maximize2"} label={maximized ? "Restore" : "Maximize"} onClick={() => manager.toggleMaximize(id)} />
         <TitleButton icon="X" label="Close" variant="close" onClick={() => manager.close(id)} />
