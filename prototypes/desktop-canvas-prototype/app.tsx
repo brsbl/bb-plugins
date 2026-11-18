@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import {
   definePluginApp,
   experimental_Icon as Icon,
@@ -254,12 +254,29 @@ function Composer({ state, setState, focusRequest, onMinimized }: { state: Compo
   const clamp = (point: { x: number; y: number }) => {
     const width = ref.current?.offsetWidth ?? 720;
     const height = ref.current?.offsetHeight ?? 220;
-    return { x: Math.max(16, Math.min(viewport.width - width - 16, point.x)), y: Math.max(16, Math.min(area.height - height, point.y)) };
+    return { x: Math.max(16, Math.min(viewport.width - width - 16, point.x)), y: Math.max(16, Math.min(area.y + area.height - height, point.y)) };
   };
+  // Where it is on screen, relative to the canvas, including the centering transform it opens with.
   const current = () => {
     const element = ref.current;
-    return element === null ? { x: 16, y: 16 } : { x: element.offsetLeft, y: element.offsetTop };
+    const parent = element?.offsetParent?.getBoundingClientRect();
+    if (element === null || parent === undefined) return { x: 16, y: 16 };
+    const bounds = element.getBoundingClientRect();
+    return { x: bounds.left - parent.left, y: bounds.top - parent.top };
   };
+  // Opening over a window's own prompt box, it sits just above that box instead, so two prompts never stack.
+  useLayoutEffect(() => {
+    const element = ref.current;
+    if (!state.open || state.position !== null || element === null) return;
+    const bounds = element.getBoundingClientRect();
+    const covered = [...document.querySelectorAll<HTMLElement>(".cdc-window:not([hidden]) [data-window-content] [data-promptbox]")]
+      .map((prompt) => prompt.getBoundingClientRect())
+      .filter((prompt) => prompt.width > 0 && prompt.left < bounds.right && prompt.right > bounds.left && prompt.top < bounds.bottom && prompt.bottom > bounds.top);
+    if (covered.length === 0) return;
+    const from = current();
+    const top = Math.min(...covered.map((prompt) => prompt.top));
+    setState({ ...state, position: clamp({ x: from.x, y: from.y - (bounds.bottom - top) - 12 }) });
+  }, [state.open, state.position]);
   const position = state.position === null ? null : clamp(state.position);
 
   const startMove = (event: ReactPointerEvent<HTMLButtonElement>) => {

@@ -20,7 +20,7 @@ import { useAskText, useMenu } from "./menu";
 import { useSideChatActions } from "./side-chat";
 import { TerminalWindow } from "./terminal-window";
 import { InfoWindow, RelatedWindow, activityLine, useAgentName } from "./thread-companions";
-import { besideRect } from "./window-state";
+import { besideRect, isAttached } from "./window-state";
 import { useCanvasControls } from "./camera";
 import { WindowFrame, clampInto, isTap, usePointerTracker, visibleRect, useWindowManager, windowSize, type DesktopWindow, type WindowSpec } from "./windows";
 
@@ -451,9 +451,12 @@ function ThreadWindow({ window: desktopWindow, threadId }: { window: DesktopWind
     const visible = visibleRect(controls.getCamera(), controls.getWorkArea());
     const width = windowSize(spec).width;
     const preferred = kind === "info" ? "right" : "left";
-    const fits = (rect: Rect) => clampInto(rect, visible).x === rect.x && clampInto(rect, visible).y === rect.y;
+    // A side is free when it's on screen and its other companion isn't already there.
+    const others = manager.windows.filter((window) => !window.minimized && isAttached(window, desktopWindow) && window.spec.kind !== kind).map((window) => window.rect);
+    const fits = (rect: Rect) => clampInto(rect, visible).x === rect.x && clampInto(rect, visible).y === rect.y
+      && others.every((other) => rect.x + rect.width <= other.x || other.x + other.width <= rect.x);
     const sides = [besideRect(desktopWindow.rect, preferred, width), besideRect(desktopWindow.rect, preferred === "right" ? "left" : "right", width)];
-    const rect = sides.find(fits) ?? clampInto({ ...sides[0]!, y: desktopWindow.rect.y + 44, height: Math.max(240, sides[0]!.height - 44) }, visible);
+    const rect = sides.find(fits) ?? clampInto({ ...sides[0]!, y: desktopWindow.rect.y + 44 + 36 * others.length, height: Math.max(240, sides[0]!.height - 44) }, visible);
     manager.open(spec, rect);
   };
   // Like Desktop, each click opens another tab; the window sits beside the thread, cascading.

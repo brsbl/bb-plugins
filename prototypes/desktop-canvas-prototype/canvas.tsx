@@ -383,8 +383,11 @@ export function DesktopCanvas({ showComposer, showDesktop, arrangeRef }: {
     const desired = { ...size, x: anchor.x + anchor.width + 32, y: anchor.y };
     const windows = manager.windows.filter((window) => !window.minimized && !window.maximized && window.dock === undefined).map((window) => window.rect);
     const icons = [...positions.values()].map((point) => ({ ...point, ...ICON_BOX }));
-    // Free room on screen, clear of every window and folder; failing that, clear of windows and the folder it came from.
-    const free = findFreeRectIn(desired, [...windows, ...icons], visible) ?? findFreeRectIn(desired, [...windows, anchor], visible);
+    // Free room on screen, clear of every window and folder; failing that, clear of the folders (over other windows,
+    // which come forward and back), and only then over folders other than the one it came from.
+    const free = findFreeRectIn(desired, [...windows, ...icons], visible)
+      ?? findFreeRectIn(desired, [...icons, anchor], visible)
+      ?? findFreeRectIn(desired, [...windows, anchor], visible);
     if (free !== null) {
       manager.open(spec, free);
       return;
