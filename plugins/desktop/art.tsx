@@ -259,6 +259,15 @@ export function NewThreadArt({ size = 40 }: { size?: number }) {
   );
 }
 
+export function NewAppArt({ size = 40 }: { size?: number }) {
+  return (
+    <IconSvg size={size}>
+      <MiniWindow x={3} y={10} width={36} height={30} />
+      <Sparkle x={37} y={12} scale={0.95} />
+    </IconSvg>
+  );
+}
+
 export function ThreadsArt({ size = 40 }: { size?: number }) {
   return (
     <IconSvg size={size}>
