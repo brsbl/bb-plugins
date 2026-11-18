@@ -64,6 +64,9 @@ export function useIconPositions(entries: readonly Entry[], overrides: Record<st
   }, [entries, overrides, snapshot.layout]);
 }
 
+/** How much of a window stays visible when a window opened from it has to overlap it. */
+const OVERLAP_MIN_VISIBLE = 280;
+
 export function DesktopCanvas({ showComposer, showDesktop, arrangeRef }: {
   showComposer: () => void;
   showDesktop: () => void;
@@ -374,7 +377,16 @@ export function DesktopCanvas({ showComposer, showDesktop, arrangeRef }: {
       ...[...positions.values()].map((point) => ({ ...point, ...ICON_BOX })),
     ];
     const area = controls.getWorkArea();
-    const rect = findFreeRect({ ...fitSize(windowSize(spec), area), x: anchor.x + anchor.width + 32, y: anchor.y }, occupied);
+    const size = fitSize(windowSize(spec), area);
+    let rect = findFreeRect({ ...size, x: anchor.x + anchor.width + 32, y: anchor.y }, occupied);
+    // Too wide to sit beside the window it came from at 100%: overlap that window's right side instead, cascading, so
+    // its names stay readable and clickable beside the new one.
+    const besideFits = Math.max(rect.x + rect.width, anchor.x + anchor.width) - Math.min(rect.x, anchor.x) + 48 <= area.width;
+    const overlapX = anchor.x + area.width - 48 - size.width;
+    if (!besideFits && anchor.width > ICON_BOX.width && overlapX - anchor.x >= OVERLAP_MIN_VISIBLE) {
+      const cascade = manager.windows.filter((window) => !window.minimized && Math.abs(window.rect.x - overlapX) < 1).length;
+      rect = { ...size, x: overlapX, y: anchor.y + 32 * (cascade + 1) };
+    }
     // Arrive at 100%, keeping as much of the folder or window it came from in view as the screen allows.
     manager.open(spec, rect, { from: anchor });
   };
