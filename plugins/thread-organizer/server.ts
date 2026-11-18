@@ -8,19 +8,15 @@ import {
   MAX_WORKFLOW_STAGES,
   INBOX_RULE,
   WORKFLOW_CONFIG_VERSION,
-  adoptUnmanagedSections,
   buildWorkflowSkillSlot,
   cloneWorkflowConfig,
   createStageKey,
   editableWorkflowConfig,
   entryPromptMessage,
-  firstWorkflowStage,
   hasEntryPrompt,
-  inboxStage,
   isManageableThread,
   isRunningThread,
   isUnreadThread,
-  legacySectionNames,
   localSectionName,
   mergeEditableWorkflowConfig,
   normalizeEditableWorkflowConfig,
@@ -29,6 +25,7 @@ import {
   RETURNING_INBOX_DESCRIPTION,
   returnsAfterRead,
   stageForSectionId,
+  syncStagesWithSections,
   type EditableWorkflowConfig,
   type EditableWorkflowStage,
   type OrganizableThread,
@@ -37,18 +34,29 @@ import {
   type WorkflowConfig,
   type WorkflowStage,
 } from "./core.js";
-import { THREAD_LIST_PLUGIN_ID, syncSidebarOrder } from "./sidebar-order.js";
+import {
+  THREAD_LIST_PLUGIN_ID,
+  readSidebarSectionOrder,
+  syncSidebarOrder,
+  type ThreadListRpc,
+} from "./sidebar-order.js";
 
 /**
- * bb notifies section list changes as a `threads-changed` update on the
- * Personal project; the plugin adopts new sections from that signal.
+ * bb notifies section list changes (create, rename, delete) as a
+ * `threads-changed` update on the Personal project; the plugin syncs its
+ * stages from bb on that signal.
  */
 const PERSONAL_PROJECT_ID = "proj_personal";
 
 const CONFIG_KEY = "workflow-config:v1";
-const PENDING_CONFIG_OPERATION_KEY = "workflow-config-operation:v1";
-/** Loads that may retry an interrupted config sweep before giving up on it. */
-const MAX_PENDING_OPERATION_ATTEMPTS = 3;
+/** The last config that parsed, served if the stored one ever fails to. */
+const LAST_GOOD_CONFIG_KEY = "workflow-config:last-good:v1";
+/** Sections of stages removed in settings whose delete has not gone through. */
+const PENDING_DELETES_KEY = "section-deletes:v1";
+/** The main Inbox as it was when its section was deleted in bb. */
+const DELETED_INBOX_KEY = "deleted-inbox:v1";
+/** Written by 0.1.17 and earlier; its removals become pending deletes. */
+const LEGACY_PENDING_OPERATION_KEY = "workflow-config-operation:v1";
 const THREAD_STATE_PREFIX = "thread:v3:";
 const LEGACY_THREAD_STATE_PREFIX = "thread:v1:";
 const THREAD_LIST_PAGE_SIZE = 100;
@@ -76,14 +84,14 @@ const editableStageSchema = z
     key: z.string().min(1).max(40),
     role: z.enum(["inbox", "stage"]),
     rule: z.string().min(1).max(240),
-    title: z.string().min(1).max(80),
+    title: z.string().min(1),
   })
   .strict();
 
 const editableWorkflowConfigSchema = z
   .object({
     version: z.literal(WORKFLOW_CONFIG_VERSION),
-    stages: z.array(editableStageSchema).min(2).max(MAX_WORKFLOW_STAGES),
+    stages: z.array(editableStageSchema).max(MAX_WORKFLOW_STAGES),
   })
   .strict();
 
@@ -99,21 +107,9 @@ const saveConfigInputSchema = editableWorkflowConfigSchema.extend({
   baseRevision: z.number().int().nonnegative(),
 });
 
-const pendingConfigOperationSchema = z
-  .object({
-    version: z.literal(1),
-    nextConfig: workflowConfigSchema,
-    attempts: z.number().int().nonnegative().optional(),
-    removedStages: z.array(
-      z
-        .object({
-          key: z.string().min(1),
-          sectionId: z.string().min(1).nullable(),
-        })
-        .strict(),
-    ),
-  })
-  .strict();
+const legacyPendingOperationSchema = z.object({
+  removedStages: z.array(z.object({ sectionId: z.string().min(1).nullable() })),
+});
 
 export const rpcContract = defineRpcContract({
   getConfig: {
@@ -122,6 +118,11 @@ export const rpcContract = defineRpcContract({
   },
   saveConfig: {
     input: saveConfigInputSchema,
+    output: workflowConfigSchema,
+  },
+  /** Takes bb's sections as they are now; the sidebar calls it after a drag. */
+  syncFromBb: {
+    input: z.object({}).strict(),
     output: workflowConfigSchema,
   },
   /** Plugins that created at least one open root thread, so they can fill an inbox. */
@@ -162,6 +163,8 @@ interface ThreadWorkflowState {
   dismissedInboxPluginId?: string;
   /** The last workflow stage the thread landed in; Inbox never counts. */
   lastLandedStageKey: string | null;
+  /** The section the thread was in after its last reconcile. */
+  lastSectionId?: string | null;
   pendingEntryPrompt: PendingEntryPrompt | null;
   /** A prompt the host queued rather than started; retracted if the thread moves on. */
   queuedEntryPrompt: QueuedEntryPrompt | null;
@@ -177,19 +180,10 @@ interface ReconcileOptions {
   releaseRead?: boolean;
   /** Record where the thread sits without treating it as an entry. */
   seedLanding?: boolean;
-  /**
-   * Sections the caller may move threads out of even though no stage owns
-   * them any more: a config sweep draining the sections of removed stages
-   * before it deletes them. Every other section without a stage belongs to
-   * the user and is left alone.
-   */
-  evictFromSectionIds?: ReadonlySet<string>;
 }
 
 type ThreadRecord = Awaited<ReturnType<BbPluginApi["sdk"]["threads"]["get"]>>;
 type EntryPromptOutcome = "sent" | "queued" | "deferred" | "dropped" | null;
-
-type PendingConfigOperation = z.infer<typeof pendingConfigOperationSchema>;
 
 function threadStateKey(threadId: string): string {
   return `${THREAD_STATE_PREFIX}${threadId}`;
@@ -283,11 +277,14 @@ function parseEntryPromptRecords(value: unknown): EntryPromptRecord[] {
   });
 }
 
-function sectionMatchesName(section: Section, name: string): boolean {
-  return (
-    section.name.normalize("NFKC").trim().toLocaleLowerCase() ===
-    name.normalize("NFKC").trim().toLocaleLowerCase()
-  );
+function isSectionNotFound(error: unknown): boolean {
+  return /section[ _]not[ _]found/iu.test(describeError(error));
+}
+
+function stringList(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((entry): entry is string => typeof entry === "string")
+    : [];
 }
 
 export default async function plugin(bb: BbPluginApi): Promise<void> {
@@ -326,106 +323,200 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     return enqueue(threadId, work).catch(() => undefined);
   }
 
-  async function ensureWorkflowSections(
-    input: WorkflowConfig,
-  ): Promise<WorkflowConfig> {
-    const config = cloneWorkflowConfig(input);
-    let listed = await bb.sdk.threadSections.list();
-    const claimed = new Set<string>();
+  const threadListRpc: ThreadListRpc = (method, input) =>
+    bb.sdk.plugins.callRpc({
+      pluginId: THREAD_LIST_PLUGIN_ID,
+      method,
+      input,
+      outputSchema: z.unknown(),
+    });
 
-    for (const stage of config.stages) {
-      const displayName = localSectionName(stage);
-      let section =
-        (stage.sectionId
-          ? listed.find((candidate) => candidate.id === stage.sectionId)
-          : undefined) ??
-        listed.find(
-          (candidate) =>
-            !claimed.has(candidate.id) &&
-            [displayName, ...legacySectionNames(stage)].some((name) =>
-              sectionMatchesName(candidate, name),
-            ),
-        );
-
-      if (!section) {
-        try {
-          const created = await bb.sdk.threadSections.create({
-            name: displayName,
-          });
-          section = created;
-          listed = [...listed, section];
-          bb.log.info(
-            `action=workflow-section-created stage=${stage.key} section=${section.id}`,
-          );
-        } catch (error) {
-          listed = await bb.sdk.threadSections.list();
-          section = listed.find((candidate) =>
-            sectionMatchesName(candidate, displayName),
-          );
-          if (!section) throw error;
-        }
-      }
-
-      claimed.add(section.id);
-      stage.sectionId = section.id;
-      if (!sectionMatchesName(section, displayName)) {
-        await bb.sdk.threadSections.update({
-          id: section.id,
-          name: displayName,
-        });
-      }
-    }
-    return config;
+  async function persistConfig(): Promise<void> {
+    await bb.storage.kv.set(CONFIG_KEY, configSnapshot);
+    await bb.storage.kv.set(LAST_GOOD_CONFIG_KEY, configSnapshot);
   }
 
-  async function loadConfig(): Promise<void> {
-    const pendingResult = pendingConfigOperationSchema.safeParse(
-      await bb.storage.kv.get<unknown>(PENDING_CONFIG_OPERATION_KEY),
-    );
-    const pending = pendingResult.success ? pendingResult.data : null;
-    const stored = parseWorkflowConfig(
-      await bb.storage.kv.get<unknown>(CONFIG_KEY),
-    );
-    configSnapshot = await ensureWorkflowSections(
-      pending?.nextConfig ??
-        stored ??
-        cloneWorkflowConfig(DEFAULT_WORKFLOW_CONFIG),
-    );
-    // Every served config carries a revision so editors can prove which
-    // state their save is based on.
-    if (configSnapshot.revision === undefined) configSnapshot.revision = 0;
-    await bb.storage.kv.set(CONFIG_KEY, configSnapshot);
-    if (pending !== null) {
-      const attempts = (pending.attempts ?? 0) + 1;
-      if (attempts > MAX_PENDING_OPERATION_ATTEMPTS) {
-        bb.log.error(`action=config-operation-abandoned attempts=${attempts}`);
-        await bb.storage.kv.delete(PENDING_CONFIG_OPERATION_KEY);
-      } else {
-        const resumable = {
-          ...pending,
-          nextConfig: cloneWorkflowConfig(configSnapshot),
-          attempts,
-        } satisfies PendingConfigOperation;
-        await bb.storage.kv.set(PENDING_CONFIG_OPERATION_KEY, resumable);
-        try {
-          await finishConfigOperation(resumable);
-        } catch (error) {
-          // The loaded snapshot is already valid; keep serving and let the
-          // next save or load retry the sweep instead of failing to start.
-          bb.log.error(
-            `action=config-resume-failed error=${describeError(error)}`,
-          );
-        }
-      }
-    }
+  function publishConfig(): void {
     bb.realtime.publish("workflow-config-changed", {
       version: configSnapshot.version,
       revision: configSnapshot.revision ?? 0,
     });
+  }
+
+  /**
+   * Gives each stage without a section one, created in bb. Only stages that
+   * never had a section get here: new ones from settings or the CLI, and the
+   * defaults on a fresh install. A stage whose section was deleted is dropped
+   * by the sync instead, so nothing is ever rebuilt.
+   */
+  async function createMissingSections(config: WorkflowConfig): Promise<boolean> {
+    let created = false;
+    for (const stage of config.stages) {
+      if (stage.sectionId !== null) continue;
+      const name = localSectionName(stage);
+      const section = await bb.sdk.threadSections.create({ name });
+      stage.sectionId = section.id;
+      created = true;
+      bb.log.info(
+        `action=workflow-section-created stage=${stage.key} section=${section.id}`,
+      );
+    }
+    return created;
+  }
+
+  /** Deletes the sections of removed stages, keeping any that still fail. */
+  async function runPendingDeletes(existing: ReadonlySet<string>): Promise<Set<string>> {
+    const pending = stringList(await bb.storage.kv.get<unknown>(PENDING_DELETES_KEY));
+    const deleted = new Set<string>();
+    const remaining: string[] = [];
+    for (const sectionId of pending) {
+      if (!existing.has(sectionId)) continue;
+      try {
+        await bb.sdk.threadSections.delete({ id: sectionId });
+        deleted.add(sectionId);
+        bb.log.info(`action=section-deleted section=${sectionId}`);
+      } catch (error) {
+        if (isSectionNotFound(error)) {
+          deleted.add(sectionId);
+          continue;
+        }
+        remaining.push(sectionId);
+        bb.log.warn(
+          `action=section-delete-failed section=${sectionId} error=${describeError(error)}`,
+        );
+      }
+    }
+    if (remaining.length !== pending.length) {
+      await bb.storage.kv.set(PENDING_DELETES_KEY, remaining);
+    }
+    return new Set([...deleted, ...remaining]);
+  }
+
+  async function writeSidebarOrder(config: WorkflowConfig): Promise<void> {
+    try {
+      const sections = await bb.sdk.threadSections.list();
+      await syncSidebarOrder(
+        config,
+        sections.map((section) => section.id),
+        threadListRpc,
+      );
+    } catch (error) {
+      bb.log.warn(`action=sidebar-order-sync-failed error=${describeError(error)}`);
+    }
+  }
+
+  let loggedUnmanaged = 0;
+
+  /**
+   * Takes bb's sections as they are: drops stages whose section is gone,
+   * takes renames, adds sections created in bb, and follows the sidebar
+   * order. Runs on the config queue. Changes nothing when bb's sections
+   * cannot be listed, so a failed call never reads as "everything deleted".
+   */
+  async function syncFromBb(): Promise<void> {
+    let sections: Section[];
+    try {
+      sections = await bb.sdk.threadSections.list();
+    } catch (error) {
+      bb.log.warn(`action=section-sync-skipped error=${describeError(error)}`);
+      return;
+    }
+    const skipped = await runPendingDeletes(
+      new Set(sections.map((section) => section.id)),
+    );
+    sections = sections.filter((section) => !skipped.has(section.id));
+    let sidebarOrder: string[] | null = null;
+    try {
+      sidebarOrder = await readSidebarSectionOrder(
+        threadListRpc,
+        sections.map((section) => section.id),
+      );
+    } catch (error) {
+      bb.log.warn(`action=sidebar-order-read-failed error=${describeError(error)}`);
+    }
+    const deletedInbox = parseWorkflowConfig({
+      version: WORKFLOW_CONFIG_VERSION,
+      stages: [await bb.storage.kv.get<unknown>(DELETED_INBOX_KEY)],
+    })?.stages[0] ?? null;
+    const previous = configSnapshot;
+    const result = syncStagesWithSections(
+      previous,
+      sections,
+      sidebarOrder,
+      deletedInbox,
+    );
+    const next = result.config;
+    const created = await createMissingSections(next);
+    if (result.unmanaged !== loggedUnmanaged) {
+      loggedUnmanaged = result.unmanaged;
+      if (result.unmanaged > 0) {
+        bb.log.warn(
+          `action=stage-limit-reached limit=${MAX_WORKFLOW_STAGES} unmanaged=${result.unmanaged}`,
+        );
+      }
+    }
+    if (JSON.stringify(next.stages) === JSON.stringify(previous.stages)) return;
+    next.revision = (previous.revision ?? 0) + 1;
+    configSnapshot = next;
+    await persistConfig();
+    if (result.droppedInbox !== null) {
+      await bb.storage.kv.set(DELETED_INBOX_KEY, {
+        ...result.droppedInbox,
+        sectionId: null,
+      });
+    } else if (deletedInbox !== null && next.stages.some((stage) => stage.key === "inbox")) {
+      await bb.storage.kv.delete(DELETED_INBOX_KEY);
+    }
+    for (const change of result.changes) bb.log.info(change);
+    if (created) await writeSidebarOrder(next);
+    publishConfig();
+  }
+
+  async function loadConfig(): Promise<void> {
+    const raw = await bb.storage.kv.get<unknown>(CONFIG_KEY);
+    let stored = parseWorkflowConfig(raw);
+    if (raw !== undefined && stored === null) {
+      // Never fall back to the defaults once a config exists: that would
+      // create every default section again.
+      stored = parseWorkflowConfig(
+        await bb.storage.kv.get<unknown>(LAST_GOOD_CONFIG_KEY),
+      );
+      if (stored === null) {
+        throw new Error("The stored workflow config could not be read.");
+      }
+      bb.log.error("action=config-unreadable using=last-good");
+    }
+    configSnapshot = stored ?? cloneWorkflowConfig(DEFAULT_WORKFLOW_CONFIG);
+    // Every served config carries a revision so editors can prove which
+    // state their save is based on.
+    if (configSnapshot.revision === undefined) configSnapshot.revision = 0;
+
+    const legacy = legacyPendingOperationSchema.safeParse(
+      await bb.storage.kv.get<unknown>(LEGACY_PENDING_OPERATION_KEY),
+    );
+    if (legacy.success) {
+      await addPendingDeletes(
+        legacy.data.removedStages.flatMap((stage) =>
+          stage.sectionId === null ? [] : [stage.sectionId],
+        ),
+      );
+    }
+    await bb.storage.kv.delete(LEGACY_PENDING_OPERATION_KEY);
+
+    await syncFromBb();
+    await persistConfig();
+    publishConfig();
     bb.log.info(
       `Thread Organizer loaded stages=${configSnapshot.stages.length}`,
     );
-    requestAdoption();
+  }
+
+  async function addPendingDeletes(sectionIds: readonly string[]): Promise<void> {
+    if (sectionIds.length === 0) return;
+    const pending = stringList(await bb.storage.kv.get<unknown>(PENDING_DELETES_KEY));
+    await bb.storage.kv.set(PENDING_DELETES_KEY, [
+      ...new Set([...pending, ...sectionIds]),
+    ]);
   }
 
   function initialRememberedStage(thread: Thread): WorkflowStage | null {
@@ -447,14 +538,14 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
         value.version === 5 ||
         value.version === 6
       ) {
-        // A remembered stage that no longer exists falls back in place so the
-        // rest of the record survives a config change.
+        // A remembered stage that no longer exists means no section; the
+        // rest of the record survives the config change.
         const remembered = value.rememberedStageKey === null
           ? null
           : configSnapshot.stages.find(
             (stage) =>
               stage.key === value.rememberedStageKey && stage.role === "stage",
-          ) ?? initialRememberedStage(thread) ?? firstWorkflowStage(configSnapshot);
+          ) ?? null;
         return {
           created: false,
           state: {
@@ -472,6 +563,8 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
               value.pendingEntryPrompt,
             ),
             queuedEntryPrompt: parseQueuedEntryPrompt(value.queuedEntryPrompt),
+            lastSectionId:
+              typeof value.lastSectionId === "string" ? value.lastSectionId : null,
             recentEntryPrompts: parseEntryPromptRecords(
               value.recentEntryPrompts,
             ),
@@ -545,7 +638,6 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
       reconcileParent = true,
       releaseRead = false,
       seedLanding = false,
-      evictFromSectionIds,
     } = options;
     const thread = await bb.sdk.threads.get({ threadId });
     if (thread.parentThreadId !== null) {
@@ -586,17 +678,31 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     }
 
     // A section no stage owns is the user's own bucket, not a misplacement.
-    // Leave the thread where they put it and adopt the section so it becomes
-    // a stage. An explicit stage move still wins, and a config sweep may
-    // drain exactly the sections it is about to delete.
+    // Leave the thread where they put it and sync so the section becomes a
+    // stage. An explicit stage move still wins.
     if (
       explicitStageKey === undefined &&
       thread.sectionId !== null &&
-      currentStage === null &&
-      !evictFromSectionIds?.has(thread.sectionId)
+      currentStage === null
     ) {
-      requestAdoption();
+      void requestSync();
       return null;
+    }
+
+    // Deleting a section in bb leaves its threads with no section. Keep them
+    // there: a thread whose last section is gone forgets the stage it
+    // remembered, even when that section was an inbox it was waiting in.
+    if (
+      explicitStageKey === undefined &&
+      thread.sectionId === null &&
+      state.lastSectionId
+    ) {
+      const lastSectionId = state.lastSectionId;
+      const sections = await bb.sdk.threadSections.list();
+      if (!sections.some((section) => section.id === lastSectionId)) {
+        state.rememberedStageKey = null;
+        void requestSync();
+      }
     }
 
     if (explicitStageKey) {
@@ -612,7 +718,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
           stage.key === state.rememberedStageKey && stage.role === "stage",
       )
     ) {
-      state.rememberedStageKey = firstWorkflowStage(configSnapshot)?.key ?? null;
+      state.rememberedStageKey = null;
     }
 
     let matchedInbox: WorkflowStage | null = null;
@@ -663,10 +769,27 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
       state.claimedInboxKey = destination.key;
     }
     if (thread.sectionId !== destinationSectionId) {
-      await bb.sdk.threads.update({
-        threadId,
-        sectionId: destinationSectionId,
-      });
+      try {
+        await bb.sdk.threads.update({
+          threadId,
+          sectionId: destinationSectionId,
+        });
+      } catch (error) {
+        if (!isSectionNotFound(error)) throw error;
+        // The section was deleted in bb; sync drops its stage instead of
+        // retrying the move into a section that no longer exists.
+        bb.log.warn(
+          `thread=${threadId} action=section-missing stage=${destination?.key ?? "unassigned"}`,
+        );
+        // The thread's stage is gone, so it no longer remembers one; a section
+        // later created with the same name must not pull it back in.
+        if (state.rememberedStageKey === destination?.key) {
+          state.rememberedStageKey = null;
+          await saveThreadState(threadId, state);
+        }
+        void requestSync();
+        return null;
+      }
       bb.log.info(
         `thread=${threadId} action=section-updated stage=${destination?.key ?? "unassigned"}`,
       );
@@ -714,6 +837,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
         stageKey: destination.key,
       };
     }
+    state.lastSectionId = destinationSectionId;
     await saveThreadState(threadId, state);
     return state.pendingEntryPrompt === null
       ? null
@@ -861,163 +985,45 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     }
   }
 
-  /**
-   * The thread list owns the sidebar's section order. Every saved reorder,
-   * from settings, the CLI, or a sidebar drag, moves the sidebar to match;
-   * a drag already matches, so it writes nothing.
-   */
-  let sidebarSync: Promise<void> = Promise.resolve();
-
-  async function syncSidebar(config: WorkflowConfig): Promise<void> {
-    try {
-      const sections = await bb.sdk.threadSections.list();
-      await syncSidebarOrder(
-        config,
-        sections.map((section) => section.id),
-        (method, input) =>
-          bb.sdk.plugins.callRpc({
-            pluginId: THREAD_LIST_PLUGIN_ID,
-            method,
-            input,
-            outputSchema: z.unknown(),
-          }),
-      );
-    } catch (error) {
-      bb.log.warn(`action=sidebar-order-sync-failed error=${describeError(error)}`);
-    }
-  }
+  let queuedSync: Promise<void> | null = null;
 
   /**
-   * Persist the operation's config, move every thread, then delete the
-   * sections of removed stages. Returns false when the sweep did not reach
-   * every thread; the pending operation is then kept so a later save or load
-   * repeats it, and no section is deleted while threads may still sit in it.
+   * Queues one sync on the config queue, shared by every request made
+   * before it starts. Never rejects; failures are logged.
    */
-  async function finishConfigOperation(
-    operation: PendingConfigOperation,
-  ): Promise<boolean> {
-    const previousOrder = configSnapshot.stages.map((stage) => stage.key).join("\n");
-    configSnapshot = cloneWorkflowConfig(operation.nextConfig);
-    if (configSnapshot.stages.map((stage) => stage.key).join("\n") !== previousOrder) {
-      const synced = cloneWorkflowConfig(configSnapshot);
-      // Each sync reads the stored order before writing it, so they run one
-      // at a time in save order and an older order never lands last.
-      sidebarSync = sidebarSync.then(() => syncSidebar(synced));
-    }
-    await bb.storage.kv.set(CONFIG_KEY, configSnapshot);
-    const evictFromSectionIds = new Set(
-      operation.removedStages.flatMap((stage) =>
-        stage.sectionId === null ? [] : [stage.sectionId],
-      ),
-    );
-    let failed = 0;
-    for (const threadId of await listManageableThreadIds()) {
-      if (disposed) break;
-      // Stages the config no longer has fall back inside readThreadState;
-      // a config-induced remap records the landing without firing.
-      try {
-        await enqueue(threadId, async () => {
-          await reconcileThread(threadId, {
-            releaseRead: true,
-            seedLanding: true,
-            evictFromSectionIds,
-          });
-        });
-      } catch {
-        // enqueue already logged the failure.
-        failed += 1;
-      }
-    }
-    if (disposed || failed > 0) {
-      bb.log.warn(
-        `action=config-operation-incomplete threads=${failed} disposed=${disposed}`,
-      );
-      return false;
-    }
-
-    const liveSectionIds = new Set(
-      configSnapshot.stages.flatMap((stage) =>
-        stage.sectionId === null ? [] : [stage.sectionId],
-      ),
-    );
-    const existingSectionIds = new Set(
-      (await bb.sdk.threadSections.list()).map((section) => section.id),
-    );
-    for (const stage of operation.removedStages) {
-      if (
-        !stage.sectionId ||
-        liveSectionIds.has(stage.sectionId) ||
-        !existingSectionIds.has(stage.sectionId)
-      ) {
-        continue;
-      }
-      await bb.sdk.threadSections.delete({ id: stage.sectionId });
-      existingSectionIds.delete(stage.sectionId);
-    }
-    await bb.storage.kv.delete(PENDING_CONFIG_OPERATION_KEY);
-    return true;
-  }
-
-  async function pendingConfigOperation(): Promise<PendingConfigOperation | null> {
-    const parsed = pendingConfigOperationSchema.safeParse(
-      await bb.storage.kv.get<unknown>(PENDING_CONFIG_OPERATION_KEY),
-    );
-    return parsed.success ? parsed.data : null;
-  }
-
-  let adoptionQueued = false;
-
-  /**
-   * Adopt every bb section no stage owns, as one operation on the config
-   * queue so it is serialized with saves, bumps the revision like a save,
-   * and tells open editors to reload. Sections a pending removal still has
-   * to delete are skipped; adopting one would silently undo the removal.
-   */
-  function requestAdoption(): void {
-    if (adoptionQueued || disposed) return;
-    adoptionQueued = true;
-    configQueue = configQueue
+  function requestSync(): Promise<void> {
+    if (disposed) return Promise.resolve();
+    if (queuedSync !== null) return queuedSync;
+    const run = configQueue
       .catch(() => undefined)
       .then(async () => {
-        adoptionQueued = false;
-        if (disposed) return;
-        const pending = await pendingConfigOperation();
-        const pendingRemovalSectionIds = new Set(
-          (pending?.removedStages ?? []).flatMap((stage) =>
-            stage.sectionId === null ? [] : [stage.sectionId],
-          ),
-        );
-        const previous = configSnapshot;
-        const next = adoptUnmanagedSections(
-          previous,
-          await bb.sdk.threadSections.list(),
-          pendingRemovalSectionIds,
-        );
-        if (next.stages.length === previous.stages.length) return;
-        next.revision = (previous.revision ?? 0) + 1;
-        configSnapshot = next;
-        await bb.storage.kv.set(CONFIG_KEY, configSnapshot);
-        if (pending !== null) {
-          await bb.storage.kv.set(PENDING_CONFIG_OPERATION_KEY, {
-            ...pending,
-            nextConfig: cloneWorkflowConfig(configSnapshot),
-          } satisfies PendingConfigOperation);
-        }
-        for (const stage of next.stages.slice(previous.stages.length)) {
-          bb.log.info(
-            `action=section-adopted stage=${stage.key} section=${stage.sectionId}`,
-          );
-        }
-        bb.realtime.publish("workflow-config-changed", {
-          version: configSnapshot.version,
-          revision: configSnapshot.revision ?? 0,
-        });
+        queuedSync = null;
+        if (!disposed) await syncFromBb();
       })
       .catch((error: unknown) => {
-        bb.log.error(`action=adoption-failed error=${describeError(error)}`);
+        bb.log.error(`action=section-sync-failed error=${describeError(error)}`);
       });
+    queuedSync = run;
+    configQueue = run;
+    return run;
   }
 
+  async function sweepThreads(): Promise<void> {
+    for (const threadId of await listManageableThreadIds()) {
+      if (disposed) return;
+      // A config-induced remap records the landing without firing.
+      await schedule(threadId, async () => {
+        await reconcileThread(threadId, { releaseRead: true, seedLanding: true });
+      });
+    }
+  }
+
+  /**
+   * Saves a settings or CLI edit. It first takes bb's current sections, so an
+   * editor opened before a change in bb is refused rather than undoing it.
+   * Removed stages have their sections deleted in bb, which leaves their
+   * threads with no section.
+   */
   async function saveConfig(
     edited:
       | EditableWorkflowConfig
@@ -1027,12 +1033,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     const operation = configQueue
       .catch(() => undefined)
       .then(async () => {
-        // An operation an earlier sweep left incomplete is folded into this
-        // one rather than replayed: this save's sweep covers every thread
-        // with the newer config, and the earlier removals still need their
-        // sections deleted once a sweep completes.
-        const inherited =
-          (await pendingConfigOperation())?.removedStages ?? [];
+        await syncFromBb();
         const previous = configSnapshot;
         // Resolve the edit against the config as it stands now, inside the
         // queue, so a caller that started from an older snapshot cannot
@@ -1045,57 +1046,58 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
         if (input.baseRevision !== currentRevision) {
           throw new Error(WORKFLOW_CHANGED_ELSEWHERE_MESSAGE);
         }
-        const next = await ensureWorkflowSections(
-          mergeEditableWorkflowConfig(previous, input),
-        );
+        const next = mergeEditableWorkflowConfig(previous, input);
+        if (
+          previous.stages.some((stage) => stage.key === "inbox") &&
+          !next.stages.some((stage) => stage.key === "inbox")
+        ) {
+          throw new Error(
+            "The main Inbox can only be removed by deleting its section in the sidebar.",
+          );
+        }
         next.revision = currentRevision + 1;
         const nextKeys = new Set(next.stages.map((stage) => stage.key));
-        const nextSectionIds = new Set(
-          next.stages.flatMap((stage) =>
-            stage.sectionId === null ? [] : [stage.sectionId],
-          ),
+        const removed = previous.stages.flatMap((stage) =>
+          !nextKeys.has(stage.key) && stage.sectionId !== null
+            ? [stage.sectionId]
+            : [],
         );
-        const removed = previous.stages.filter(
-          (stage) =>
-            stage.key !== "inbox" &&
-            !nextKeys.has(stage.key) &&
-            (stage.sectionId === null || !nextSectionIds.has(stage.sectionId)),
+        await addPendingDeletes(removed);
+        const sectionNames = new Map(
+          (await bb.sdk.threadSections.list()).map((section) => [
+            section.id,
+            section.name.trim(),
+          ]),
         );
-
-        const removedStages = [
-          ...inherited,
-          ...removed.map(({ key, sectionId }) => ({ key, sectionId })),
-        ].filter(
-          (stage, index, all) =>
-            (stage.sectionId === null ||
-              !nextSectionIds.has(stage.sectionId)) &&
-            all.findIndex(
-              (candidate) =>
-                candidate.key === stage.key &&
-                candidate.sectionId === stage.sectionId,
-            ) === index,
-        );
-        const pending = {
-          version: 1,
-          nextConfig: cloneWorkflowConfig(next),
-          removedStages,
-          attempts: 0,
-        } satisfies PendingConfigOperation;
-        await bb.storage.kv.set(PENDING_CONFIG_OPERATION_KEY, pending);
-        try {
-          await finishConfigOperation(pending);
-        } finally {
-          // The config is durable as soon as finishConfigOperation writes it,
-          // so open panels learn the new revision even if the cleanup fails.
-          bb.realtime.publish("workflow-config-changed", {
-            version: configSnapshot.version,
-            revision: configSnapshot.revision ?? 0,
+        await runPendingDeletes(new Set(sectionNames.keys()));
+        for (const stage of next.stages) {
+          if (
+            stage.sectionId === null ||
+            sectionNames.get(stage.sectionId) === localSectionName(stage)
+          ) {
+            continue;
+          }
+          await bb.sdk.threadSections.update({
+            id: stage.sectionId,
+            name: localSectionName(stage),
           });
-          result = cloneWorkflowConfig(configSnapshot);
         }
+        const created = await createMissingSections(next);
+        const reordered =
+          next.stages.map((stage) => stage.key).join("\n") !==
+          previous.stages.map((stage) => stage.key).join("\n");
+        configSnapshot = next;
+        await persistConfig();
+        // The sidebar owns the order a later sync reads, so it is written
+        // before the queue moves on.
+        if (created || reordered) await writeSidebarOrder(next);
+        publishConfig();
+        result = cloneWorkflowConfig(configSnapshot);
       });
-    configQueue = operation;
+    configQueue = operation.catch(() => undefined);
     await operation;
+    // Move threads to match the saved config, as every save always has.
+    await sweepThreads();
     return result;
   }
 
@@ -1106,10 +1108,14 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     throw error;
   }
 
+  const syncedConfig = async (): Promise<WorkflowConfig> => {
+    await requestSync();
+    return cloneWorkflowConfig(configSnapshot);
+  };
+
   bb.rpc.register(rpcContract, {
-    getConfig() {
-      return cloneWorkflowConfig(configSnapshot);
-    },
+    getConfig: syncedConfig,
+    syncFromBb: syncedConfig,
     saveConfig,
     async listThreadSourcePlugins() {
       const sources = new Set<string>();
@@ -1156,7 +1162,6 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     "  bb organizer section after-read <inbox-key> [--set stay|return]",
     "",
   ].join("\n");
-  const SECTION_TITLE_MAX_LENGTH = 80;
   const CONFIRMATION_TIMEOUT_MS = 10 * 60 * 1000;
 
   const findStage = (
@@ -1414,6 +1419,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
   ): Promise<CliResult> {
     const [subcommand, ...rest] = argv;
     if (subcommand === undefined || subcommand === "list") {
+      await requestSync();
       const lines = configSnapshot.stages.map((stage) => {
         const note =
           stage.key === "inbox"
@@ -1435,12 +1441,6 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     const title = rawTitle?.trim() ?? "";
     if (title.length === 0) {
       return { exitCode: 2, stderr: "Provide a section title.\n" };
-    }
-    if (title.length > SECTION_TITLE_MAX_LENGTH) {
-      return {
-        exitCode: 2,
-        stderr: `Section titles must be at most ${SECTION_TITLE_MAX_LENGTH} characters.\n`,
-      };
     }
     let after: string | undefined;
     let rule: string | undefined;
@@ -1786,13 +1786,13 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     );
   }
 
-  // bb has no section event; creating one is reported as a threads change on
-  // the Personal project, which is enough to adopt it right away.
+  // bb has no section event; creating, renaming or deleting one is reported
+  // as a threads change on the Personal project.
   const unsubscribeSections = bb.sdk.subscribe({
     event: "project:changed",
     projectId: PERSONAL_PROJECT_ID,
     callback(event) {
-      if (event.changes.includes("threads-changed")) requestAdoption();
+      if (event.changes.includes("threads-changed")) void requestSync();
     },
   });
 
@@ -1835,7 +1835,6 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
       startupReconciliation,
       ...queues.values(),
       configQueue,
-      sidebarSync,
     ]);
   });
 
