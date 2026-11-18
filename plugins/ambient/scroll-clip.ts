@@ -24,9 +24,10 @@ export function mountScrollClip(): () => void {
     };
 
     for (const footer of root.querySelectorAll<HTMLElement>("[data-thread-window] [data-scroll-footer]")) {
-      const content = footer.parentElement?.firstElementChild;
+      // bb may put an invisible scroll floor first; the transcript is the element just above the footer.
+      const content = footer.previousElementSibling;
       const viewport = footer.closest(".thread-scrollbar");
-      if (content instanceof HTMLElement && content !== footer && viewport) clip(content, footer, viewport);
+      if (content instanceof HTMLElement && viewport) clip(content, footer, viewport);
     }
     for (const home of root.querySelectorAll("[data-testid=root-compose-compact-home]")) {
       const composer = home.querySelector("[data-testid=root-compose-compact-composer]");
