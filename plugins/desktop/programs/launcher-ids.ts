@@ -50,7 +50,7 @@ export const LAUNCHER_LABELS: Record<LauncherId, string> = {
   "new-app": "New app",
 };
 
-/** A program another plugin registered through `window.bbDesktopApps`. */
+/** An app another plugin registered through `window.bbDesktopApps`. */
 export function appLauncherId(key: string): string {
   return `app:${key}`;
 }

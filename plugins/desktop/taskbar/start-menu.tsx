@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { createPortal } from "react-dom";
-import { ChevronRightGlyph, DetailsArt, PowerGlyph } from "../art";
+import { AppsArt, ChevronRightGlyph, PowerGlyph } from "../art";
+import { titleCollator } from "../core";
 import { toggleDesktop } from "../enabled";
 import { useLaunchers, type Launcher } from "../programs/launchers";
 import { useDesktop } from "../shell/data";
@@ -115,7 +116,7 @@ type ItemProps = (item: Launcher) => Record<string, unknown>;
  * With no apps yet, the row is New app itself.
  * The list lives beside the menu and scrolls, so the Start menu keeps its size however many apps there are.
  */
-function AppsFlyout({ open, setOpen, create, apps, itemProps }: {
+export function AppsFlyout({ open, setOpen, create, apps, itemProps }: {
   open: boolean;
   setOpen: (open: boolean) => void;
   create: Launcher;
@@ -128,12 +129,26 @@ function AppsFlyout({ open, setOpen, create, apps, itemProps }: {
   useLayoutEffect(() => {
     const row = rowRef.current;
     if (!open || row === null) return;
-    const box = row.getBoundingClientRect();
-    const bottom = Math.max(4, window.innerHeight - box.bottom - 5);
-    // Cap at the space above the anchor so a long list scrolls instead of running off the top.
-    setPosition({ left: box.right + 2, bottom, maxHeight: window.innerHeight - bottom - 8 });
+    const place = () => {
+      const box = row.getBoundingClientRect();
+      const bottom = Math.max(4, window.innerHeight - box.bottom - 5);
+      // Cap at the space above the anchor so a long list scrolls instead of running off the top.
+      const next = { left: box.right + 2, bottom, maxHeight: window.innerHeight - bottom - 8 };
+      setPosition((current) =>
+        current !== null && current.left === next.left && current.bottom === next.bottom && current.maxHeight === next.maxHeight ? current : next,
+      );
+    };
+    place();
+    // The taskbar is centered and sized to its buttons, so the row moves when a window opens or closes.
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(place);
+    observer?.observe(row.closest(".bbd-taskbar") ?? row);
+    window.addEventListener("resize", place);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", place);
+    };
   }, [open]);
-  const sorted = [...apps].sort((left, right) => left.label.localeCompare(right.label, undefined, { sensitivity: "base", numeric: true }));
+  const sorted = [...apps].sort((left, right) => titleCollator.compare(left.label, right.label));
   const show = (focus: boolean) => {
     setOpen(true);
     if (focus) requestAnimationFrame(() => listRef.current?.querySelector<HTMLButtonElement>("button")?.focus());
@@ -173,7 +188,7 @@ function AppsFlyout({ open, setOpen, create, apps, itemProps }: {
           }
         }}
       >
-        <DetailsArt size={30} />
+        <AppsArt size={30} />
         <span className="flex-1">Apps</span>
         <ChevronRightGlyph className="bbd-start-all-arrow size-3.5" strokeWidth={2.5} />
       </button>
@@ -196,7 +211,7 @@ function AppsFlyout({ open, setOpen, create, apps, itemProps }: {
             >
               {[create, ...sorted].map((item, index) => [
                 index === 1 ? <div key="rule" className="bbd-start-rule my-1" aria-hidden /> : null,
-                <button key={item.id} className="bbd-start-place" {...itemProps(item)}>
+                <button key={item.id} className="bbd-start-place" {...itemProps(item)} {...(item.detail === "" ? {} : { title: item.detail })}>
                   {item.art(22)}
                   <span>{item.label}</span>
                 </button>,

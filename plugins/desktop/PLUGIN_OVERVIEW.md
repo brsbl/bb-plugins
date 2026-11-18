@@ -10,9 +10,13 @@ Double-click a thread to open it as an Instant Message window. bb's own chat and
 
 Desktop folders mirror the sidebar's sections, projects or machines, and filing a thread into a folder is an ordinary bb section change. Desktop-only folders can hide their threads from the sidebar. Archived threads sit in the Recycle Bin: drag a thread onto it to archive, or drag it back out to restore.
 
-## Apps
+## Built in
 
 The Start menu opens Paint (all sixteen XP tools, with pictures saved where agents can see them), a Terminal on your machine, bb Explorer (a real in-app browser), Media Player (a visualizer for your microphone), note pads that stick to the screen edges, and Minesweeper, Solitaire, Pinball and the 3D Maze screen saver.
+
+## Apps
+
+**New app** in the Start menu asks an agent to build an app for your desktop: describe it, and the agent writes and installs a bb plugin that opens as an XP window. Apps you build and apps from other plugins live in **Start › Apps**.
 
 ## For agents
 

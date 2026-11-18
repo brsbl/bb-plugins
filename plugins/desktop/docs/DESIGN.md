@@ -75,6 +75,8 @@ Use the real XP icon when bb has an XP counterpart. When it does not, build from
 | Media Player | Windows Media Player 10: ring in four colors, white disc, blue play triangle | `MediaPlayerArt` |
 | Note pad | Notepad: spiral-bound pad with a pale-blue page and green ruled lines | `NotePadArt` |
 | New thread | XP speech bubble (as on Information) plus starburst | `NewThreadArt` |
+| New app | An app window plus starburst | `NewAppArt` |
+| Apps | Two stacked app windows | `AppsArt` |
 | My Threads (every thread) | My Documents: folder with the item tucked in, here a speech bubble; named "My …" like XP's personal folders | `ThreadsArt` |
 | Plugins | Add or Remove Programs pattern: software box with a CD | `PluginsArt` |
 | Skills | No XP counterpart; a glossy open book with a bookmark in XP style | `SkillsArt` |
@@ -103,7 +105,7 @@ Reuse these before building anything new.
 
 | Need | Use |
 | --- | --- |
-| A Start menu entry | `programs` (left column, with a detail line) or `places` (right column, grouped by section) in `StartMenu`; every entry can be added to Quick Launch by id |
+| A Start menu entry | `programs` (left column, with a detail line) or `places` (right column, grouped by section) in `StartMenu`; every entry can be added to Quick Launch by id. Apps other plugins register go in the Apps list (`AppsFlyout`, `.bbd-start-flyout`), not in a column |
 | A window | `WindowFrame` (title bar, minimize, maximize, close, status bar, resize) |
 | A toolbar row in a window | `.bbd-menubar` |
 | An XP program menu | `ProgramMenuBar` in `apps/xp-chrome.tsx`: compact Tahoma labels, separators, checks, shortcuts, disabled commands, arrow-key navigation and Escape |
