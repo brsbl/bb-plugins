@@ -4,6 +4,7 @@ import { DEFAULT_WORKFLOW_CONFIG, cloneWorkflowConfig, type WorkflowConfig } fro
 import {
   expandSectionsPlaceholder,
   orderWithConfiguredSections,
+  readSidebarSectionOrder,
   syncSidebarOrder,
   type ThreadListRpc,
 } from "./sidebar-order.js";
@@ -170,5 +171,26 @@ describe("syncSidebarOrder", () => {
     const list = threadList("not a list");
     await expect(syncSidebarOrder(workflow(), [], list.call)).rejects.toThrow("invalid section order");
     expect(list.writes).toEqual([]);
+  });
+});
+
+describe("readSidebarSectionOrder", () => {
+  const stored = (value: string[]): ThreadListRpc => async () => ({
+    preferences: { manualSectionOrder: value },
+  });
+
+  it("reads the stored order, hidden sections included, ignoring ids bb no longer has", async () => {
+    await expect(
+      readSidebarSectionOrder(
+        stored(["pinned", ...order("sec_b", "sec_gone", "sec_a"), "threads"]),
+        ["sec_a", "sec_b", "sec_c"],
+      ),
+    ).resolves.toEqual(["sec_b", "sec_a", "sec_c"]);
+  });
+
+  it("uses bb's order while the sidebar has never been dragged", async () => {
+    await expect(
+      readSidebarSectionOrder(stored(["pinned", "sections", "threads"]), ["sec_a", "sec_b"]),
+    ).resolves.toEqual(["sec_a", "sec_b"]);
   });
 });
