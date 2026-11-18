@@ -64,6 +64,10 @@ export function useIconPositions(entries: readonly Entry[], overrides: Record<st
   }, [entries, overrides, snapshot.layout]);
 }
 
+/** How much of a window stays uncovered when a window opened from it has to overlap it, and how narrow that one may get. */
+const KEEP_VISIBLE = 280;
+const MIN_BESIDE_WIDTH = 480;
+
 const isInside = (rect: Rect, view: Rect) =>
   rect.x >= view.x && rect.y >= view.y && rect.x + rect.width <= view.x + view.width && rect.y + rect.height <= view.y + view.height;
 
@@ -386,6 +390,12 @@ export function DesktopCanvas({ showComposer, showDesktop, arrangeRef }: {
       return;
     }
     let rect = clampInto({ ...size, x: anchor.x + anchor.width + 32, y: anchor.y }, visible);
+    // Keep the start of the window it came from (its names) uncovered, narrowing the new window to fit if it can.
+    const keepX = anchor.x + KEEP_VISIBLE;
+    if (anchor.width > ICON_BOX.width && rect.x < keepX) {
+      const width = visible.x + visible.width - keepX;
+      if (width >= MIN_BESIDE_WIDTH) rect = { ...rect, x: keepX, width: Math.min(rect.width, width) };
+    }
     for (let step = 0; step < 8 && manager.windows.some((window) => !window.minimized && Math.abs(window.rect.x - rect.x) < 1 && Math.abs(window.rect.y - rect.y) < 1); step++) {
       rect = clampInto({ ...rect, y: rect.y + 32 }, visible);
     }
