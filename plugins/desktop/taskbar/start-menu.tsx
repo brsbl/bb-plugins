@@ -124,12 +124,14 @@ function AppsFlyout({ open, setOpen, create, apps, itemProps }: {
 }) {
   const rowRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
-  const [position, setPosition] = useState<{ left: number; bottom: number } | null>(null);
+  const [position, setPosition] = useState<{ left: number; bottom: number; maxHeight: number } | null>(null);
   useLayoutEffect(() => {
     const row = rowRef.current;
     if (!open || row === null) return;
     const box = row.getBoundingClientRect();
-    setPosition({ left: box.right + 2, bottom: Math.max(4, window.innerHeight - box.bottom - 5) });
+    const bottom = Math.max(4, window.innerHeight - box.bottom - 5);
+    // Cap at the space above the anchor so a long list scrolls instead of running off the top.
+    setPosition({ left: box.right + 2, bottom, maxHeight: window.innerHeight - bottom - 8 });
   }, [open]);
   const sorted = [...apps].sort((left, right) => left.label.localeCompare(right.label, undefined, { sensitivity: "base", numeric: true }));
   const show = (focus: boolean) => {
@@ -183,7 +185,7 @@ function AppsFlyout({ open, setOpen, create, apps, itemProps }: {
               role="menu"
               aria-label="Apps"
               className="bbd-root bbd-start-flyout"
-              style={{ left: position.left, bottom: position.bottom }}
+              style={{ left: position.left, bottom: position.bottom, maxHeight: position.maxHeight }}
               onKeyDown={(event) => {
                 if (event.key === "ArrowLeft") {
                   event.preventDefault();
