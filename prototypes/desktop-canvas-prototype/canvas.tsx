@@ -9,7 +9,7 @@ import { ICON_BOX, ICON_CELL, boundsOf, cascadeRects, findFreeRect, fitCamera, f
 import { errorMessage, useDesktop, type DesktopContextValue } from "./data";
 import { useMenu, type MenuEntry, type MenuTrigger } from "./menu";
 import { RESOURCE_ICON, StatusDot, collectionMembers, useMenuContext } from "./programs";
-import { READABLE_ZOOM, isTap, usePointerTracker, useWindowManager, windowSize, type DesktopWindow, type WindowSpec } from "./windows";
+import { READABLE_ZOOM, fitSize, isTap, usePointerTracker, useWindowManager, windowSize, type DesktopWindow, type WindowSpec } from "./windows";
 
 /**
  * The canvas: Desktop's icon desktop on an infinite, zoomable surface, showing the sidebar's groups in its order.
@@ -368,10 +368,10 @@ export function DesktopCanvas({ showComposer, showDesktop, arrangeRef }: {
       ...manager.windows.filter((window) => !window.minimized && !window.maximized && window.dock === undefined).map((window) => window.rect),
       ...[...positions.values()].map((point) => ({ ...point, ...ICON_BOX })),
     ];
-    const rect = findFreeRect({ ...windowSize(spec), x: anchor.x + anchor.width + 32, y: anchor.y }, occupied);
+    const area = controls.getWorkArea();
+    const rect = findFreeRect({ ...fitSize(windowSize(spec), area), x: anchor.x + anchor.width + 32, y: anchor.y }, occupied);
     // Show the folder alongside when both stay readable together; otherwise arrive at the new window at 100%.
     const both = boundsOf([anchor, rect])!;
-    const area = controls.getWorkArea();
     const zoomForBoth = Math.min(1, (area.width - 48) / both.width, (area.height - 48) / both.height);
     manager.open(spec, rect, { reveal: zoomForBoth >= READABLE_ZOOM ? both : rect });
   };

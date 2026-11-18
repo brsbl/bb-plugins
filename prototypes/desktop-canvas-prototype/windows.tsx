@@ -35,6 +35,12 @@ export const dockWidth = (viewportWidth: number) => Math.round(Math.min(400, vie
 /** Below this zoom a window's own text stops being readable, and it shows its overview label instead. */
 export const READABLE_ZOOM = 0.7;
 
+/** On a screen narrower or shorter than a window, the window opens at the screen's size so it reads at 100%. */
+export const fitSize = (size: { width: number; height: number }, area: Rect) => ({
+  width: Math.min(size.width, Math.max(240, area.width - 16)),
+  height: Math.min(size.height, Math.max(240, area.height - 16)),
+});
+
 /** Within this distance of an edge, dropping a dragged window docks it there. */
 const DOCK_SNAP = 32;
 
@@ -128,8 +134,7 @@ export function WindowManagerProvider({ children }: { children: ReactNode }) {
         }
         const area = canvas.getWorkArea();
         const proposed = rect ?? defaultRect(spec, windowsRef.current.length, canvas.getCamera(), area);
-        // On a screen narrower or shorter than the window, it opens at the screen's size so it reads at 100%.
-        const placed = { ...proposed, width: Math.min(proposed.width, area.width - 16), height: Math.min(proposed.height, area.height - 16) };
+        const placed = { ...proposed, ...fitSize(proposed, area) };
         dispatch({ type: "open", spec, rect: placed });
         reveal(options?.reveal ?? placed);
       },
