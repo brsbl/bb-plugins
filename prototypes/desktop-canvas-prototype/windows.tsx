@@ -417,7 +417,8 @@ export function WindowFrame({
   const docked = dock !== undefined;
   const sideWidth = dockWidth(viewport.width);
   const placement: Placement = maximized
-    ? { left: area.x, top: area.y, width: area.width, height: area.height, scale: 1 }
+    // Maximized windows hide the zoom controls, so they take the top band too.
+    ? { left: area.x, top: 0, width: area.width, height: area.y + area.height, scale: 1 }
     : dock !== undefined
       ? { left: dock === "left" ? 0 : viewport.width - sideWidth, top: 0, width: sideWidth, height: Math.max(220, viewport.height - DOCK_RESERVE), scale: 1 }
       : floatingPlacement(rect, camera);

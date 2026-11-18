@@ -380,7 +380,7 @@ body[data-ambient-glass] .cdc-canvas { background-color: transparent; }
   font-size: calc(17px / var(--cdc-zoom, 1));
   font-weight: 600;
   line-height: 1.25;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 .cdc-overview-label > span { display: flex; align-items: center; gap: calc(7px / var(--cdc-zoom, 1)); font-size: calc(13px / var(--cdc-zoom, 1)); color: var(--muted-foreground); }
 .cdc-overview-label > span[data-tone="attention"], .cdc-overview-label > span[data-tone="running"] { color: var(--foreground); }
@@ -445,6 +445,11 @@ body[data-ambient-glass] .cdc-canvas { background-color: transparent; }
 }
 
 .cdc-toolbar > button { flex: none; }
+/* In a narrow window (a phone's), New thread keeps only its icon so the search field has room. */
+.cdc-finder { container-type: inline-size; }
+@container (max-width: 460px) {
+  .cdc-toolbar-label { display: none; }
+}
 .cdc-nav, .cdc-segmented { display: flex; flex: none; align-items: center; gap: 2px; }
 .cdc-segmented { margin-left: auto; }
 

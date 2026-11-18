@@ -208,7 +208,7 @@ function Dock({ composerOpen, toggleComposer, arrangeLikeSidebar }: { composerOp
       <button type="button" className="cdc-dock-button" aria-haspopup="menu" aria-label="Launcher" title="Launcher"
         onClick={(event) => menu.openFrom(event.currentTarget, (latest) => [
           { label: "Composer", icon: "MessageSquarePlus", run: () => { if (!composerOpen) toggleComposer(); } },
-          { label: "My Threads", icon: "ListView", run: () => manager.open({ kind: "threads" }) },
+          { label: "All threads", icon: "ListView", run: () => manager.open({ kind: "threads" }) },
           { label: "New folder", icon: "FolderPlus", run: () => manager.open({ kind: "new-folder", at: null }) },
           "separator",
           { label: "View options", icon: "SlidersHorizontal", submenu: viewMenuEntries(latest, arrangeLikeSidebar) },

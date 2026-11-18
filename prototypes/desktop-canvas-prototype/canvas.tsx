@@ -387,8 +387,11 @@ export function DesktopCanvas({ showComposer, showDesktop, arrangeRef }: {
       const cascade = manager.windows.filter((window) => !window.minimized && Math.abs(window.rect.x - overlapX) < 1).length;
       rect = { ...size, x: overlapX, y: anchor.y + 32 * (cascade + 1) };
     }
-    // Arrive at 100%, keeping as much of the folder or window it came from in view as the screen allows.
-    manager.open(spec, rect, { from: anchor });
+    // Arrive at 100% with the folders in view too when everything fits; otherwise keep as much of the folder or
+    // window it came from in view as the screen allows.
+    const withIcons = boundsOf([anchor, rect, ...iconRects()])!;
+    const fitsWithIcons = withIcons.width + 48 <= area.width && withIcons.height + 48 <= area.height;
+    manager.open(spec, rect, { from: fitsWithIcons ? boundsOf([anchor, ...iconRects()])! : anchor });
   };
   const openFolder = (key: string) => {
     if (manager.windows.some((window) => window.id === `finder:${key}`)) manager.open({ kind: "finder", key });
@@ -456,7 +459,7 @@ export function DesktopCanvas({ showComposer, showDesktop, arrangeRef }: {
       { label: "New folder", icon: "FolderPlus", run: () => manager.open({ kind: "new-folder", at: { x: at.x - ICON_BOX.width / 2, y: at.y - ICON_BOX.height / 2 } }) },
       { label: "New thread", icon: "MessageSquarePlus", run: showComposer },
       "separator",
-      { label: "My Threads", icon: "ListView", run: () => manager.open({ kind: "threads" }) },
+      { label: "All threads", icon: "ListView", run: () => manager.open({ kind: "threads" }) },
       { label: "Recycle Bin", icon: "Trash2", run: () => manager.open({ kind: "recycle-bin" }) },
       "separator",
       { label: "Tile windows", icon: "Columns2", disabled: manager.windows.length === 0, run: tileWindows },

@@ -270,7 +270,7 @@ function FinderWindow({ window: desktopWindow, groupKey }: { window: DesktopWind
         <div className="cdc-toolbar">
           <Nav window={desktopWindow} />
           <Search value={query} onChange={setQuery} label={`Search ${group.name}`} />
-          {canStartThread(group) ? <Button size="sm" variant="ghost" onClick={() => manager.open({ kind: "new-thread", groupKey: group.key })}><Icon name="MessageSquarePlus" />New thread</Button> : null}
+          {canStartThread(group) ? <Button size="sm" variant="ghost" aria-label="New thread" onClick={() => manager.open({ kind: "new-thread", groupKey: group.key })}><Icon name="MessageSquarePlus" /><span className="cdc-toolbar-label">New thread</span></Button> : null}
           <ViewToggle view={view} onChange={setView} />
         </div>
         <div className="cdc-finder-body">
@@ -527,7 +527,7 @@ export const ProgramWindow = memo(function ProgramWindow({ window: desktopWindow
     case "related":
       return <RelatedWindow window={desktopWindow} threadId={spec.threadId} />;
     case "threads":
-      return <ListWindow window={desktopWindow} title="My Threads" icon="ListView" threads={desktop.organization.threads} showFolders
+      return <ListWindow window={desktopWindow} title="All threads" icon="ListView" threads={desktop.organization.threads} showFolders
         empty="No threads match the sidebar’s filters. Start one from Composer." />;
     case "recycle-bin":
       return <ListWindow window={desktopWindow} title="Recycle Bin" icon="Trash2" threads={desktop.archivedThreads} footer={<ArchivedPager />}
@@ -554,7 +554,7 @@ export function windowTitle(spec: WindowSpec, desktop: DesktopContextValue): str
     case "related":
       return desktop.projectName(desktop.threadById.get(spec.threadId)?.projectId ?? "") || "Related threads";
     case "threads":
-      return "My Threads";
+      return "All threads";
     case "recycle-bin":
       return "Recycle Bin";
     case "new-folder":
