@@ -247,6 +247,15 @@ ${THREAD} [data-markdown-preview] div:has(> div > table) { width: 100% !importan
 /* Clip only the bottom: bb portals the text-selection menu into the transcript, and it can overhang the column's sides. */
 ${ROOT} [data-ambient-scroll-clip] { clip-path: inset(-100vmax -100vmax var(--ambient-scroll-clip-bottom, 0px) -100vmax); }
 ${THREAD} [data-scroll-footer] > .bg-background { background-color: transparent; }
+@media (max-width: 767px) {
+  /* bb reserves the safe area outside the thread. Leave room inside the glass for the composer too. */
+  ${THREAD} [data-scroll-footer] .chat-prompt-box { padding-block-end: calc(${COLUMN_BOTTOM} + 8px); }
+  /* Let pending questions read across lines within the compact timeline column. */
+  ${THREAD} [data-timeline-row-id*=":question:"] span[title].whitespace-nowrap {
+    display: block; white-space: normal; overflow-wrap: anywhere;
+  }
+  ${THREAD} [data-timeline-row-id*=":question:"] span[title].whitespace-nowrap > span { white-space: normal; }
+}
 /* Pending interactions overlap the scrolling timeline, so their surface must be fully opaque. */
 ${ROOT} :is([data-testid="user-question-banner"], [data-testid="plugin-interaction-shell"], [data-testid="approval-banner"], [data-testid="plan-review-banner"]) { background-color: var(--ambient-background); border-radius: 12px; }
 /* Keep short secret-request actions on one compact row, including on mobile. */
