@@ -5,7 +5,7 @@ import { RECYCLE_BIN_DROP, deleteGroups, groupMenu, threadDropTarget, viewMenuEn
 import { useCamera, useCanvasControls, useViewport, useWorkArea } from "./camera";
 import { CanvasMark } from "./canvas-mark";
 import { compareThreads, isDeletable, type Collection } from "./canvas-organization";
-import { ICON_BOX, ICON_CELL, boundsOf, cascadeRects, findFreeRect, fitCamera, folderSummary, revealCamera, gridPositions, nextFreePosition, tileRects, toWorld, worldRect, zoomAt, type Camera, type Point, type Rect } from "./core";
+import { ICON_BOX, ICON_CELL, boundsOf, cascadeRects, findFreeRect, findFreeRectIn, fitCamera, folderSummary, revealCamera, gridPositions, nextFreePosition, tileRects, toWorld, worldRect, zoomAt, type Camera, type Point, type Rect } from "./core";
 import { errorMessage, useDesktop, type DesktopContextValue } from "./data";
 import { useMenu, type MenuEntry, type MenuTrigger } from "./menu";
 import { RESOURCE_ICON, StatusDot, collectionMembers, useMenuContext } from "./programs";
@@ -380,24 +380,25 @@ export function DesktopCanvas({ showComposer, showDesktop, arrangeRef }: {
     // cascading, so what it came from stays readable and clickable beside it.
     const visible = visibleRect(controls.getCamera(), controls.getWorkArea());
     const size = fitSize(windowSize(spec), visible);
-    const occupied = [
-      ...manager.windows.filter((window) => !window.minimized && !window.maximized && window.dock === undefined).map((window) => window.rect),
-      ...[...positions.values()].map((point) => ({ ...point, ...ICON_BOX })),
-    ];
-    const free = findFreeRect({ ...size, x: anchor.x + anchor.width + 32, y: anchor.y }, occupied);
-    if (isInside(free, visible)) {
+    const desired = { ...size, x: anchor.x + anchor.width + 32, y: anchor.y };
+    const windows = manager.windows.filter((window) => !window.minimized && !window.maximized && window.dock === undefined).map((window) => window.rect);
+    const icons = [...positions.values()].map((point) => ({ ...point, ...ICON_BOX }));
+    // Free room on screen, clear of every window and folder; failing that, clear of windows and the folder it came from.
+    const free = findFreeRectIn(desired, [...windows, ...icons], visible) ?? findFreeRectIn(desired, [...windows, anchor], visible);
+    if (free !== null) {
       manager.open(spec, free);
       return;
     }
-    let rect = clampInto({ ...size, x: anchor.x + anchor.width + 32, y: anchor.y }, visible);
+    let rect = clampInto(desired, visible);
     // Keep the start of the window it came from (its names) uncovered, narrowing the new window to fit if it can.
     const keepX = anchor.x + KEEP_VISIBLE;
     if (anchor.width > ICON_BOX.width && rect.x < keepX) {
       const width = visible.x + visible.width - keepX;
       if (width >= MIN_BESIDE_WIDTH) rect = { ...rect, x: keepX, width: Math.min(rect.width, width) };
     }
-    for (let step = 0; step < 8 && manager.windows.some((window) => !window.minimized && Math.abs(window.rect.x - rect.x) < 1 && Math.abs(window.rect.y - rect.y) < 1); step++) {
-      rect = clampInto({ ...rect, y: rect.y + 32 }, visible);
+    // Never exactly on top of another window: cascade down past any at the same spot.
+    for (let step = 0; step < 8 && manager.windows.some((window) => !window.minimized && Math.abs(window.rect.x - rect.x) < 8 && Math.abs(window.rect.y - rect.y) < 8); step++) {
+      rect = clampInto({ ...rect, y: rect.y + 36 }, visible);
     }
     manager.open(spec, rect);
   };

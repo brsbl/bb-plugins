@@ -529,9 +529,9 @@ export function WindowFrame({
 
   if (desktopWindow.minimized && !keepMounted) return null;
 
-  // Fades in from 70% zoom and is fully shown by 60%, where the window's own text stops being readable.
-  // Rounded to the shown percentage, so a canvas reading 70% shows no faint label over the content.
-  const overviewOpacity = maximized || docked ? 0 : Math.max(0, Math.min(1, (READABLE_ZOOM - Math.round(camera.zoom * 100) / 100) / 0.1));
+  // One threshold, at the shown percentage: below 70% a window reads as its title and status, at 70% and above as its
+  // content. Never both at once, so the label is never drawn over live content.
+  const zoomedOut = !maximized && !docked && Math.round(camera.zoom * 100) < READABLE_ZOOM * 100;
 
   const style = {
     left: placement.left,
@@ -583,12 +583,12 @@ export function WindowFrame({
         <TitleButton icon="X" label="Close" variant="close" onClick={() => manager.close(id)} />
       </header>
       <div className="cdc-window-body" data-window-content {...bodyProps}
-        // Crossfades with the overview label, so the title never sits on top of still-visible content.
-        style={overviewOpacity > 0 ? { opacity: Math.max(0, 1 - overviewOpacity * 2) } : undefined}>{children}</div>
+        // Hidden while the overview label shows, so the title never sits on top of content.
+        style={zoomedOut ? { visibility: "hidden" } : undefined}>{children}</div>
       {statusBar === undefined ? null : <footer className="cdc-statusbar">{statusBar}</footer>}
-      {overviewOpacity > 0 ? (
+      {zoomedOut ? (
         // Zoomed out, the window reads as its title and status at a legible size; drag anywhere, double-click to fly in.
-        <div className="cdc-window-overview" style={{ opacity: overviewOpacity }} onPointerDown={(event) => startDrag(event)}
+        <div className="cdc-window-overview" onPointerDown={(event) => startDrag(event)}
           onDoubleClick={() => manager.flyTo(id)} title="Double-click to read at 100%">
           <div className="cdc-overview-label">
             <strong>{title}</strong>

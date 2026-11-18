@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clampInto, visibleRect, findFreeRect, fitCamera, folderSummary, trackNeedsInput, gridPositions, nextFreePosition, resizeRect, revealCamera, tileRects, toScreen, toWorld, zoomAt, type DesktopThread } from "./core";
+import { clampInto, visibleRect, findFreeRect, findFreeRectIn, fitCamera, folderSummary, trackNeedsInput, gridPositions, nextFreePosition, resizeRect, revealCamera, tileRects, toScreen, toWorld, zoomAt, type DesktopThread } from "./core";
 
 describe("camera", () => {
   it("zooms around the anchor, so the point under the pointer stays put", () => {
@@ -115,5 +115,17 @@ describe("windows open in view", () => {
     expect(clampInto({ x: 900, y: 650, width: 300, height: 200 }, view)).toEqual({ x: 700, y: 500, width: 300, height: 200 });
     expect(clampInto({ x: 100, y: 100, width: 300, height: 200 }, view)).toEqual({ x: 100, y: 100, width: 300, height: 200 });
     expect(clampInto({ x: -50, y: -40, width: 1200, height: 200 }, view)).toEqual({ x: 0, y: 0, width: 1200, height: 200 });
+  });
+});
+
+describe("findFreeRectIn", () => {
+  const view = { x: 0, y: 0, width: 1000, height: 700 };
+  it("finds free room on screen beside what's there", () => {
+    const rect = findFreeRectIn({ x: 700, y: 0, width: 400, height: 300 }, [{ x: 0, y: 0, width: 300, height: 300 }], view)!;
+    expect(rect.x + rect.width).toBeLessThanOrEqual(1000);
+    expect(rect.x).toBeGreaterThanOrEqual(316);
+  });
+  it("returns null when nothing on screen is free", () => {
+    expect(findFreeRectIn({ x: 0, y: 0, width: 600, height: 400 }, [{ x: 0, y: 0, width: 1000, height: 700 }], view)).toBeNull();
   });
 });

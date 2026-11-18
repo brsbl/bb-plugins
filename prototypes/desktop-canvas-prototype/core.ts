@@ -246,6 +246,25 @@ export function findFreeRect(desired: Rect, occupied: readonly Rect[], gap = 16)
   return free ?? { ...desired, x: desired.x + (occupied.length % 6) * 32, y: desired.y + (occupied.length % 6) * 32 };
 }
 
+/**
+ * The free spot inside `within` nearest `desired` (rightward and downward first), or null when none is free. Used to
+ * open windows in what's on screen without covering folders or other windows.
+ */
+export function findFreeRectIn(desired: Rect, occupied: readonly Rect[], within: Rect, gap = 16, step = 24): Rect | null {
+  let best: Rect | null = null;
+  let bestCost = Infinity;
+  for (let y = within.y; y + desired.height <= within.y + within.height + 0.5; y += step) {
+    for (let x = within.x; x + desired.width <= within.x + within.width + 0.5; x += step) {
+      const rect = { ...desired, x: Math.round(x), y: Math.round(y) };
+      const cost = Math.hypot(rect.x - desired.x, rect.y - desired.y) + (rect.x < desired.x ? desired.width / 2 : 0) + (rect.y < desired.y ? desired.height / 4 : 0);
+      if (cost >= bestCost || occupied.some((other) => intersects(rect, other, gap))) continue;
+      best = rect;
+      bestCost = cost;
+    }
+  }
+  return best;
+}
+
 /** Icon slots in reading order inside `area`, one per item. */
 export function gridPositions(count: number, area: Rect): Point[] {
   const columns = Math.max(1, Math.floor(area.width / ICON_CELL.width));

@@ -21,7 +21,8 @@ import { useSideChatActions } from "./side-chat";
 import { TerminalWindow } from "./terminal-window";
 import { InfoWindow, RelatedWindow, activityLine, useAgentName } from "./thread-companions";
 import { besideRect } from "./window-state";
-import { WindowFrame, isTap, usePointerTracker, useWindowManager, windowSize, type DesktopWindow, type WindowSpec } from "./windows";
+import { useCanvasControls } from "./camera";
+import { WindowFrame, clampInto, isTap, usePointerTracker, visibleRect, useWindowManager, windowSize, type DesktopWindow, type WindowSpec } from "./windows";
 
 /** Every window the canvas opens: Desktop's programs without the Windows XP skin. */
 
@@ -430,6 +431,7 @@ function ThreadWindow({ window: desktopWindow, threadId }: { window: DesktopWind
   const agent = useAgentName(thread?.providerId);
   const messageActions = useSideChatActions(thread !== undefined && !archived);
   const browserAvailable = nativeBrowser() !== null;
+  const controls = useCanvasControls();
   const companionOpen = (kind: "info" | "related") => manager.windows.some((window) => window.id === `${kind}:${threadId}`);
   const floating = desktopWindow.dock === undefined && !desktopWindow.maximized;
 
@@ -444,7 +446,14 @@ function ThreadWindow({ window: desktopWindow, threadId }: { window: DesktopWind
       manager.open(spec);
       return;
     }
-    const rect = besideRect(desktopWindow.rect, kind === "info" ? "right" : "left", windowSize(spec).width);
+    // On its own side when there's room on screen, else the other side, else over the thread's body below its title bar,
+    // so the thread's own controls are never covered.
+    const visible = visibleRect(controls.getCamera(), controls.getWorkArea());
+    const width = windowSize(spec).width;
+    const preferred = kind === "info" ? "right" : "left";
+    const fits = (rect: Rect) => clampInto(rect, visible).x === rect.x && clampInto(rect, visible).y === rect.y;
+    const sides = [besideRect(desktopWindow.rect, preferred, width), besideRect(desktopWindow.rect, preferred === "right" ? "left" : "right", width)];
+    const rect = sides.find(fits) ?? clampInto({ ...sides[0]!, y: desktopWindow.rect.y + 44, height: Math.max(240, sides[0]!.height - 44) }, visible);
     manager.open(spec, rect);
   };
   // Like Desktop, each click opens another tab; the window sits beside the thread, cascading.
