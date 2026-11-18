@@ -112,6 +112,7 @@ type ItemProps = (item: Launcher) => Record<string, unknown>;
 
 /**
  * Where XP had All Programs: one row that opens New app and every app other plugins registered, A–Z.
+ * With no apps yet, the row is New app itself.
  * The list lives beside the menu and scrolls, so the Start menu keeps its size however many apps there are.
  */
 function AppsFlyout({ open, setOpen, create, apps, itemProps }: {
@@ -135,6 +136,21 @@ function AppsFlyout({ open, setOpen, create, apps, itemProps }: {
     setOpen(true);
     if (focus) requestAnimationFrame(() => listRef.current?.querySelector<HTMLButtonElement>("button")?.focus());
   };
+  // Until there is an app, the row is New app itself, faintly tinted to draw the eye.
+  if (apps.length === 0) {
+    return (
+      <>
+        <div className="bbd-start-rule my-1" aria-hidden />
+        <button className="bbd-start-item bbd-start-item-new" {...itemProps(create)}>
+          {create.art(30)}
+          <span>
+            <strong>{create.label}</strong>
+            <small>{create.detail}</small>
+          </span>
+        </button>
+      </>
+    );
+  }
   return (
     <>
       <div className="bbd-start-rule my-1" aria-hidden />

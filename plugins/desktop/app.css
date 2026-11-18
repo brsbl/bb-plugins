@@ -895,6 +895,11 @@ body[data-ambient-glass] .bbd-icon:not([aria-selected="true"]) .bbd-icon-label {
   color: oklch(0.25 0.03 262);
 }
 
+/* A faint Luna tint marks New app until the first app exists. */
+.bbd-start-item-new {
+  background: oklch(0.975 0.015 250);
+}
+
 .bbd-start-places .bbd-start-section {
   padding: 2px 6px 0;
   color: oklch(0.45 0.08 262);
