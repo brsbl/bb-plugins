@@ -439,11 +439,15 @@ export function DesktopCanvas({ showComposer, showDesktop, arrangeRef }: {
   iconRectRef.current = iconRect;
   // A folder or section deleted anywhere (here, in the sidebar, in another browser) takes its open windows with it,
   // including a Finder that navigated into it.
+  // Only a folder seen and then gone counts as deleted; a new one's window can open before the next snapshot has it.
+  const seenGroups = useRef(new Set<string>());
   useEffect(() => {
-    const gone = (key: string) => (key.startsWith("folder:") || key.startsWith("section:")) && !desktop.organization.byKey.has(key);
+    const present = desktop.organization.byKey;
+    const gone = (key: string) => seenGroups.current.has(key) && !present.has(key);
     if (manager.windows.some((window) => window.spec.kind === "finder" && gone(window.spec.key))) {
       manager.closeWhere((window) => window.spec.kind === "finder" && gone(window.spec.key));
     }
+    seenGroups.current = new Set([...present.keys()].filter((key) => key.startsWith("folder:") || key.startsWith("section:")));
   }, [desktop.organization, manager]);
   // A new folder's icon arrives with the next snapshot; its window opens beside it then.
   const pendingFolder = useRef<string | null>(null);
