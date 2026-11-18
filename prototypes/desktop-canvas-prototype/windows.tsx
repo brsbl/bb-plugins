@@ -15,12 +15,13 @@ import {
 } from "react";
 import { experimental_Icon as Icon } from "@get-bb/plugin-sdk/app";
 import { DOCK_RESERVE, useCamera, useCanvasControls, useViewport, useWorkArea } from "./camera";
-import { fitCamera, resizeRect, revealBeside, revealCamera, toWorld, type Camera, type Point, type Rect, type ResizeEdge } from "./core";
+import { clampInto, resizeRect, revealCamera, toWorld, visibleRect, type Camera, type Point, type Rect, type ResizeEdge } from "./core";
 import { closeBrowserTab } from "./browser";
 import { useMenu } from "./menu";
 import { closeTerminalSession } from "./terminal";
 import { STORAGE_KEY, defaultRect, dockedRect, isAttached, loadWindows, serializeWindows, threadIdOf, windowId, windowReducer, type DesktopWindow, type DockSide, type WindowSpec } from "./window-state";
 
+export { clampInto, visibleRect } from "./core";
 export { threadIdOf, windowId, windowSize, type DesktopWindow, type DockSide, type WindowSpec } from "./window-state";
 
 /**
@@ -35,11 +36,14 @@ export const dockWidth = (viewportWidth: number) => Math.round(Math.min(400, vie
 /** Below this zoom a window's own text stops being readable, and it shows its overview label instead. */
 export const READABLE_ZOOM = 0.7;
 
-/** On a screen narrower or shorter than a window, the window opens at the screen's size so it reads at 100%. */
-export const fitSize = (size: { width: number; height: number }, area: Rect) => ({
-  width: Math.min(size.width, Math.max(240, area.width - 48)),
-  height: Math.min(size.height, Math.max(240, area.height - 48)),
+/** A window larger than what's on screen opens at the visible size, so all of it, title bar included, is in view. */
+export const fitSize = (size: { width: number; height: number }, view: Rect) => ({
+  width: Math.min(size.width, Math.max(240, view.width)),
+  height: Math.min(size.height, Math.max(240, view.height)),
 });
+
+/** A title bar's height, in canvas units: the part of a window that must be on screen to grab it. */
+const TITLE_HEIGHT = 40;
 
 /** Within this distance of an edge, dropping a dragged window docks it there. */
 const DOCK_SNAP = 32;
@@ -50,12 +54,14 @@ export interface WindowManager {
   /** The edge a dragged window would dock to if dropped now. */
   dockPreview: DockSide | null;
   /**
-   * Opens `spec` (or focuses its window) and brings it, or the `reveal` rect around it, into view at 100%; `from` keeps
-   * the window or folder it opened from in view beside it where the screen allows.
+   * Opens `spec` (or focuses its window) inside the part of the canvas on screen. Opening never moves or zooms the
+   * canvas: a new window is placed in view, and an open one that is off screen comes back into view.
    */
-  open(spec: WindowSpec, rect?: Rect, options?: { reveal?: Rect; from?: Rect }): void;
-  /** Raises and restores a window; `reveal` also pans to it. */
+  open(spec: WindowSpec, rect?: Rect): void;
+  /** Raises and restores a window; `reveal` brings it back into view if it is off screen, without moving the canvas. */
   focus(id: string, options?: { reveal?: boolean }): void;
+  /** Zooms the canvas to 100% on a window: the explicit "fly in" from a zoomed-out window. */
+  flyTo(id: string): void;
   close(id: string): void;
   closeWhere(predicate: (window: DesktopWindow) => boolean): void;
   /** `attached` gives the thread's companions their new rects when they moved with it. */
@@ -102,12 +108,7 @@ export function WindowManagerProvider({ children }: { children: ReactNode }) {
   const right = docked("right") ? width : 0;
   useEffect(() => canvas.setInsets({ left, right }), [canvas, left, right]);
 
-  // At 100% when it fits; a thread with its companions wider than the screen is framed slightly zoomed out instead.
-  const reveal = useCallback((rect: Rect) => {
-    const area = canvas.getWorkArea();
-    const fits = rect.width + 48 <= area.width && rect.height + 48 <= area.height;
-    canvas.setCamera((camera) => (fits ? revealCamera(camera, rect, area) : fitCamera(rect, area, 24)), { animate: true });
-  }, [canvas]);
+  const view = useCallback(() => visibleRect(canvas.getCamera(), canvas.getWorkArea()), [canvas]);
 
   const manager = useMemo<WindowManager>(() => {
     const focused = state.windows
@@ -124,29 +125,44 @@ export function WindowManagerProvider({ children }: { children: ReactNode }) {
       }
     };
     const floating = (window: DesktopWindow) => !window.maximized && window.dock === undefined;
+    // A floating window whose title bar is off screen moves back into view, its docked companions with it; the canvas
+    // stays where it is.
+    const bringIntoView = (window: DesktopWindow) => {
+      if (!floating(window)) return;
+      const visible = view();
+      const title = { x: window.rect.x, y: window.rect.y, width: window.rect.width, height: TITLE_HEIGHT };
+      if (clampInto(title, visible).x === title.x && clampInto(title, visible).y === title.y) return;
+      const moved = clampInto(window.rect, visible);
+      const dx = moved.x - window.rect.x;
+      const dy = moved.y - window.rect.y;
+      const attached = Object.fromEntries(windowsRef.current.filter((other) => isAttached(other, window)).map((other) => [other.id, { ...other.rect, x: other.rect.x + dx, y: other.rect.y + dy }]));
+      dispatch({ type: "move", id: window.id, rect: moved, attached });
+    };
     return {
       windows: state.windows,
       focusedId: focused?.id ?? null,
       dockPreview,
-      open(spec, rect, options) {
+      open(spec, rect) {
         const existing = windowsRef.current.find((window) => window.id === windowId(spec));
         if (existing !== undefined) {
           dispatch({ type: "focus", id: existing.id });
-          if (floating(existing)) reveal(options?.reveal ?? existing.rect);
+          bringIntoView(existing);
           return;
         }
-        const area = canvas.getWorkArea();
-        const proposed = rect ?? defaultRect(spec, windowsRef.current.length, canvas.getCamera(), area);
-        const placed = { ...proposed, ...fitSize(proposed, area) };
-        dispatch({ type: "open", spec, rect: placed });
-        const from = options?.from;
-        if (from !== undefined) canvas.setCamera((camera) => revealBeside(camera, placed, from, area), { animate: true });
-        else reveal(options?.reveal ?? placed);
+        const visible = view();
+        const proposed = rect ?? defaultRect(spec, windowsRef.current.length, canvas.getCamera(), canvas.getWorkArea());
+        dispatch({ type: "open", spec, rect: clampInto({ ...proposed, ...fitSize(proposed, visible) }, visible) });
       },
       focus(id, options) {
         dispatch({ type: "focus", id });
         const target = windowsRef.current.find((window) => window.id === id);
-        if (options?.reveal && target !== undefined && floating(target)) reveal(target.rect);
+        if (options?.reveal && target !== undefined) bringIntoView(target);
+      },
+      flyTo(id) {
+        const target = windowsRef.current.find((window) => window.id === id);
+        if (target === undefined) return;
+        dispatch({ type: "focus", id });
+        canvas.setCamera((camera) => revealCamera(camera, target.rect, canvas.getWorkArea()), { animate: true });
       },
       close(id) {
         const target = windowsRef.current.find((window) => window.id === id);
@@ -159,7 +175,7 @@ export function WindowManagerProvider({ children }: { children: ReactNode }) {
         const target = windowsRef.current.find((window) => window.id === id);
         if (target === undefined) return;
         dispatch({ type: "maximize", id, maximized: !target.maximized });
-        if (target.maximized) reveal(target.rect);
+        if (target.maximized) bringIntoView({ ...target, maximized: false });
       },
       dock(id, side) {
         const target = windowsRef.current.find((window) => window.id === id);
@@ -170,8 +186,7 @@ export function WindowManagerProvider({ children }: { children: ReactNode }) {
         }
         // Undocked into the current view, even after the canvas has panned since it docked.
         const placed = { ...defaultRect(target.spec, 0, canvas.getCamera(), canvas.getWorkArea()), width: target.rect.width, height: target.rect.height };
-        dispatch({ type: "dock", id, side: null, rect: placed });
-        reveal(placed);
+        dispatch({ type: "dock", id, side: null, rect: clampInto(placed, view()) });
       },
       setDockPreview,
       arrange: (rects) => dispatch({ type: "arrange", rects }),
@@ -179,7 +194,7 @@ export function WindowManagerProvider({ children }: { children: ReactNode }) {
       goBack: (id) => dispatch({ type: "go", id, direction: "back" }),
       goForward: (id) => dispatch({ type: "go", id, direction: "forward" }),
     };
-  }, [canvas, dockPreview, reveal, state.windows]);
+  }, [canvas, dockPreview, view, state.windows]);
 
   return <WindowManagerContext.Provider value={manager}>{children}</WindowManagerContext.Provider>;
 }
@@ -573,7 +588,7 @@ export function WindowFrame({
       {overviewOpacity > 0 ? (
         // Zoomed out, the window reads as its title and status at a legible size; drag anywhere, double-click to fly in.
         <div className="cdc-window-overview" style={{ opacity: overviewOpacity }} onPointerDown={(event) => startDrag(event)}
-          onDoubleClick={() => manager.focus(id, { reveal: true })} title="Double-click to read at 100%">
+          onDoubleClick={() => manager.flyTo(id)} title="Double-click to read at 100%">
           <div className="cdc-overview-label">
             <strong>{title}</strong>
             {overview?.detail ? <span data-tone={overview.tone ?? undefined}><span className="cdc-status-pip" data-tone={overview.tone ?? undefined} />{overview.detail}</span> : null}

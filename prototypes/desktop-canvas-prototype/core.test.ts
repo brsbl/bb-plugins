@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findFreeRect, fitCamera, folderSummary, trackNeedsInput, gridPositions, nextFreePosition, resizeRect, revealBeside, revealCamera, tileRects, toScreen, toWorld, zoomAt, type DesktopThread } from "./core";
+import { clampInto, visibleRect, findFreeRect, fitCamera, folderSummary, trackNeedsInput, gridPositions, nextFreePosition, resizeRect, revealCamera, tileRects, toScreen, toWorld, zoomAt, type DesktopThread } from "./core";
 
 describe("camera", () => {
   it("zooms around the anchor, so the point under the pointer stays put", () => {
@@ -103,21 +103,17 @@ describe("placement beside a folder", () => {
   });
 });
 
-describe("revealBeside", () => {
-  const area = { x: 0, y: 0, width: 1000, height: 700 };
-  const camera = { x: 0, y: 0, zoom: 0.5 };
-  it("shows both at 100% when they fit", () => {
-    const next = revealBeside(camera, { x: 400, y: 0, width: 300, height: 300 }, { x: 0, y: 0, width: 300, height: 300 }, area);
-    expect(next.zoom).toBe(1);
-    expect(next.x).toBeGreaterThanOrEqual(24);
-    expect(next.x + 700).toBeLessThanOrEqual(1000 - 24);
+
+describe("windows open in view", () => {
+  const area = { x: 0, y: 60, width: 1000, height: 700 };
+  it("the visible rect follows the camera and zoom, inside a margin", () => {
+    expect(visibleRect({ x: 0, y: 0, zoom: 1 }, area)).toEqual({ x: 24, y: 84, width: 952, height: 652 });
+    expect(visibleRect({ x: -500, y: 0, zoom: 0.5 }, area)).toEqual({ x: 1048, y: 168, width: 1904, height: 1304 });
   });
-  it("puts the new window on the side away from its source when both don't fit", () => {
-    const rect = { x: 712, y: 0, width: 760, height: 640 };
-    const next = revealBeside(camera, rect, { x: 0, y: 0, width: 680, height: 480 }, area);
-    expect(next.zoom).toBe(1);
-    // The new window's right edge sits at the screen's right margin, leaving its source's right part in view.
-    expect(next.x + rect.x + rect.width).toBe(1000 - 24);
-    expect(next.x + 680).toBeGreaterThan(0);
+  it("moves a rect the least distance into view, keeping its size", () => {
+    const view = { x: 0, y: 0, width: 1000, height: 700 };
+    expect(clampInto({ x: 900, y: 650, width: 300, height: 200 }, view)).toEqual({ x: 700, y: 500, width: 300, height: 200 });
+    expect(clampInto({ x: 100, y: 100, width: 300, height: 200 }, view)).toEqual({ x: 100, y: 100, width: 300, height: 200 });
+    expect(clampInto({ x: -50, y: -40, width: 1200, height: 200 }, view)).toEqual({ x: 0, y: 0, width: 1200, height: 200 });
   });
 });

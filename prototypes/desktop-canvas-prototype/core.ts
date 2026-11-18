@@ -192,26 +192,18 @@ export function fitCamera(bounds: Rect | null, area: Rect, padding = 48): Camera
   };
 }
 
-/**
- * Brings `rect` into view at 100% beside `from`, the window or folder it opened from: both when they fit, otherwise
- * `rect` against the screen edge farther from `from`, so as much of `from` as possible stays in view.
- */
-export function revealBeside(camera: Camera, rect: Rect, from: Rect, area: Rect, margin = 24): Camera {
-  const both = boundsOf([rect, from])!;
-  if (both.width + margin * 2 <= area.width && both.height + margin * 2 <= area.height) return revealCamera(camera, both, area, margin);
-  const axis = (start: number, size: number, areaStart: number, areaSize: number, fromCenter: number) => {
-    if (size + margin * 2 > areaSize) return areaStart + margin - start;
-    const center = start + size / 2;
-    if (Math.abs(fromCenter - center) < 1) return areaStart + (areaSize - size) / 2 - start;
-    return fromCenter < center ? areaStart + areaSize - margin - size - start : areaStart + margin - start;
-  };
-  const fitsBothX = both.width + margin * 2 <= area.width;
-  const fitsBothY = both.height + margin * 2 <= area.height;
-  return {
-    zoom: 1,
-    x: fitsBothX ? area.x + (area.width - both.width) / 2 - both.x : axis(rect.x, rect.width, area.x, area.width, from.x + from.width / 2),
-    y: fitsBothY ? area.y + (area.height - both.height) / 2 - both.y : axis(rect.y, rect.height, area.y, area.height, from.y + from.height / 2),
-  };
+/** The part of the canvas on screen, in canvas units, inside a margin: where windows open and come back to. */
+export function visibleRect(camera: Camera, area: Rect, margin = 24): Rect {
+  const view = worldRect(camera, area);
+  const inset = margin / camera.zoom;
+  return { x: view.x + inset, y: view.y + inset, width: Math.max(0, view.width - inset * 2), height: Math.max(0, view.height - inset * 2) };
+}
+
+/** Moves `rect` the least distance that puts it inside `view`; a rect larger than the view keeps its top left in view. */
+export function clampInto(rect: Rect, view: Rect): Rect {
+  const x = Math.max(view.x, Math.min(rect.x, view.x + view.width - rect.width));
+  const y = Math.max(view.y, Math.min(rect.y, view.y + view.height - rect.height));
+  return { ...rect, x: Math.round(x), y: Math.round(y) };
 }
 
 /** Brings `rect` fully into view at 100% when it is offscreen or the canvas is zoomed, keeping the camera otherwise. */

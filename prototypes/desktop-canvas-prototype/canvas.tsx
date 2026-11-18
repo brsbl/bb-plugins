@@ -9,7 +9,7 @@ import { ICON_BOX, ICON_CELL, boundsOf, cascadeRects, findFreeRect, fitCamera, f
 import { errorMessage, useDesktop, type DesktopContextValue } from "./data";
 import { useMenu, type MenuEntry, type MenuTrigger } from "./menu";
 import { RESOURCE_ICON, StatusDot, collectionMembers, useMenuContext } from "./programs";
-import { fitSize, isTap, usePointerTracker, useWindowManager, windowSize, type DesktopWindow, type WindowSpec } from "./windows";
+import { clampInto, fitSize, isTap, visibleRect, usePointerTracker, useWindowManager, windowSize, type DesktopWindow, type WindowSpec } from "./windows";
 
 /**
  * The canvas: Desktop's icon desktop on an infinite, zoomable surface, showing the sidebar's groups in its order.
@@ -64,8 +64,8 @@ export function useIconPositions(entries: readonly Entry[], overrides: Record<st
   }, [entries, overrides, snapshot.layout]);
 }
 
-/** How much of a window stays visible when a window opened from it has to overlap it. */
-const OVERLAP_MIN_VISIBLE = 280;
+const isInside = (rect: Rect, view: Rect) =>
+  rect.x >= view.x && rect.y >= view.y && rect.x + rect.width <= view.x + view.width && rect.y + rect.height <= view.y + view.height;
 
 export function DesktopCanvas({ showComposer, showDesktop, arrangeRef }: {
   showComposer: () => void;
@@ -371,27 +371,25 @@ export function DesktopCanvas({ showComposer, showDesktop, arrangeRef }: {
       manager.open(spec);
       return;
     }
-    // Other windows and every folder icon are obstacles, so folders stay visible and clickable.
+    // Opening never moves the canvas: the window goes into the part that's on screen, below the zoom controls. Beside
+    // what it came from when there's free room there; otherwise pulled into view over that window's right side,
+    // cascading, so what it came from stays readable and clickable beside it.
+    const visible = visibleRect(controls.getCamera(), controls.getWorkArea());
+    const size = fitSize(windowSize(spec), visible);
     const occupied = [
       ...manager.windows.filter((window) => !window.minimized && !window.maximized && window.dock === undefined).map((window) => window.rect),
       ...[...positions.values()].map((point) => ({ ...point, ...ICON_BOX })),
     ];
-    const area = controls.getWorkArea();
-    const size = fitSize(windowSize(spec), area);
-    let rect = findFreeRect({ ...size, x: anchor.x + anchor.width + 32, y: anchor.y }, occupied);
-    // Too wide to sit beside the window it came from at 100%: overlap that window's right side instead, cascading, so
-    // its names stay readable and clickable beside the new one.
-    const besideFits = Math.max(rect.x + rect.width, anchor.x + anchor.width) - Math.min(rect.x, anchor.x) + 48 <= area.width;
-    const overlapX = anchor.x + area.width - 48 - size.width;
-    if (!besideFits && anchor.width > ICON_BOX.width && overlapX - anchor.x >= OVERLAP_MIN_VISIBLE) {
-      const cascade = manager.windows.filter((window) => !window.minimized && Math.abs(window.rect.x - overlapX) < 1).length;
-      rect = { ...size, x: overlapX, y: anchor.y + 32 * (cascade + 1) };
+    const free = findFreeRect({ ...size, x: anchor.x + anchor.width + 32, y: anchor.y }, occupied);
+    if (isInside(free, visible)) {
+      manager.open(spec, free);
+      return;
     }
-    // Arrive at 100% with the folders in view too when everything fits; otherwise keep as much of the folder or
-    // window it came from in view as the screen allows.
-    const withIcons = boundsOf([anchor, rect, ...iconRects()])!;
-    const fitsWithIcons = withIcons.width + 48 <= area.width && withIcons.height + 48 <= area.height;
-    manager.open(spec, rect, { from: fitsWithIcons ? boundsOf([anchor, ...iconRects()])! : anchor });
+    let rect = clampInto({ ...size, x: anchor.x + anchor.width + 32, y: anchor.y }, visible);
+    for (let step = 0; step < 8 && manager.windows.some((window) => !window.minimized && Math.abs(window.rect.x - rect.x) < 1 && Math.abs(window.rect.y - rect.y) < 1); step++) {
+      rect = clampInto({ ...rect, y: rect.y + 32 }, visible);
+    }
+    manager.open(spec, rect);
   };
   const openFolder = (key: string) => {
     if (manager.windows.some((window) => window.id === `finder:${key}`)) manager.open({ kind: "finder", key });

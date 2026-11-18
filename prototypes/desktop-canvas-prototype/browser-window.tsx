@@ -2,7 +2,6 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEve
 import { experimental_Icon as Icon } from "@get-bb/plugin-sdk/app";
 import { BROWSER_HOME, browserTab, nativeBrowser, normalizeAddress, rememberUrl, storedUrl, type BrowserState, type ViewBounds } from "./browser";
 import { useCamera, useCanvasControls } from "./camera";
-import { boundsOf } from "./core";
 import { useDesktop } from "./data";
 import { WindowFrame, useWindowManager, type DesktopWindow, type WindowManager } from "./windows";
 
@@ -73,7 +72,7 @@ export function openThreadLink(manager: WindowManager, threadId: string, url: st
   const info = manager.windows.find((window) => window.spec.kind === "info" && window.spec.threadId === threadId && !window.minimized);
   const right = Math.max(thread.rect.x + thread.rect.width, info === undefined ? -Infinity : info.rect.x + info.rect.width);
   const beside = { x: right + 24, y: thread.rect.y, width: 960, height: Math.max(560, thread.rect.height) };
-  manager.open({ kind: "browser", threadId, tabId }, beside, { reveal: boundsOf([thread.rect, beside])! });
+  manager.open({ kind: "browser", threadId, tabId }, beside);
 }
 
 export function BrowserWindow({ window: desktopWindow, threadId, tabId }: { window: DesktopWindow; threadId: string; tabId: string }) {
