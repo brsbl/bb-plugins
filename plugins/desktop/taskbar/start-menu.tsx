@@ -17,6 +17,10 @@ export function StartFlag() {
   );
 }
 
+function byLabel(items: Launcher[]): Launcher[] {
+  return [...items].sort((left, right) => left.label.localeCompare(right.label, undefined, { sensitivity: "base", numeric: true }));
+}
+
 export function StartMenu({ onClose }: { onClose: () => void }) {
   const desktop = useDesktop();
   const menu = useMenu();
@@ -43,12 +47,12 @@ export function StartMenu({ onClose }: { onClose: () => void }) {
     onClose();
     action();
   };
-  const programs = (["finder", "internet-explorer", "new-thread", "new-app", "new-folder", "media-player", "sticky-note"] as const).map(launcher);
+  // Left: things you start. Right: things you open, with built-in and plugin apps in one A–Z list.
+  const programs = (["new-thread", "new-app", "new-folder", "sticky-note"] as const).map(launcher);
   const places: { section: string; items: Launcher[] }[] = [
-    ...(apps.length === 0 ? [] : [{ section: "Apps", items: apps }]),
-    { section: "Accessories", items: [launcher("paint"), launcher("command-prompt")] },
-    { section: "Games", items: [launcher("minesweeper"), launcher("solitaire"), launcher("pinball"), launcher("maze")] },
-    { section: "", items: [launcher("search"), launcher("run")] },
+    { section: "Apps", items: byLabel([launcher("internet-explorer"), launcher("media-player"), launcher("paint"), launcher("command-prompt"), ...apps]) },
+    { section: "Games", items: byLabel([launcher("minesweeper"), launcher("solitaire"), launcher("pinball"), launcher("maze")]) },
+    { section: "", items: [launcher("finder"), launcher("search"), launcher("run")] },
   ];
   const itemProps = (item: Launcher) => ({
     type: "button" as const,
