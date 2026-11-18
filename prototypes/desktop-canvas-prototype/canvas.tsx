@@ -398,7 +398,9 @@ export function DesktopCanvas({ showComposer, showDesktop, arrangeRef }: {
     }
     // Never exactly on top of another window: cascade down past any at the same spot.
     for (let step = 0; step < 8 && manager.windows.some((window) => !window.minimized && Math.abs(window.rect.x - rect.x) < 8 && Math.abs(window.rect.y - rect.y) < 8); step++) {
-      rect = clampInto({ ...rect, y: rect.y + 36 }, visible);
+      const down = clampInto({ ...rect, y: rect.y + 36 }, visible);
+      // At the bottom of the screen the cascade steps left instead.
+      rect = down.y !== rect.y ? down : clampInto({ ...rect, x: rect.x - 36 }, visible);
     }
     manager.open(spec, rect);
   };
