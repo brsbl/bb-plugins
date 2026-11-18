@@ -66,6 +66,7 @@ export function useIconPositions(entries: readonly Entry[], overrides: Record<st
 
 /** How much of a window stays uncovered when a window opened from it has to overlap it, and how narrow that one may get. */
 const KEEP_VISIBLE = 260;
+const MIN_OPEN_BESIDE_ICON = 320;
 const MIN_BESIDE_WIDTH = 400;
 
 const isInside = (rect: Rect, view: Rect) =>
@@ -391,6 +392,18 @@ export function DesktopCanvas({ showComposer, showDesktop, arrangeRef }: {
     if (free !== null) {
       manager.open(spec, free);
       return;
+    }
+    // Opened from a folder icon with no free room around it: narrower, beside the icon on the roomier side.
+    if (anchor.width <= ICON_BOX.width) {
+      const rightX = anchor.x + anchor.width + 16;
+      const rightWidth = visible.x + visible.width - rightX;
+      const leftWidth = anchor.x - 16 - visible.x;
+      const width = Math.min(size.width, Math.max(rightWidth, leftWidth));
+      if (width >= MIN_OPEN_BESIDE_ICON) {
+        const x = rightWidth >= leftWidth ? rightX : anchor.x - 16 - width;
+        manager.open(spec, clampInto({ ...size, width, x, y: anchor.y }, visible));
+        return;
+      }
     }
     let rect = clampInto(desired, visible);
     // Keep the start of the window it came from (its names) uncovered, narrowing the new window to fit if it can.

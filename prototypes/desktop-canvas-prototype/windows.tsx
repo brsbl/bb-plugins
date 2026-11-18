@@ -67,8 +67,9 @@ export interface WindowManager {
   focus(id: string, options?: { reveal?: boolean }): void;
   /** Zooms the canvas to 100% on a window: the explicit "fly in" from a zoomed-out window. */
   flyTo(id: string): void;
-  /** Brings every open window that no longer fits the screen back into view, at the screen's size. */
-  keepInView(): void;
+  /** Brings every open window that no longer fits the screen back into view, at the screen's size; `oversizedOnly`
+   * leaves alone windows that would fit and were simply panned away from. */
+  keepInView(oversizedOnly?: boolean): void;
   close(id: string): void;
   closeWhere(predicate: (window: DesktopWindow) => boolean): void;
   /** `attached` gives the thread's companions their new rects when they moved with it. */
@@ -172,9 +173,11 @@ export function WindowManagerProvider({ children }: { children: ReactNode }) {
         const target = windowsRef.current.find((window) => window.id === id);
         if (options?.reveal && target !== undefined) bringIntoView(target);
       },
-      keepInView() {
+      keepInView(oversizedOnly = false) {
+        const visible = view();
         for (const window of windowsRef.current) {
           if (window.minimized || windowsRef.current.some((thread) => isAttached(window, thread))) continue;
+          if (oversizedOnly && window.rect.width <= visible.width && window.rect.height <= visible.height) continue;
           bringIntoView(window);
         }
       },
@@ -222,7 +225,12 @@ export function WindowManagerProvider({ children }: { children: ReactNode }) {
     if (viewport === UNMEASURED_VIEWPORT) return;
     const last = lastViewport.current;
     lastViewport.current = viewport;
-    if (last === null) return;
+    // bb remounts the page when it switches to its phone layout, so the first measurement also fixes windows left
+    // larger than this screen.
+    if (last === null) {
+      manager.keepInView(true);
+      return;
+    }
     const shrank = viewport.width < last.width || viewport.height < last.height;
     if (shrank) manager.keepInView();
   }, [viewport.width, viewport.height]);
