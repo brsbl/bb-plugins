@@ -35,7 +35,9 @@
 }
 
 .cdc-desktop [data-icon-root] { width: 16px; height: 16px; flex-shrink: 0; }
-.cdc-desktop button, .cdc-desktop input, .cdc-desktop select, .cdc-menu button, .cdc-dialog input { font: inherit; color: inherit; }
+.cdc-desktop button, .cdc-desktop input, .cdc-desktop select, .cdc-menu button, .cdc-dialog input { font: inherit; }
+/* Low specificity, so a component's own text color (a primary button's, bb's send button's) wins over the reset. */
+:where(.cdc-desktop, .cdc-menu) :is(button, input, select), :where(.cdc-dialog) input { color: inherit; }
 /* Plugin-owned controls only; bb's composer and chat inside the canvas keep their own focus styling. */
 .cdc-desktop :is(button, input, select, [role="button"], [role="option"]):focus-visible:not([data-promptbox] *, [data-chat-thread] *),
 .cdc-menu :focus-visible,
@@ -832,3 +834,6 @@ body[data-ambient-glass] .cdc-canvas { background-color: transparent; }
 .cdc-notice-link { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; text-decoration: underline; text-underline-offset: 2px; }
 .cdc-notice-more { color: var(--muted-foreground); }
 
+
+/* bb's toasts sit at the bottom right, where the dock's window buttons reach on a wide canvas; lift them above it. */
+body:has(.cdc-dock) [data-sonner-toaster][data-y-position="bottom"] { bottom: calc(var(--offset-bottom, 24px) + 76px); }

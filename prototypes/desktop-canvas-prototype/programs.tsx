@@ -21,7 +21,7 @@ import { useSideChatActions } from "./side-chat";
 import { TerminalWindow } from "./terminal-window";
 import { InfoWindow, RelatedWindow, activityLine, useAgentName } from "./thread-companions";
 import { besideRect } from "./window-state";
-import { WindowFrame, usePointerTracker, useWindowManager, windowSize, type DesktopWindow, type WindowSpec } from "./windows";
+import { WindowFrame, isTap, usePointerTracker, useWindowManager, windowSize, type DesktopWindow, type WindowSpec } from "./windows";
 
 /** Every window the canvas opens: Desktop's programs without the Windows XP skin. */
 
@@ -127,7 +127,10 @@ function ThreadCollection({ windowId, folders = [], threads, group, view, empty,
     "aria-selected": selected === folder.key,
     "aria-label": folderSummary(folder.name, collectionMembers(folder)),
     title: folderSummary(folder.name, collectionMembers(folder)),
-    onClick: () => setSelected(folder.key),
+    onClick: (event: ReactMouseEvent) => {
+      setSelected(folder.key);
+      if (isTap(event)) openFolder(folder);
+    },
     onDoubleClick: () => openFolder(folder),
     onKeyDown: (event: { key: string; preventDefault: () => void }) => {
       if (event.key === "Enter") {
@@ -157,6 +160,9 @@ function ThreadCollection({ windowId, folders = [], threads, group, view, empty,
         const destination = desktop.organization.byKey.get(key);
         if (destination) void desktop.dropThread(destination, { threadId: thread.id, fromFolderId: group?.kind === "folder" ? group.folder?.id ?? null : null });
       });
+    },
+    onClick: (event: ReactMouseEvent) => {
+      if (isTap(event)) desktop.openThread(thread.id);
     },
     onDoubleClick: () => desktop.openThread(thread.id),
     onKeyDown: (event: { key: string; preventDefault: () => void }) => {
@@ -232,27 +238,6 @@ function ThreadCollection({ windowId, folders = [], threads, group, view, empty,
   );
 }
 
-function groupDescription(group: Collection): string {
-  switch (group.kind) {
-    case "folder":
-      return "Desktop folder · drag threads here to file them";
-    case "section":
-      return "Section · drag threads here to move them";
-    case "threads":
-      return group.sectionId === null ? "Threads outside any section · drag threads here to unfile them" : "Threads outside any project";
-    case "pinned":
-      return "Pinned threads, as in the sidebar";
-    case "project":
-      return "Project";
-    case "machine":
-      return "Machine";
-    case "environment":
-      return "Environment";
-    case "more":
-      return "Groups hidden in the sidebar";
-  }
-}
-
 function FinderWindow({ window: desktopWindow, groupKey }: { window: DesktopWindow; groupKey: string }) {
   const desktop = useDesktop();
   const manager = useWindowManager();
@@ -279,7 +264,7 @@ function FinderWindow({ window: desktopWindow, groupKey }: { window: DesktopWind
   return (
     <WindowFrame window={desktopWindow} title={group.name} icon={group.icon} iconClassName={RESOURCE_ICON}
       overview={{ detail: `${total} ${total === 1 ? "thread" : "threads"}`, tone: groupTone(collectionMembers(group)).tone }}
-      statusBar={<><span>{needle ? threads.length : total} {(needle ? threads.length : total) === 1 ? "thread" : "threads"}{!needle && group.children.length ? ` · ${group.children.length} folders` : ""}</span><span className="cdc-statusbar-note">{groupDescription(group)}</span></>}
+      statusBar={<><span>{needle ? threads.length : total} {(needle ? threads.length : total) === 1 ? "thread" : "threads"}{!needle && group.children.length ? ` · ${group.children.length} folders` : ""}</span></>}
       bodyProps={threadDropTarget(group) as Record<string, string>}>
       <div className="cdc-finder">
         <div className="cdc-toolbar">
@@ -299,13 +284,12 @@ function FinderWindow({ window: desktopWindow, groupKey }: { window: DesktopWind
   );
 }
 
-function ListWindow({ window: desktopWindow, title, icon, threads, empty, note, showFolders, footer }: {
+function ListWindow({ window: desktopWindow, title, icon, threads, empty, showFolders, footer }: {
   window: DesktopWindow;
   title: string;
   icon: string;
   threads: PluginSidebarThread[];
   empty: string;
-  note: string;
   showFolders?: boolean;
   footer?: ReactNode;
 }) {
@@ -313,7 +297,7 @@ function ListWindow({ window: desktopWindow, title, icon, threads, empty, note, 
   const shown = threads.filter(matches(query.trim().toLocaleLowerCase()));
   return (
     <WindowFrame window={desktopWindow} title={title} icon={icon} overview={{ detail: `${threads.length} ${threads.length === 1 ? "thread" : "threads"}` }}
-      statusBar={<><span>{shown.length} {shown.length === 1 ? "thread" : "threads"}</span><span className="cdc-statusbar-note">{note}</span></>}>
+      statusBar={<><span>{shown.length} {shown.length === 1 ? "thread" : "threads"}</span></>}>
       <div className="cdc-finder">
         <div className="cdc-toolbar">
           <Nav window={desktopWindow} />
@@ -544,10 +528,10 @@ export const ProgramWindow = memo(function ProgramWindow({ window: desktopWindow
       return <RelatedWindow window={desktopWindow} threadId={spec.threadId} />;
     case "threads":
       return <ListWindow window={desktopWindow} title="My Threads" icon="ListView" threads={desktop.organization.threads} showFolders
-        empty="No threads match the sidebar’s filters. Start one from Composer." note="Drag a thread onto a folder to file it" />;
+        empty="No threads match the sidebar’s filters. Start one from Composer." />;
     case "recycle-bin":
       return <ListWindow window={desktopWindow} title="Recycle Bin" icon="Trash2" threads={desktop.archivedThreads} footer={<ArchivedPager />}
-        empty="The Recycle Bin is empty. Drag a thread onto it to archive it." note="Archived threads · right-click to restore, or drag onto a folder" />;
+        empty="The Recycle Bin is empty. Drag a thread onto it to archive it." />;
     case "new-folder":
       return <NewFolderWindow window={desktopWindow} at={spec.at} />;
     case "new-thread":

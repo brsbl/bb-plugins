@@ -32,6 +32,9 @@ export { threadIdOf, windowId, windowSize, type DesktopWindow, type DockSide, ty
 /** How wide a docked window is: a readable column that leaves most of the canvas free. */
 export const dockWidth = (viewportWidth: number) => Math.round(Math.min(400, viewportWidth * 0.4));
 
+/** Below this zoom a window's own text stops being readable, and it shows its overview label instead. */
+export const READABLE_ZOOM = 0.7;
+
 /** Within this distance of an edge, dropping a dragged window docks it there. */
 const DOCK_SNAP = 32;
 
@@ -123,7 +126,10 @@ export function WindowManagerProvider({ children }: { children: ReactNode }) {
           if (floating(existing)) reveal(options?.reveal ?? existing.rect);
           return;
         }
-        const placed = rect ?? defaultRect(spec, windowsRef.current.length, canvas.getCamera(), canvas.getWorkArea());
+        const area = canvas.getWorkArea();
+        const proposed = rect ?? defaultRect(spec, windowsRef.current.length, canvas.getCamera(), area);
+        // On a screen narrower or shorter than the window, it opens at the screen's size so it reads at 100%.
+        const placed = { ...proposed, width: Math.min(proposed.width, area.width - 16), height: Math.min(proposed.height, area.height - 16) };
         dispatch({ type: "open", spec, rect: placed });
         reveal(options?.reveal ?? placed);
       },
@@ -169,6 +175,9 @@ export function WindowManagerProvider({ children }: { children: ReactNode }) {
 }
 
 // Pointer gestures, as Desktop tracks them.
+
+/** A tap, not a mouse click: touch has no double-click, so a tap opens what a double-click opens elsewhere. */
+export const isTap = (event: ReactMouseEvent) => (event.nativeEvent as PointerEvent).pointerType === "touch";
 
 export const DRAG_THRESHOLD = 4;
 
@@ -434,7 +443,7 @@ export function WindowFrame({
   if (desktopWindow.minimized && !keepMounted) return null;
 
   // Fades in from 70% zoom and is fully shown by 50%, where the window's own text stops being readable.
-  const overviewOpacity = maximized || docked ? 0 : Math.max(0, Math.min(1, (0.7 - camera.zoom) / 0.2));
+  const overviewOpacity = maximized || docked ? 0 : Math.max(0, Math.min(1, (READABLE_ZOOM - camera.zoom) / 0.2));
 
   const style = {
     left: placement.left,
