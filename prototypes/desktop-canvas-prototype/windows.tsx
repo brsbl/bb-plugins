@@ -530,7 +530,8 @@ export function WindowFrame({
   if (desktopWindow.minimized && !keepMounted) return null;
 
   // Fades in from 70% zoom and is fully shown by 60%, where the window's own text stops being readable.
-  const overviewOpacity = maximized || docked ? 0 : Math.max(0, Math.min(1, (READABLE_ZOOM - camera.zoom) / 0.1));
+  // Rounded to the shown percentage, so a canvas reading 70% shows no faint label over the content.
+  const overviewOpacity = maximized || docked ? 0 : Math.max(0, Math.min(1, (READABLE_ZOOM - Math.round(camera.zoom * 100) / 100) / 0.1));
 
   const style = {
     left: placement.left,
