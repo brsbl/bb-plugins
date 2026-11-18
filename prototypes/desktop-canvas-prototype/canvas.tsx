@@ -65,8 +65,8 @@ export function useIconPositions(entries: readonly Entry[], overrides: Record<st
 }
 
 /** How much of a window stays uncovered when a window opened from it has to overlap it, and how narrow that one may get. */
-const KEEP_VISIBLE = 280;
-const MIN_BESIDE_WIDTH = 480;
+const KEEP_VISIBLE = 260;
+const MIN_BESIDE_WIDTH = 400;
 
 const isInside = (rect: Rect, view: Rect) =>
   rect.x >= view.x && rect.y >= view.y && rect.x + rect.width <= view.x + view.width && rect.y + rect.height <= view.y + view.height;

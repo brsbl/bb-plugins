@@ -130,9 +130,12 @@ export function WindowManagerProvider({ children }: { children: ReactNode }) {
     const bringIntoView = (window: DesktopWindow) => {
       if (!floating(window)) return;
       const visible = view();
-      const title = { x: window.rect.x, y: window.rect.y, width: window.rect.width, height: TITLE_HEIGHT };
-      if (clampInto(title, visible).x === title.x && clampInto(title, visible).y === title.y) return;
-      const moved = clampInto(window.rect, visible);
+      // All of it when it fits on screen (so nothing ends up under the dock), else at least its title bar.
+      const fits = window.rect.width <= visible.width && window.rect.height <= visible.height;
+      const must = fits ? window.rect : { x: window.rect.x, y: window.rect.y, width: Math.min(window.rect.width, visible.width), height: TITLE_HEIGHT };
+      const placed = clampInto(must, visible);
+      if (placed.x === must.x && placed.y === must.y) return;
+      const moved = { ...window.rect, x: placed.x, y: placed.y };
       const dx = moved.x - window.rect.x;
       const dy = moved.y - window.rect.y;
       const attached = Object.fromEntries(windowsRef.current.filter((other) => isAttached(other, window)).map((other) => [other.id, { ...other.rect, x: other.rect.x + dx, y: other.rect.y + dy }]));

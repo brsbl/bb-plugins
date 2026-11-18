@@ -664,7 +664,7 @@ body[data-ambient-glass] .cdc-canvas { background-color: transparent; }
 .cdc-dock-button[data-active], .cdc-task[data-focused="true"] { background: var(--cdc-press); }
 .cdc-dock-chevron { width: 26px; padding: 0; justify-content: center; margin-left: -2px; }
 .cdc-tasks { display: flex; align-items: center; gap: 2px; min-width: 0; }
-.cdc-task { flex: 0 1 148px; min-width: 0; max-width: 148px; }
+.cdc-task { flex: 0 0 auto; min-width: 0; max-width: 148px; }
 .cdc-task > span { overflow: hidden; text-overflow: ellipsis; }
 .cdc-task[data-minimized] { color: var(--muted-foreground); }
 .cdc-task-more { font-variant-numeric: tabular-nums; }
@@ -849,3 +849,6 @@ body[data-ambient-glass] .cdc-canvas { background-color: transparent; }
 
 /* bb's toasts sit at the bottom right, where the dock's window buttons reach on a wide canvas; lift them above it. */
 body:has(.cdc-dock) [data-sonner-toaster][data-y-position="bottom"] { bottom: calc(var(--offset-bottom, 24px) + 76px); }
+
+/* While the canvas is shown, a sideways swipe that a window can't scroll never becomes the browser's Back gesture. */
+html:has(.cdc-desktop), body:has(.cdc-desktop) { overscroll-behavior-x: none; }
