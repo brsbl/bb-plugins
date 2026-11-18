@@ -37,8 +37,8 @@ export const READABLE_ZOOM = 0.7;
 
 /** On a screen narrower or shorter than a window, the window opens at the screen's size so it reads at 100%. */
 export const fitSize = (size: { width: number; height: number }, area: Rect) => ({
-  width: Math.min(size.width, Math.max(240, area.width - 16)),
-  height: Math.min(size.height, Math.max(240, area.height - 16)),
+  width: Math.min(size.width, Math.max(240, area.width - 48)),
+  height: Math.min(size.height, Math.max(240, area.height - 48)),
 });
 
 /** Within this distance of an edge, dropping a dragged window docks it there. */
