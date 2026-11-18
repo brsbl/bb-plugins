@@ -69,7 +69,7 @@ export interface WindowManager {
   flyTo(id: string): void;
   /** Brings every open window that no longer fits the screen back into view, at the screen's size; `oversizedOnly`
    * leaves alone windows that would fit and were simply panned away from. */
-  keepInView(oversizedOnly?: boolean): void;
+  keepInView(options?: { oversizedOnly?: boolean; wasVisible?: Rect }): void;
   close(id: string): void;
   closeWhere(predicate: (window: DesktopWindow) => boolean): void;
   /** `attached` gives the thread's companions their new rects when they moved with it. */
@@ -173,11 +173,17 @@ export function WindowManagerProvider({ children }: { children: ReactNode }) {
         const target = windowsRef.current.find((window) => window.id === id);
         if (options?.reveal && target !== undefined) bringIntoView(target);
       },
-      keepInView(oversizedOnly = false) {
+      keepInView(options = {}) {
         const visible = view();
+        const fits = (window: DesktopWindow) => window.rect.width <= visible.width && window.rect.height <= visible.height;
+        // Its title bar was on screen before the screen shrank: a window the user had panned away from stays put.
+        const wasShown = (window: DesktopWindow, before: Rect) =>
+          window.rect.x < before.x + before.width && window.rect.x + window.rect.width > before.x
+          && window.rect.y >= before.y - TITLE_HEIGHT && window.rect.y < before.y + before.height;
         for (const window of windowsRef.current) {
           if (window.minimized || windowsRef.current.some((thread) => isAttached(window, thread))) continue;
-          if (oversizedOnly && window.rect.width <= visible.width && window.rect.height <= visible.height) continue;
+          if (options.oversizedOnly && fits(window)) continue;
+          if (options.wasVisible !== undefined && fits(window) && !wasShown(window, options.wasVisible)) continue;
           bringIntoView(window);
         }
       },
@@ -220,20 +226,29 @@ export function WindowManagerProvider({ children }: { children: ReactNode }) {
   }, [canvas, dockPreview, view, state.windows]);
 
   // When the screen gets smaller (a window resized, a phone rotated), windows that no longer fit come back into view.
+  // The work area before the screen changed; with the current camera (a resize doesn't move it) that's what was in view.
   const lastViewport = useRef<{ width: number; height: number } | null>(null);
+  const lastArea = useRef<Rect | null>(null);
   useEffect(() => {
-    if (viewport === UNMEASURED_VIEWPORT) return;
+    if (viewport === UNMEASURED_VIEWPORT || viewport.width <= 0 || viewport.height <= 0) return;
     const last = lastViewport.current;
+    const area = lastArea.current;
     lastViewport.current = viewport;
+    lastArea.current = canvas.getWorkArea();
     // bb remounts the page when it switches to its phone layout, so the first measurement also fixes windows left
     // larger than this screen.
     if (last === null) {
-      manager.keepInView(true);
+      manager.keepInView({ oversizedOnly: true });
       return;
     }
-    const shrank = viewport.width < last.width || viewport.height < last.height;
-    if (shrank) manager.keepInView();
+    if (viewport.width < last.width || viewport.height < last.height) {
+      manager.keepInView({ wasVisible: area === null ? undefined : visibleRect(canvas.getCamera(), area) });
+    }
   }, [viewport.width, viewport.height]);
+  // Docking changes the work area too; keep the last one current between screen changes.
+  useEffect(() => {
+    if (lastViewport.current !== null) lastArea.current = canvas.getWorkArea();
+  }, [left, right]);
 
   return <WindowManagerContext.Provider value={manager}>{children}</WindowManagerContext.Provider>;
 }

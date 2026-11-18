@@ -460,10 +460,10 @@ export function DesktopCanvas({ showComposer, showDesktop, arrangeRef }: {
   const seenGroups = useRef(new Set<string>());
   useEffect(() => {
     const present = desktop.organization.byKey;
-    const gone = (key: string) => seenGroups.current.has(key) && !present.has(key);
-    if (manager.windows.some((window) => window.spec.kind === "finder" && gone(window.spec.key))) {
-      manager.closeWhere((window) => window.spec.kind === "finder" && gone(window.spec.key));
-    }
+    // Decided now, not when the reducer runs the predicate (after the seen set below has moved on).
+    const goneKeys = new Set(manager.windows.flatMap((window) =>
+      window.spec.kind === "finder" && seenGroups.current.has(window.spec.key) && !present.has(window.spec.key) ? [window.spec.key] : []));
+    if (goneKeys.size > 0) manager.closeWhere((window) => window.spec.kind === "finder" && goneKeys.has(window.spec.key));
     seenGroups.current = new Set([...present.keys()].filter((key) => key.startsWith("folder:") || key.startsWith("section:")));
   }, [desktop.organization, manager]);
   // A new folder's icon arrives with the next snapshot; its window opens beside it then.
