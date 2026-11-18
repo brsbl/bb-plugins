@@ -47,12 +47,12 @@ export function StartMenu({ onClose }: { onClose: () => void }) {
     onClose();
     action();
   };
-  // Left: things you start. Right: things you open, with built-in and plugin apps in one A–Z list.
+  // Left: things you do. Right: things you open, with built-in and plugin apps in one A–Z list.
   const programs = (["new-thread", "new-app", "new-folder", "sticky-note"] as const).map(launcher);
+  const tools = (["finder", "search", "run"] as const).map(launcher);
   const places: { section: string; items: Launcher[] }[] = [
     { section: "Apps", items: byLabel([launcher("internet-explorer"), launcher("media-player"), launcher("paint"), launcher("command-prompt"), ...apps]) },
     { section: "Games", items: byLabel([launcher("minesweeper"), launcher("solitaire"), launcher("pinball"), launcher("maze")]) },
-    { section: "", items: [launcher("finder"), launcher("search"), launcher("run")] },
   ];
   const itemProps = (item: Launcher) => ({
     type: "button" as const,
@@ -80,11 +80,18 @@ export function StartMenu({ onClose }: { onClose: () => void }) {
               </span>
             </button>
           ))}
+          <div className="bbd-start-rule my-1" aria-hidden />
+          {tools.map((item) => (
+            <button key={item.id} className="bbd-start-place" {...itemProps(item)}>
+              {item.art(22)}
+              <span>{item.label}</span>
+            </button>
+          ))}
         </div>
         <div className="bbd-start-places">
           {places.map((group, index) => (
             <div key={group.section || index} className="grid">
-              {group.section === "" ? <div className="bbd-start-rule" aria-hidden /> : <span className="bbd-start-section">{group.section}</span>}
+              <span className="bbd-start-section">{group.section}</span>
               {group.items.map((item) => (
                 <button key={item.id} className="bbd-start-place" {...itemProps(item)}>
                   {item.art(22)}
