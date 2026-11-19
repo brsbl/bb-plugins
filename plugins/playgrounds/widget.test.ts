@@ -83,7 +83,7 @@ it("removes photos that failed before initialization and hides an exhausted gall
     }
     const gallery = window.document.querySelector<HTMLElement>('[data-pg="photos"]')!;
     const pending = window.document.querySelector("#pending")!;
-    expect([...gallery.querySelectorAll("img")]).toEqual([pending]);
+    expect(Array.from(gallery.querySelectorAll("img"))).toEqual([pending]);
     expect(gallery.hidden).toBe(false);
     pending.dispatchEvent(new window.Event("error"));
     expect(gallery.querySelector("img")).toBeNull();
