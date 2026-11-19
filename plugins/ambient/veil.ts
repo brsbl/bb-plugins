@@ -115,8 +115,12 @@ const TRAFFIC_LIGHT_RESERVE = "110px";
 /** Newer bb's reserve for a header row beside the title-bar controls when the sidebar is collapsed; other pages keep it as is. */
 const COLLAPSED_TITLE_BAR_RESERVE =
   "calc(var(--bb-window-title-bar-controls-end) + 12px - var(--bb-window-card-collapsed-left) - 1rem)";
-const COLUMN_LEFT = `max(var(--ambient-column-gutter, 8px), 50% - ${COLUMN_HALF})`;
-const COLUMN_RIGHT = `max(8px, 50% - ${COLUMN_HALF})`;
+// Center the glass and header in the same space bb leaves for the transcript.
+const THREAD_INSET = "var(--ambient-thread-inset-end, 0px)";
+const THREAD_COLUMN_START = `50% - ${THREAD_INSET} / 2 - ${COLUMN_HALF}`;
+const THREAD_COLUMN_END = `50% + ${THREAD_INSET} / 2 - ${COLUMN_HALF}`;
+const COLUMN_LEFT = `max(var(--ambient-column-gutter, 8px), ${THREAD_COLUMN_START})`;
+const COLUMN_RIGHT = `max(8px + ${THREAD_INSET}, ${THREAD_COLUMN_END})`;
 const COLUMN_BOTTOM = "8px";
 const COMPACT_INSET = "max(16px, calc((100% - 760px) / 2 + 16px))";
 
@@ -217,9 +221,9 @@ ${PAGE} .bg-card[class*="hover:bg-"]:hover { background-color: color-mix(in okla
 /* With the sidebar collapsed, the window card (and its 1px edge) starts right of the rail cell; its column starts one gap after the rail. */
 @media (min-width: 768px) { ${ROOT} .peer[data-collapsible="rail"][data-side="left"] + [data-sidebar="inset"] { --ambient-column-gutter: calc(var(--ambient-edge) + var(--ambient-gap) - var(--ambient-rail-cell-slack) - 1px); } }
 @media (min-width: 768px) { ${SIDEBAR_OPEN} { --ambient-column-gutter: 0px; } ${SIDEBAR_OPEN} [data-testid="app-page-header-content-row"] > :first-child { margin-inline-start: -16px; } }
-@media (min-width: 768px) { ${ROOT} ${THREAD_TITLE_ROW} { padding-inline-start: max(32px, 50% - ${COLUMN_HALF} + 6px); } ${ROOT} ${THREAD_TITLE_ROW}[class~="pl-[104px]"] { padding-inline-start: max(${TRAFFIC_LIGHT_RESERVE}, 50% - ${COLUMN_HALF} + 6px); } ${ROOT} ${THREAD_TITLE_ROW}[class*="pl-[calc(var(--bb-window-title-bar-controls-end)"] { padding-inline-start: max(${COLLAPSED_TITLE_BAR_RESERVE}, 50% - ${COLUMN_HALF} + 6px); } ${SIDEBAR_OPEN} ${THREAD_TITLE_ROW} { padding-inline-start: max(0px, 50% - ${COLUMN_HALF} + 16px); } }
+@media (min-width: 768px) { ${ROOT} ${THREAD_TITLE_ROW} { padding-inline-start: max(32px, ${THREAD_COLUMN_START} + 6px); } ${ROOT} ${THREAD_TITLE_ROW}[class~="pl-[104px]"] { padding-inline-start: max(${TRAFFIC_LIGHT_RESERVE}, ${THREAD_COLUMN_START} + 6px); } ${ROOT} ${THREAD_TITLE_ROW}[class*="pl-[calc(var(--bb-window-title-bar-controls-end)"] { padding-inline-start: max(${COLLAPSED_TITLE_BAR_RESERVE}, ${THREAD_COLUMN_START} + 6px); } ${SIDEBAR_OPEN} ${THREAD_TITLE_ROW} { padding-inline-start: max(0px, ${THREAD_COLUMN_START} + 16px); } }
 /* Header pills sit on the edges of the card under them. Threads: the actions pill ends where the 808px thread card ends. */
-@media (min-width: 768px) { ${ROOT} ${THREAD_TITLE_ROW} { padding-inline-end: max(0px, 50% - ${COLUMN_HALF} + 8px); } }
+@media (min-width: 768px) { ${ROOT} ${THREAD_TITLE_ROW} { padding-inline-end: max(${THREAD_INSET}, ${THREAD_COLUMN_END} + 8px); } }
 /* Pages center a card as wide as their column, which depends on the page type; each sets half its width and the header row follows it
    the same way thread rows follow the thread card (bb's reserve beside the title-bar controls stays the minimum). Unknown pages keep
    bb's layout: the 100vw default never wins the max(). Real class selectors (not [class~=…]) keep these :has() checks cheap. */
