@@ -79,8 +79,8 @@ const KIT = String.raw`
 }
 *, *::before, *::after { box-sizing: border-box; }
 html, body { margin: 0; background: transparent; }
-:root:not([data-embedded]) body { padding: 20px 24px 22px; }
-body { font: var(--pg-text-body)/1.5 var(--font); color: var(--pg-ink); -webkit-font-smoothing: antialiased; overflow-wrap: anywhere; }
+body { padding: 20px 24px 22px; font: var(--pg-text-body)/1.5 var(--font); color: var(--pg-ink); -webkit-font-smoothing: antialiased; overflow-wrap: anywhere; }
+:where(:root[data-embedded]) body { padding: 4px; }
 button, input, select, textarea { font: inherit; color: inherit; }
 button { cursor: pointer; }
 :focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
