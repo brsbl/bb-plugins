@@ -79,6 +79,7 @@ export const SETS_CSS = String.raw`
 .pg-guide-nav > button[data-primary] { background: var(--pg-ink); border-color: var(--pg-ink); color: var(--card); }
 /* Photos: one tall photo beside two stacked ones (or one or two). Broken links disappear. */
 [data-pg=photos] { display: grid; grid-template-columns: 3fr 2fr; grid-template-rows: 1fr 1fr; gap: 4px; height: 240px; border-radius: var(--pg-radius-panel); overflow: hidden; }
+[data-pg=photos][hidden] { display: none; }
 [data-pg=photos] > img { width: 100%; height: 100%; min-height: 0; aspect-ratio: auto; border-radius: 0; object-fit: cover; display: block; background: var(--pg-stage); }
 [data-pg=photos] > img:first-child { grid-row: span 2; }
 [data-pg=photos]:has(> img:only-child) { grid-template-columns: 1fr; }
@@ -329,16 +330,32 @@ export const SETS_RUNTIME = String.raw`
     el.__paint = paint; paint();
     on("change", (e) => { if (e.name === name) paint(); });
   }
+  const retriedImageErrors = new WeakSet();
+  function retryWikimediaImage(img) {
+    if (!/^https:\/\/thumb\.wikimedia\.org\//.test(img.src)) return false;
+    img.src = img.src.replace("https://thumb.wikimedia.org/", "https://upload.wikimedia.org/");
+    return true;
+  }
   function photos(el) {
     el.classList.add("pg-photos");
     for (const img of el.querySelectorAll("img")) {
       img.loading = "lazy"; img.decoding = "async";
-      img.addEventListener("error", () => { if (img.dataset.retry === "") { img.dataset.retry = "done"; return; } img.remove(); if (!el.querySelector("img")) el.hidden = true; });
+      const removeFailed = () => {
+        img.remove();
+        if (!el.querySelector("img")) el.hidden = true;
+      };
+      img.addEventListener("error", (event) => {
+        if (retriedImageErrors.has(event)) return;
+        removeFailed();
+      });
+      if ((img.currentSrc || img.getAttribute("src")) && img.complete && !img.naturalWidth) {
+        if (!retryWikimediaImage(img)) removeFailed();
+      }
     }
   }
   addEventListener("error", (e) => {
     const img = e.target;
-    if (img && img.tagName === "IMG" && /^https:\/\/thumb\.wikimedia\.org\//.test(img.src)) { img.dataset.retry = ""; img.src = img.src.replace("https://thumb.wikimedia.org/", "https://upload.wikimedia.org/"); }
+    if (img instanceof HTMLImageElement && retryWikimediaImage(img)) retriedImageErrors.add(e);
   }, true);
   Object.assign(SET_KINDS, { run: runBar, turn: (el) => el.classList.add("pg-turn"), guide, photos });
   Object.assign(SET_UI, { answer: readyFirst(answer), breakdown: readyFirst(breakdown), run, game });

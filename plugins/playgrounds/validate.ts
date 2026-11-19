@@ -1,4 +1,5 @@
 import { bindingProblems } from "./bindings.js";
+import { IMAGE_HOSTS } from "./widget.js";
 
 // Publish-time checks for component kit markup (`data-pg` elements). The kit ignores
 // attributes it doesn't read and splits options on every comma, so mistakes show up
@@ -272,4 +273,29 @@ export function assertKitMarkup(html: string) {
       ...listed,
     ].join("\n"),
   );
+}
+
+export function assertImageSources(html: string) {
+  let pictureDepth = 0;
+  const text = hideRawText(html);
+  let previous = 0;
+  for (const { index, name, attributes } of startTags(text)) {
+    // Picture and srcset can select a source independently of the fallback src.
+    const previousMarkup = text.slice(previous, index);
+    pictureDepth = Math.max(0, pictureDepth - (previousMarkup.match(/<\/picture\s*>/gi)?.length ?? 0));
+    previous = index;
+    if (name === "picture") pictureDepth++;
+    if (name !== "img" || pictureDepth || attributes.get("srcset")) continue;
+    const src = attributes.get("src")?.trim();
+    if (!src) continue;
+    const url = URL.parse(src.startsWith("//") ? `https:${src}` : src);
+    if (
+      url?.protocol === "data:" ||
+      url?.protocol === "blob:" ||
+      IMAGE_HOSTS.some((host) => host === url?.origin) ||
+      url?.origin === "https://thumb.wikimedia.org"
+    ) continue;
+    const line = text.slice(0, index).split("\n").length;
+    throw new Error(`Not published: line ${line}, <img src> uses a source the frame cannot load. Embed the image as a data:image/… URL or use an image from https://upload.wikimedia.org.`);
+  }
 }

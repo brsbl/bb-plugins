@@ -300,6 +300,7 @@
   }
 }
 .pg-widget {
+  padding: clamp(12px, 3%, 24px);
   border: 1px solid var(--border);
   border-radius: 24px;
   background: var(--card, var(--background));
