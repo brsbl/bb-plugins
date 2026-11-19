@@ -1,6 +1,6 @@
 {
   "name": "bb-plugin-desktop",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A desktop for your threads: folders, a finder, and draggable thread windows.",
   "type": "module",
   "license": "UNLICENSED",
