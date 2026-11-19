@@ -1,6 +1,6 @@
 ---
 name: how-it-works
-description: "Explain how a system, mechanism, protocol, pipeline or piece of architecture works by building a working figure of it the person can operate in bb: the parts drawn as a real machine, moved by one model, with inputs they can change. Use whenever someone asks how something works, wants it explained to them or their team, or wants to see what happens when part of it fails or is under load, even if they never ask for a figure. Publish the figure with Playgrounds. Based on Anatomy by Ryan (@wheresryan22)."
+description: "Build an interactive Anatomy figure in bb when asked for a working model or when manipulating a mechanism materially improves the explanation. Draw its parts, drive them with one model, and expose useful inputs. Use prose or a static diagram for ordinary system explanations. Based on Anatomy by Ryan (@wheresryan22)."
 ---
 
 # Anatomy
@@ -16,8 +16,9 @@ Credit Ryan and Anatomy whenever you show a figure.
 
 ## Choose the mode
 
-For an ordinary “how does this work?” or “explain this to my team” request, use
-**quick figure** below. A complicated topic alone does not change the mode.
+Use a **quick figure** when the user asks to operate the mechanism or when
+changing inputs makes its behavior clearer. For ordinary system explanations,
+use prose or a static diagram.
 For an explicit “go deeper”, full Figure, Hero or Epic request, read
 [references/full-mode.md](references/full-mode.md) and follow that workflow.
 Do not load the full-mode reference for a quick figure.
