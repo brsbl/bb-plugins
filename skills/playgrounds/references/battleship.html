@@ -1,0 +1,73 @@
+<!-- Battleship: the game set with a setup step and two boards. Taps on "My waters"
+     are your shots; my ships live in a parameter no board shows. -->
+<h2 class="pg-title pg-reveal">Battleship</h2>
+<p class="pg-subtitle pg-reveal">Four ships each on an 8 × 8 sea. Shuffle your fleet, start, then fire at my waters.</p>
+
+<div data-pg="turn" class="pg-reveal" style="--i:1"></div>
+<div class="pg-banks pg-reveal" style="--i:2">
+  <section class="pg-group"><h4 class="pg-label">My waters</h4>
+    <div data-pg="board" data-param="board" data-label="My waters" data-rows="8" data-cols="8" data-pieces="H:var(--pg-bad):Hit:×,M:var(--pg-mark-muted):Miss:•"></div>
+  </section>
+  <section class="pg-group"><h4 class="pg-label">Your fleet</h4>
+    <div data-pg="board" data-param="fleet" data-label="Your fleet" data-rows="8" data-cols="8" data-pieces="S:var(--pg-accent):Ship,X:var(--pg-bad):Hit:×,O:var(--pg-mark-muted):Miss:•"></div>
+  </section>
+</div>
+<div class="pg-toolbar pg-reveal" style="--i:3" data-show="turn=setup"><button class="pg-btn" id="shuffle" type="button">Shuffle my fleet</button></div>
+<div class="pg-foot pg-reveal" style="--i:4">
+  <details><summary>Rules</summary><p>Ships are 4, 3, 3 and 2 squares long. Take turns firing one shot. Sink every ship to win.</p></details>
+  <div data-pg="agent" data-empty="Shuffle your fleet, then start."></div>
+</div>
+
+<script>
+(() => {
+  const { params: P, ui } = window.playground;
+  const N = 8, SHIPS = [4, 3, 3, 2], CELLS = SHIPS.reduce((a, b) => a + b, 0);
+  const empty = () => Array.from({ length: N }, () => Array(N).fill(""));
+  function place() {
+    const g = empty();
+    for (const len of SHIPS) for (;;) {
+      const down = Math.random() < .5, r = Math.floor(Math.random() * (down ? N - len + 1 : N)), c = Math.floor(Math.random() * (down ? N : N - len + 1));
+      const at = Array.from({ length: len }, (_, i) => (down ? [r + i, c] : [r, c + i]));
+      if (at.every(([y, x]) => !g[y][x])) { at.forEach(([y, x]) => (g[y][x] = "S")); break; }
+    }
+    return g;
+  }
+  P.define("mine", { type: "board", rows: N, cols: N });
+  const cell = (m) => {
+    if (typeof m === "number") return [Math.floor(m / N), m % N];
+    const k = /^([A-H])([1-8])$/i.exec(String(m).trim());
+    return k ? [k[1].toUpperCase().charCodeAt(0) - 65, Number(k[2]) - 1] : [-1, -1];
+  };
+  const name = (r, c) => String.fromCharCode(65 + r) + (c + 1);
+  const count = (g, v) => g.flat().filter((x) => x === v).length;
+
+  const game = ui.game({
+    you: "you", me: "me", setup: true, setupText: "Place your fleet", startLabel: "Start battle",
+    fromCell: (r, c) => r * N + c,
+    start(all) { all.fleet = place(); all.mine = place(); return empty(); },
+    move(board, m, who, all) {
+      const [r, c] = cell(m);
+      if (r < 0 || r >= N || c < 0 || c >= N) return null;
+      if (who === "you") {
+        if (board[r][c]) return null;
+        board[r][c] = all.mine[r][c] === "S" ? "H" : "M";
+        return board;
+      }
+      const v = all.fleet[r][c];
+      if (v === "X" || v === "O") return null;
+      all.fleet[r][c] = v === "S" ? "X" : "O";
+      return board;
+    },
+    say(m, all, who) {
+      const [r, c] = cell(m), v = who === "you" ? all.board[r][c] : all.fleet[r][c];
+      return name(r, c) + ", " + (v === "H" || v === "X" ? "hit" : "miss");
+    },
+    winner(board, all) {
+      if (count(board, "H") === CELLS) return "you";
+      if (all && count(all.fleet, "X") === CELLS) return "me";
+      return null;
+    },
+  });
+  document.getElementById("shuffle").onclick = () => P.set("fleet", place());
+})();
+</script>

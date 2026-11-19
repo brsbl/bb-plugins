@@ -1,0 +1,43 @@
+<!-- Home budget: built from the calculator set (scrub sentence, answer, breakdown). -->
+<h2 class="pg-title pg-reveal">How much home can you afford?</h2>
+
+<p class="pg-sentence pg-reveal" style="--i:1">
+  I earn <span data-pg="scrub" data-param="income" data-label="Yearly income" data-prefix="$" data-min="30000" data-max="500000" data-step="1000" data-value="140000"></span> a year,
+  pay <span data-pg="scrub" data-param="debts" data-label="Monthly debts" data-prefix="$" data-min="0" data-max="5000" data-step="50" data-value="400"></span> a month on other debts,
+  and can put <span data-pg="scrub" data-param="down" data-label="Down payment" data-unit="%" data-min="0.03" data-max="0.5" data-step="0.01" data-value="0.2"></span> down
+  at <span data-pg="scrub" data-param="rate" data-label="Mortgage rate" data-unit="%" data-min="2" data-max="12" data-step="0.05" data-value="6.5"></span> over
+  <span data-pg="scrub" data-param="term" data-label="Term" data-unit="years" data-min="10" data-max="30" data-step="5" data-value="30"></span>.
+</p>
+
+<div class="pg-surface pg-result pg-reveal" style="--i:2">
+  <div data-pg="answer" data-name="price"></div>
+  <div data-pg="breakdown" data-name="monthly"></div>
+</div>
+<div class="pg-foot pg-reveal" style="--i:3">
+  <details><summary>How this is calculated</summary><p>Housing gets 28% of gross income, less any other debt above 8% (so all debt stays under 36%). Property tax and insurance are 1.2% of the price a year; mortgage insurance is 0.6% of the loan a year below 20% down.</p></details>
+  <div data-pg="agent"></div>
+</div>
+
+<script>
+(() => {
+  const { params: P, ui } = window.playground;
+  const usd = (n) => "$" + Math.round(n).toLocaleString("en-US");
+  function update() {
+    const v = P.all(), monthlyIncome = v.income / 12;
+    // Housing gets 28% of income, less any debt above 8% (the 36% total-debt rule).
+    const budget = Math.max(0, monthlyIncome * 0.28 - Math.max(0, v.debts - monthlyIncome * 0.08));
+    const r = v.rate / 100 / 12, n = v.term * 12, perLoan = r ? r / (1 - Math.pow(1 + r, -n)) : 1 / n;
+    const pmiRate = v.down < 0.2 ? 0.006 / 12 : 0;
+    const price = budget / ((1 - v.down) * (perLoan + pmiRate) + 0.012 / 12);
+    const loan = price * (1 - v.down);
+    ui.answer("price", { label: "You can afford about", value: usd(Math.round(price / 1000) * 1000), detail: usd(price * v.down) + " down · " + usd(budget) + " a month" });
+    ui.breakdown("monthly", [
+      { label: "Principal and interest", value: loan * perLoan, display: usd(loan * perLoan) },
+      { label: "Property tax and insurance", value: price * 0.012 / 12, display: usd(price * 0.012 / 12) },
+      { label: "Mortgage insurance", value: loan * pmiRate, display: usd(loan * pmiRate) },
+    ]);
+  }
+  P.on(update);
+  update();
+})();
+</script>
