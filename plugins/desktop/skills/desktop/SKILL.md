@@ -24,6 +24,6 @@ bb desktop unhide-all
 - With `--hide-from-sidebar`, a desktop-only folder's threads are hidden from the sidebar thread list until they leave the folder or the folder is deleted. A thread that was already hidden (another plugin's helper thread) stays hidden.
 - `unhide-all` shows every thread Desktop hid and turns off hiding on every folder. Run it before uninstalling Desktop.
 
-## Making another plugin a Desktop program
+## Making another plugin a Desktop app
 
 Use the `desktop-apps` skill: it gives the copy-paste helper and the steps for a plugin to open as an XP window with a Start menu entry.
