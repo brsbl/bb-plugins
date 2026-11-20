@@ -2,7 +2,11 @@
 
 GitHub Activity adds a BB sidebar panel for comments and mentions on pull requests and issues you authored.
 
-![GitHub Activity in BB](docs/screenshot.png)
+![GitHub Activity listing three sample mentions and comments on example-org pull requests and issues](docs/activity.png)
+
+![GitHub Activity when the GitHub CLI is signed out, showing the gh auth login guidance and Try again](docs/signed-out.png)
+
+![GitHub Activity with no comments or mentions to triage](docs/empty.png)
 
 ## Use
 
@@ -12,18 +16,18 @@ BB hosts the page beside its native Browser and Terminal tools. Each row remains
 
 ## Install
 
-From this repository:
-
 ```bash
-npm ci
-bb plugin install "path:$PWD/plugins/github-notifications" --yes
+bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/github-notifications --yes
 ```
 
-The plugin needs an authenticated GitHub CLI session:
+Install the GitHub CLI on the machine running the bb server and sign in there:
 
 ```bash
+gh auth login
 gh auth status
 ```
+
+If the CLI is missing or signed out, the panel shows setup guidance. After signing in, choose **Try again**. Credentials remain with the GitHub CLI.
 
 ## Develop
 

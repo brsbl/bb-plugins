@@ -42,7 +42,7 @@ Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/f
 
 Brings incoming comments and mentions from GitHub pull requests and issues you authored into one searchable, filterable triage view, with open and resolved activity kept together.
 
-![GitHub Activity showing searchable filters and incoming pull-request and issue activity](plugins/github-notifications/docs/screenshot.png)
+![GitHub Activity showing searchable filters and incoming pull-request and issue activity](plugins/github-notifications/docs/activity.png)
 
 [Source](plugins/github-notifications) · [README](plugins/github-notifications/README.md)
 

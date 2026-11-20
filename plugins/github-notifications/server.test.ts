@@ -15,13 +15,13 @@ function notification(index: number, overrides: Record<string, unknown> = {}) {
     reason: "comment",
     unread: true,
     updated_at: "2026-08-12T12:00:00Z",
-    repository: { full_name: "get-bb/bb" },
+    repository: { full_name: "example-org/project-demo" },
     subject: {
       latest_comment_url:
-        "https://api.github.com/repos/get-bb/bb/issues/comments/1",
+        "https://api.github.com/repos/example-org/project-demo/issues/comments/1",
       title: `Notification ${index}`,
       type: "PullRequest",
-      url: `https://api.github.com/repos/get-bb/bb/pulls/${index + 1}`,
+      url: `https://api.github.com/repos/example-org/project-demo/pulls/${index + 1}`,
     },
     ...overrides,
   };
@@ -32,7 +32,7 @@ function queryFrom(args: string[]): string {
 }
 
 function identity(
-  login = "brsbl",
+  login = "fixture-author",
   host = "api.github.com",
   id = 1,
 ): Record<string, unknown> {
@@ -71,13 +71,13 @@ describe("GitHub Activity plugin", () => {
       .mockResolvedValueOnce([notification(41)])
       .mockResolvedValueOnce({
         data: {
-          viewer: { login: "brsbl" },
+          viewer: { login: "fixture-author" },
           notification0: {
             resource: {
-              author: { login: "brsbl" },
+              author: { login: "fixture-author" },
               number: 42,
               title: "Scannable activity",
-              url: "https://github.com/get-bb/bb/pull/42",
+              url: "https://github.com/example-org/project-demo/pull/42",
             },
           },
         },
@@ -89,7 +89,7 @@ describe("GitHub Activity plugin", () => {
               comments: {
                 nodes: [
                   {
-                    author: { login: "alice" },
+                    author: { login: "fixture-reviewer" },
                     bodyText: "Please take a look",
                     createdAt: "2026-08-12T10:00:00Z",
                     databaseId: 1,
@@ -99,7 +99,7 @@ describe("GitHub Activity plugin", () => {
               reviews: {
                 nodes: [
                   {
-                    author: { login: "alice" },
+                    author: { login: "fixture-reviewer" },
                     state: "CHANGES_REQUESTED",
                     submittedAt: "2026-08-12T11:00:00Z",
                   },
@@ -124,7 +124,7 @@ describe("GitHub Activity plugin", () => {
     })) as NotificationsPayload;
     expect(initial).toEqual(
       expect.objectContaining({
-        login: "brsbl",
+        login: "fixture-author",
         items: [
           expect.objectContaining({
             activity: "New comment",
@@ -157,7 +157,7 @@ describe("GitHub Activity plugin", () => {
       bb.storage.kv.get("resolved-notification-ids"),
     ).resolves.toBeUndefined();
     await expect(
-      bb.storage.kv.get("resolved-notification-ids:api.github.com/brsbl"),
+      bb.storage.kv.get("resolved-notification-ids:api.github.com/fixture-author"),
     ).resolves.toBeUndefined();
     await expect(
       bb.storage.kv.get(resolvedStateKey()),
@@ -184,10 +184,10 @@ describe("GitHub Activity plugin", () => {
         return [
           notification(0, {
             subject: {
-              latest_comment_url: `https://api.github.com/repos/get-bb/bb/issues/comments/${activityId}`,
+              latest_comment_url: `https://api.github.com/repos/example-org/project-demo/issues/comments/${activityId}`,
               title: "Activity lifecycle",
               type: "PullRequest",
-              url: "https://api.github.com/repos/get-bb/bb/pulls/1",
+              url: "https://api.github.com/repos/example-org/project-demo/pulls/1",
             },
             updated_at: activityAt,
           }),
@@ -197,13 +197,13 @@ describe("GitHub Activity plugin", () => {
       if (query.includes("query GithubNotifications")) {
         return {
           data: {
-            viewer: { login: "brsbl" },
+            viewer: { login: "fixture-author" },
             notification0: {
               resource: {
-                author: { login: "brsbl" },
+                author: { login: "fixture-author" },
                 number: 1,
                 title: "Activity lifecycle",
-                url: "https://github.com/get-bb/bb/pull/1",
+                url: "https://github.com/example-org/project-demo/pull/1",
               },
             },
           },
@@ -216,7 +216,7 @@ describe("GitHub Activity plugin", () => {
               comments: {
                 nodes: [
                   {
-                    author: { login: "alice" },
+                    author: { login: "fixture-reviewer" },
                     bodyText: "comment",
                     createdAt: activityAt,
                     databaseId: activityId,
@@ -298,7 +298,7 @@ describe("GitHub Activity plugin", () => {
       }
       if (
         args.includes(
-          "https://api.github.com/repos/get-bb/bb/issues/comments/1",
+          "https://api.github.com/repos/example-org/project-demo/issues/comments/1",
         )
       ) {
         return {
@@ -306,20 +306,20 @@ describe("GitHub Activity plugin", () => {
           created_at: createdAt,
           id: 1,
           updated_at: updatedAt,
-          user: { avatar_url: null, login: "alice" },
+          user: { avatar_url: null, login: "fixture-reviewer" },
         };
       }
       const query = queryFrom(args);
       if (query.includes("query GithubNotifications")) {
         return {
           data: {
-            viewer: { login: "brsbl" },
+            viewer: { login: "fixture-author" },
             notification0: {
               resource: {
-                author: { login: "brsbl" },
+                author: { login: "fixture-author" },
                 number: 1,
                 title: "Edited comment",
-                url: "https://github.com/get-bb/bb/pull/1",
+                url: "https://github.com/example-org/project-demo/pull/1",
               },
             },
           },
@@ -332,7 +332,7 @@ describe("GitHub Activity plugin", () => {
               comments: {
                 nodes: [
                   {
-                    author: { login: "alice" },
+                    author: { login: "fixture-reviewer" },
                     body,
                     createdAt,
                     databaseId: 1,
@@ -357,7 +357,7 @@ describe("GitHub Activity plugin", () => {
       "setNotificationResolved",
       resolutionInput(initial, "n0", true),
     );
-    body = `${"x".repeat(1_000_000)} @brsbl please revisit`;
+    body = `${"x".repeat(1_000_000)} @fixture-author please revisit`;
     updatedAt = "2026-08-13T11:00:00Z";
     const edited = (await harness.behavior.callRpc("listNotifications", {
       force: true,
@@ -390,21 +390,21 @@ describe("GitHub Activity plugin", () => {
       if (query.includes("query GithubNotifications")) {
         return {
           data: {
-            viewer: { login: "brsbl" },
+            viewer: { login: "fixture-author" },
             notification0: {
               resource: {
-                author: { login: "brsbl" },
+                author: { login: "fixture-author" },
                 number: 1,
                 title: "Legacy resolved activity",
-                url: "https://github.com/get-bb/bb/pull/1",
+                url: "https://github.com/example-org/project-demo/pull/1",
               },
             },
             notification1: {
               resource: {
-                author: { login: "brsbl" },
+                author: { login: "fixture-author" },
                 number: 2,
                 title: "Second legacy activity",
-                url: "https://github.com/get-bb/bb/pull/2",
+                url: "https://github.com/example-org/project-demo/pull/2",
               },
             },
           },
@@ -417,7 +417,7 @@ describe("GitHub Activity plugin", () => {
               comments: {
                 nodes: [
                   {
-                    author: { login: "alice" },
+                    author: { login: "fixture-reviewer" },
                     bodyText: "comment",
                     createdAt: activityAt,
                     databaseId: 1,
@@ -432,7 +432,7 @@ describe("GitHub Activity plugin", () => {
               comments: {
                 nodes: [
                   {
-                    author: { login: "alice" },
+                    author: { login: "fixture-reviewer" },
                     bodyText: "second comment",
                     createdAt: activityAt,
                     databaseId: 1,
@@ -449,7 +449,7 @@ describe("GitHub Activity plugin", () => {
       pluginId: "github-notifications",
     });
     await bb.storage.kv.set(
-      "resolved-notification-ids:api.github.com/brsbl",
+      "resolved-notification-ids:api.github.com/fixture-author",
       ["n0", "n1"],
     );
     createGithubNotificationsPlugin(runGh)(bb);
@@ -521,13 +521,13 @@ describe("GitHub Activity plugin", () => {
       if (query.includes("query GithubNotifications")) {
         return {
           data: {
-            viewer: { login: "brsbl" },
+            viewer: { login: "fixture-author" },
             notification0: {
               resource: {
-                author: { login: "brsbl" },
+                author: { login: "fixture-author" },
                 number: 1,
                 title: "New activity after migration",
-                url: "https://github.com/get-bb/bb/pull/1",
+                url: "https://github.com/example-org/project-demo/pull/1",
               },
             },
           },
@@ -540,7 +540,7 @@ describe("GitHub Activity plugin", () => {
               comments: {
                 nodes: [
                   {
-                    author: { login: "alice" },
+                    author: { login: "fixture-reviewer" },
                     createdAt: createdAfterMigration,
                     databaseId: 1,
                   },
@@ -555,7 +555,7 @@ describe("GitHub Activity plugin", () => {
       pluginId: "github-notifications",
     });
     await bb.storage.kv.set(
-      "resolved-notification-ids:api.github.com/brsbl",
+      "resolved-notification-ids:api.github.com/fixture-author",
       ["n0"],
     );
     createGithubNotificationsPlugin(runGh)(bb);
@@ -598,7 +598,7 @@ describe("GitHub Activity plugin", () => {
       if (query.includes("query GithubNotifications")) {
         return {
           data: Object.fromEntries([
-            ["viewer", { login: "brsbl" }],
+            ["viewer", { login: "fixture-author" }],
             ...aliases.map((alias) => {
               const index = Number(alias.replace("notification", ""));
               const owned = index === 50;
@@ -606,10 +606,10 @@ describe("GitHub Activity plugin", () => {
                 alias,
                 {
                   resource: {
-                    author: { login: owned ? "brsbl" : "someone-else" },
+                    author: { login: owned ? "fixture-author" : "someone-else" },
                     number: owned ? 1000 : index + 1,
                     title: owned ? "Later owned PR" : `Unrelated ${index}`,
-                    url: `https://github.com/get-bb/bb/pull/${owned ? 1000 : index + 1}`,
+                    url: `https://github.com/example-org/project-demo/pull/${owned ? 1000 : index + 1}`,
                   },
                 },
               ];
@@ -624,7 +624,7 @@ describe("GitHub Activity plugin", () => {
               comments: {
                 nodes: [
                   {
-                    author: { login: "alice" },
+                    author: { login: "fixture-reviewer" },
                     createdAt: "2026-08-12T11:00:00Z",
                     databaseId: 1,
                   },
@@ -677,20 +677,20 @@ describe("GitHub Activity plugin", () => {
     const inlineNotification = notification(41, {
       subject: {
         latest_comment_url:
-          "https://api.github.example.test/repos/get-bb/bb/pulls/comments/501",
+          "https://api.github.example.test/repos/example-org/project-demo/pulls/comments/501",
         title: "Inline feedback",
         type: "PullRequest",
-        url: "https://api.github.example.test/repos/get-bb/bb/pulls/42",
+        url: "https://api.github.example.test/repos/example-org/project-demo/pulls/42",
       },
     });
     const runGh = vi.fn<RunGh>(async (args) => {
       if (isIdentityCall(args)) {
-        return identity("brsbl", "github.example.test");
+        return identity("fixture-author", "github.example.test");
       }
       if (args.includes("notifications")) return [inlineNotification];
       if (
         args.includes(
-          "https://api.github.example.test/repos/get-bb/bb/pulls/comments/501",
+          "https://api.github.example.test/repos/example-org/project-demo/pulls/comments/501",
         )
       ) {
         return {
@@ -707,13 +707,13 @@ describe("GitHub Activity plugin", () => {
       if (query.includes("query GithubNotifications")) {
         return {
           data: {
-            viewer: { login: "brsbl" },
+            viewer: { login: "fixture-author" },
             notification0: {
               resource: {
-                author: { login: "brsbl" },
+                author: { login: "fixture-author" },
                 number: 42,
                 title: "Inline feedback",
-                url: "https://github.example.test/get-bb/bb/pull/42",
+                url: "https://github.example.test/example-org/project-demo/pull/42",
               },
             },
           },
@@ -750,7 +750,7 @@ describe("GitHub Activity plugin", () => {
     );
     expect(runGh).toHaveBeenCalledWith([
       "api",
-      "https://api.github.example.test/repos/get-bb/bb/pulls/comments/501",
+      "https://api.github.example.test/repos/example-org/project-demo/pulls/comments/501",
     ]);
     await harness.lifecycle.dispose();
   });
@@ -759,10 +759,10 @@ describe("GitHub Activity plugin", () => {
     const staleInline = notification(0, {
       subject: {
         latest_comment_url:
-          "https://api.github.com/repos/get-bb/bb/pulls/comments/404",
+          "https://api.github.com/repos/example-org/project-demo/pulls/comments/404",
         title: "Deleted inline feedback",
         type: "PullRequest",
-        url: "https://api.github.com/repos/get-bb/bb/pulls/1",
+        url: "https://api.github.com/repos/example-org/project-demo/pulls/1",
       },
     });
     const runGh = vi.fn<RunGh>(async (args) => {
@@ -772,7 +772,7 @@ describe("GitHub Activity plugin", () => {
       }
       if (
         args.includes(
-          "https://api.github.com/repos/get-bb/bb/pulls/comments/404",
+          "https://api.github.com/repos/example-org/project-demo/pulls/comments/404",
         )
       ) {
         throw new Error("HTTP 404: review comment was deleted");
@@ -784,17 +784,17 @@ describe("GitHub Activity plugin", () => {
       if (query.includes("query GithubNotifications")) {
         return {
           data: Object.fromEntries([
-            ["viewer", { login: "brsbl" }],
+            ["viewer", { login: "fixture-author" }],
             ...aliases.map((alias) => {
               const index = Number(alias.replace("notification", ""));
               return [
                 alias,
                 {
                   resource: {
-                    author: { login: "brsbl" },
+                    author: { login: "fixture-author" },
                     number: index + 1,
                     title: `Notification ${index}`,
-                    url: `https://github.com/get-bb/bb/pull/${index + 1}`,
+                    url: `https://github.com/example-org/project-demo/pull/${index + 1}`,
                   },
                 },
               ];
@@ -812,7 +812,7 @@ describe("GitHub Activity plugin", () => {
               comments: {
                 nodes: [
                   {
-                    author: { login: "alice" },
+                    author: { login: "fixture-reviewer" },
                     bodyText: "Still available",
                     createdAt: "2026-08-12T11:00:00Z",
                     databaseId: 1,
@@ -834,7 +834,7 @@ describe("GitHub Activity plugin", () => {
       harness.behavior.callRpc("listNotifications", { force: false }),
     ).resolves.toEqual(
       expect.objectContaining({
-        items: [expect.objectContaining({ id: "n1", actor: "alice" })],
+        items: [expect.objectContaining({ id: "n1", actor: "fixture-reviewer" })],
       }),
     );
     await harness.lifecycle.dispose();
@@ -886,7 +886,7 @@ describe("GitHub Activity plugin", () => {
                   author: { login },
                   number: 1,
                   title: `Private activity for ${login}`,
-                  url: "https://github.com/get-bb/bb/pull/1",
+                  url: "https://github.com/example-org/project-demo/pull/1",
                 },
               },
             ]),
@@ -978,7 +978,7 @@ describe("GitHub Activity plugin", () => {
                       author: { login },
                       number: 1,
                       title: "Account A private activity",
-                      url: "https://github.com/get-bb/bb/pull/1",
+                      url: "https://github.com/example-org/project-demo/pull/1",
                     },
                   },
                 }
@@ -1022,7 +1022,7 @@ describe("GitHub Activity plugin", () => {
   });
 
   it("keeps resolved IDs independent across GitHub accounts and hosts", async () => {
-    let activeIdentity = identity("brsbl", "api.github.com");
+    let activeIdentity = identity("fixture-author", "api.github.com");
     const runGh = vi.fn<RunGh>(async (args) => {
       if (isIdentityCall(args)) return activeIdentity;
       if (args.includes("notifications")) return [notification(0)];
@@ -1037,7 +1037,7 @@ describe("GitHub Activity plugin", () => {
                 author: { login },
                 number: 1,
                 title: "Same notification ID",
-                url: "https://github.com/get-bb/bb/pull/1",
+                url: "https://github.com/example-org/project-demo/pull/1",
               },
             },
           },
@@ -1050,7 +1050,7 @@ describe("GitHub Activity plugin", () => {
               comments: {
                 nodes: [
                   {
-                    author: { login: "alice" },
+                    author: { login: "fixture-reviewer" },
                     bodyText: "comment",
                     createdAt: "2026-08-12T11:00:00Z",
                     databaseId: 1,
@@ -1086,13 +1086,13 @@ describe("GitHub Activity plugin", () => {
       ),
     ).resolves.toBeUndefined();
 
-    activeIdentity = identity("brsbl", "api.enterprise.test");
+    activeIdentity = identity("fixture-author", "api.enterprise.test");
     const enterprise = (await harness.behavior.callRpc("listNotifications", {
       force: true,
     })) as NotificationsPayload;
     expect(enterprise.items[0]?.resolved).toBe(false);
     await expect(
-      bb.storage.kv.get("resolved-notification-ids:api.github.com/brsbl"),
+      bb.storage.kv.get("resolved-notification-ids:api.github.com/fixture-author"),
     ).resolves.toBeUndefined();
     await expect(
       bb.storage.kv.get(resolvedStateKey()),
@@ -1106,7 +1106,7 @@ describe("GitHub Activity plugin", () => {
     });
     await expect(
       bb.storage.kv.get(
-        "resolved-notification-ids:api.enterprise.test/brsbl",
+        "resolved-notification-ids:api.enterprise.test/fixture-author",
       ),
     ).resolves.toBeUndefined();
     await harness.lifecycle.dispose();
@@ -1132,7 +1132,7 @@ describe("GitHub Activity plugin", () => {
                 author: { login },
                 number: 1,
                 title: "Identity-scoped state",
-                url: "https://github.example.test/get-bb/bb/pull/1",
+                url: "https://github.example.test/example-org/project-demo/pull/1",
               },
             },
           },
@@ -1145,7 +1145,7 @@ describe("GitHub Activity plugin", () => {
               comments: {
                 nodes: [
                   {
-                    author: { login: "alice" },
+                    author: { login: "fixture-reviewer" },
                     createdAt: "2026-08-12T11:00:00Z",
                     databaseId: 1,
                   },
@@ -1209,7 +1209,7 @@ describe("GitHub Activity plugin", () => {
     const runGh = vi.fn<RunGh>(async (args) => {
       if (isIdentityCall(args)) return identity();
       if (args.includes("notifications")) return notifications;
-      return { data: { viewer: { login: "brsbl" } } };
+      return { data: { viewer: { login: "fixture-author" } } };
     });
     const { bb, harness } = createFakePluginHost({
       pluginId: "github-notifications",
@@ -1226,8 +1226,8 @@ describe("GitHub Activity plugin", () => {
 
     resolveNotifications([]);
     await expect(Promise.all([first, second])).resolves.toEqual([
-      expect.objectContaining({ items: [], login: "brsbl" }),
-      expect.objectContaining({ items: [], login: "brsbl" }),
+      expect.objectContaining({ items: [], login: "fixture-author" }),
+      expect.objectContaining({ items: [], login: "fixture-author" }),
     ]);
     expect(runGh).toHaveBeenCalledTimes(5);
     await harness.lifecycle.dispose();
@@ -1237,7 +1237,7 @@ describe("GitHub Activity plugin", () => {
     const runGh = vi.fn<RunGh>(async (args) => {
       if (isIdentityCall(args)) return identity();
       if (args.includes("notifications")) return [];
-      return { data: { viewer: { login: "brsbl" } } };
+      return { data: { viewer: { login: "fixture-author" } } };
     });
     const { bb, harness } = createFakePluginHost({
       pluginId: "github-notifications",
@@ -1271,13 +1271,13 @@ describe("GitHub Activity plugin", () => {
       if (query.includes("query GithubNotifications")) {
         return {
           data: {
-            viewer: { login: "brsbl" },
+            viewer: { login: "fixture-author" },
             notification0: {
               resource: {
-                author: { login: "brsbl" },
+                author: { login: "fixture-author" },
                 number: 1,
                 title: "Activity that disappears",
-                url: "https://github.com/get-bb/bb/pull/1",
+                url: "https://github.com/example-org/project-demo/pull/1",
               },
             },
           },
@@ -1290,7 +1290,7 @@ describe("GitHub Activity plugin", () => {
               comments: {
                 nodes: [
                   {
-                    author: { login: "alice" },
+                    author: { login: "fixture-reviewer" },
                     createdAt: "2026-08-12T11:00:00Z",
                     databaseId: 1,
                   },
@@ -1333,10 +1333,10 @@ describe("GitHub Activity plugin", () => {
                 reason: "mention",
                 subject: {
                   latest_comment_url:
-                    "https://api.github.com/repos/get-bb/bb/pulls/1",
+                    "https://api.github.com/repos/example-org/project-demo/pulls/1",
                   title: "Review-only update",
                   type: "PullRequest",
-                  url: "https://api.github.com/repos/get-bb/bb/pulls/1",
+                  url: "https://api.github.com/repos/example-org/project-demo/pulls/1",
                 },
               }),
             ];
@@ -1345,13 +1345,13 @@ describe("GitHub Activity plugin", () => {
       if (query.includes("query GithubNotifications")) {
         return {
           data: {
-            viewer: { login: "brsbl" },
+            viewer: { login: "fixture-author" },
             notification0: {
               resource: {
-                author: { login: "brsbl" },
+                author: { login: "fixture-author" },
                 number: 1,
                 title: "Cached comment",
-                url: "https://github.com/get-bb/bb/pull/1",
+                url: "https://github.com/example-org/project-demo/pull/1",
               },
             },
           },
@@ -1364,7 +1364,7 @@ describe("GitHub Activity plugin", () => {
               comments: {
                 nodes: [
                   {
-                    author: { login: "alice" },
+                    author: { login: "fixture-reviewer" },
                     createdAt: "2026-08-17T23:00:00Z",
                     databaseId: 1,
                   },
@@ -1419,7 +1419,7 @@ describe("GitHub Activity plugin", () => {
       if (query.includes("query GithubNotifications")) {
         return {
           data: Object.fromEntries([
-            ["viewer", { login: "brsbl" }],
+            ["viewer", { login: "fixture-author" }],
             ...aliases.map((alias) => {
               const index = Number(alias.replace("notification", ""));
               return [
@@ -1427,11 +1427,11 @@ describe("GitHub Activity plugin", () => {
                 {
                   resource: {
                     author: {
-                      login: index === 200 ? "brsbl" : "someone-else",
+                      login: index === 200 ? "fixture-author" : "someone-else",
                     },
                     number: index + 1,
                     title: `Notification ${index}`,
-                    url: `https://github.com/get-bb/bb/pull/${index + 1}`,
+                    url: `https://github.com/example-org/project-demo/pull/${index + 1}`,
                   },
                 },
               ];
@@ -1446,7 +1446,7 @@ describe("GitHub Activity plugin", () => {
               comments: {
                 nodes: [
                   {
-                    author: { login: "alice" },
+                    author: { login: "fixture-reviewer" },
                     bodyText: "Found after page one",
                     createdAt: "2026-08-12T11:00:00Z",
                     databaseId: 1,
@@ -1490,23 +1490,23 @@ describe("GitHub Activity plugin", () => {
       return {
         data: Object.fromEntries([
           ...(query.includes("query GithubNotifications")
-            ? [["viewer", { login: "brsbl" }]]
+            ? [["viewer", { login: "fixture-author" }]]
             : []),
           ...aliases.map((alias) => [
             alias,
             {
               resource: query.includes("query GithubNotifications")
                 ? {
-                    author: { login: "brsbl" },
+                    author: { login: "fixture-author" },
                     number: Number(alias.replace("notification", "")) + 1,
                     title: alias,
-                    url: `https://github.com/get-bb/bb/pull/${Number(alias.replace("notification", "")) + 1}`,
+                    url: `https://github.com/example-org/project-demo/pull/${Number(alias.replace("notification", "")) + 1}`,
                   }
                 : {
                     comments: {
                       nodes: [
                         {
-                          author: { login: "alice" },
+                          author: { login: "fixture-reviewer" },
                           createdAt: "2026-08-12T11:00:00Z",
                           databaseId: 1,
                         },
@@ -1571,13 +1571,13 @@ describe("GitHub Activity plugin", () => {
       if (query.includes("query GithubNotifications")) {
         return {
           data: {
-            viewer: { login: "brsbl" },
+            viewer: { login: "fixture-author" },
             notification0: {
               resource: {
-                author: { login: "brsbl" },
+                author: { login: "fixture-author" },
                 number: 1,
                 title: "Atomic resolved state",
-                url: "https://github.com/get-bb/bb/pull/1",
+                url: "https://github.com/example-org/project-demo/pull/1",
               },
             },
           },
@@ -1590,7 +1590,7 @@ describe("GitHub Activity plugin", () => {
               comments: {
                 nodes: [
                   {
-                    author: { login: "alice" },
+                    author: { login: "fixture-reviewer" },
                     bodyText: "comment",
                     createdAt: "2026-08-12T11:00:00Z",
                     databaseId: 1,
@@ -1647,10 +1647,10 @@ describe("GitHub Activity plugin", () => {
         return [
           notification(0, {
             subject: {
-              latest_comment_url: `https://api.github.com/repos/get-bb/bb/issues/comments/${notificationFetches}`,
+              latest_comment_url: `https://api.github.com/repos/example-org/project-demo/issues/comments/${notificationFetches}`,
               title: "Race-safe activity",
               type: "PullRequest",
-              url: "https://api.github.com/repos/get-bb/bb/pulls/1",
+              url: "https://api.github.com/repos/example-org/project-demo/pulls/1",
             },
           }),
         ];
@@ -1659,13 +1659,13 @@ describe("GitHub Activity plugin", () => {
       if (query.includes("query GithubNotifications")) {
         return {
           data: {
-            viewer: { login: "brsbl" },
+            viewer: { login: "fixture-author" },
             notification0: {
               resource: {
-                author: { login: "brsbl" },
+                author: { login: "fixture-author" },
                 number: 1,
                 title: "Race-safe activity",
-                url: "https://github.com/get-bb/bb/pull/1",
+                url: "https://github.com/example-org/project-demo/pull/1",
               },
             },
           },
@@ -1678,7 +1678,7 @@ describe("GitHub Activity plugin", () => {
               comments: {
                 nodes: [
                   {
-                    author: { login: "alice" },
+                    author: { login: "fixture-reviewer" },
                     bodyText: "comment",
                     createdAt: "2026-08-12T11:00:00Z",
                     databaseId: notificationFetches,
@@ -1780,7 +1780,7 @@ describe("GitHub Activity plugin", () => {
       );
       return {
         data: Object.fromEntries([
-          ["viewer", { login: "brsbl" }],
+          ["viewer", { login: "fixture-author" }],
           ...aliases.map((alias) => [
             alias,
             { resource: { author: { login: "someone-else" } } },
@@ -1835,17 +1835,17 @@ describe("GitHub Activity plugin", () => {
       if (query.includes("query GithubNotifications")) {
         return {
           data: Object.fromEntries([
-            ["viewer", { login: "brsbl" }],
+            ["viewer", { login: "fixture-author" }],
             ...aliases.map((alias) => {
               const index = Number(alias.replace("notification", ""));
               return [
                 alias,
                 {
                   resource: {
-                    author: { login: "brsbl" },
+                    author: { login: "fixture-author" },
                     number: index + 1,
                     title: `Notification ${index}`,
-                    url: `https://github.com/get-bb/bb/pull/${index + 1}`,
+                    url: `https://github.com/example-org/project-demo/pull/${index + 1}`,
                   },
                 },
               ];
@@ -1862,7 +1862,7 @@ describe("GitHub Activity plugin", () => {
                 comments: {
                   nodes: [
                     {
-                      author: { login: "alice", avatarUrl: null },
+                      author: { login: "fixture-reviewer", avatarUrl: null },
                       bodyText: "comment",
                       createdAt: "2026-08-12T11:00:00Z",
                       databaseId: 1,
