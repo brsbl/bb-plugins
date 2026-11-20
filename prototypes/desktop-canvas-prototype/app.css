@@ -683,9 +683,11 @@ body[data-ambient-glass] .cdc-canvas { background-color: transparent; }
   border: 1px solid var(--cdc-hairline);
   box-shadow: var(--cdc-highlight), var(--shadow-lg);
   font-size: var(--text-sm);
+  /* Any menu, the root one included, fits the screen and scrolls when it's taller (a landscape phone, a short window). */
+  max-height: calc(100vh - 8px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
-
-.cdc-submenu { max-height: calc(100vh - 8px); overflow-y: auto; }
 .cdc-menu-list { display: flex; flex-direction: column; }
 
 .cdc-menu-item {
