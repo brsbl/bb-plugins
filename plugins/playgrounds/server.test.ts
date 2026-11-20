@@ -41,7 +41,7 @@ it("publishes immutable answers, confines reads to their thread, and survives re
     ).rejects.toThrow("unavailable");
     const guide = await host.harness.behavior.runCli(["guide"]);
     expect(JSON.parse(guide.stdout!).examples.bill.title).toBe(bill.title);
-    expect(JSON.parse(guide.stdout!).html).toMatch(/^Choose the form first\. How a system.*how-it-works skill/);
+    expect(JSON.parse(guide.stdout!).html).toContain("For ordinary explanations, status updates, reports, and simple comparisons, use prose or a static visual.");
     const html = await host.harness.behavior.runCli([
       "publish",
       "--thread",
@@ -101,6 +101,33 @@ it("publishes immutable answers, confines reads to their thread, and survives re
       kind: "document",
       document: bill,
     });
+  } finally {
+    await host.harness.lifecycle.dispose();
+  }
+});
+
+it("rejects static image sources the sandbox cannot load", async () => {
+  const host = createFakePluginHost({ pluginId: "playgrounds" });
+  try {
+    plugin(host.bb);
+    const publish = (html: string) =>
+      host.harness.behavior.runCli([
+        "publish", "--thread", "thr_test", "--playground", JSON.stringify({ title: "Images", html }),
+      ]);
+    const blocked = await publish('<img src="https://example.com/image.png"><img src="./photo.png">');
+    expect(blocked.exitCode).toBe(1);
+    expect(blocked.stderr).toContain("data:image/");
+    expect(blocked.stderr).toContain("line 1");
+
+    const supported = await publish(
+      '<!-- <img src="example.png"> -->' +
+      `<script>const template = '<img src="example.png">';</script>` +
+      '<img src="  DATA:image/png;base64,AAAA  ">' +
+      '<img src="https://upload.wikimedia.org/wikipedia/commons/photo.png">' +
+      '<img src="https://thumb.wikimedia.org/example.png">' +
+      '<img src="blob:opaque-id"><img alt="Source set later">',
+    );
+    expect(supported.exitCode).toBe(0);
   } finally {
     await host.harness.lifecycle.dispose();
   }

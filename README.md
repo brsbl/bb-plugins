@@ -109,6 +109,26 @@ Organizes work into configurable workflow sections that agents follow, and keeps
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/thread-organizer --yes`
 
+### Calendar
+
+Lists upcoming events from your Google calendars as threads in a Calendar section above Pinned and sends bb notifications when an event is added, moved or canceled, and 10 minutes before it starts.
+
+![Calendar section above Pinned with two upcoming events](plugins/calendar/docs/calendar-section.png)
+
+[Source](plugins/calendar) · [README](plugins/calendar/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/calendar --yes`
+
+### Discord
+
+Puts Discord tags and a weekday summary of each channel's activity in a Discord section below Calendar. Tags of you or the Maintainer role, and replies to you, open a notifying thread; it only reads Discord.
+
+![Discord section below Calendar with mention threads and an open daily summary](plugins/discord-inbox/docs/discord-section.png)
+
+[Source](plugins/discord-inbox) · [README](plugins/discord-inbox/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/discord-inbox --yes`
+
 ### Content Calendar
 
 Plans deliverables on a month or week calendar stored on a dedicated Google calendar, with drag-and-drop rescheduling, Evergreen and Later trays, gates, and attached Moss notes. Agents manage it through `bb content-calendar` and show it live inline in chat.
@@ -175,6 +195,16 @@ Creates, edits, saves, and shares reusable mesh gradients from a visual studio b
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/mesh-gradient --yes`
 
+### Email
+
+Posts a weekday summary of new mail across your Gmail accounts as a thread in an Email section of the sidebar: urgent mail first, then who needs a reply, each item linked to Gmail. It only reads mail.
+
+![Email section below Calendar with a weekday summary open](plugins/email-inbox/docs/email-section.jpg)
+
+[Source](plugins/email-inbox) · [README](plugins/email-inbox/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/email-inbox --yes`
+
 ### Emoji Picker
 
 Type `:` in a composer to open the picker, then choose an emoji to replace the colon. Search by name or shortcode, browse categories, and keep recent choices and a preferred skin tone close at hand.
@@ -217,7 +247,7 @@ Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/c
 
 ### Compact Links
 
-Turns website URLs into compact favicon pills in the composer, sent messages and agent replies. Click a link to open it using your bb browser preference.
+Turns website URLs and local file paths into compact pills in drafts and conversations. Website links show favicons; files show their type and open through bb’s normal file flow.
 
 ![SaaS and localhost links in drafts and conversations](https://github.com/user-attachments/assets/50b2bbde-30f6-4ac2-9060-a92d04a6bc07)
 
@@ -355,13 +385,11 @@ Keep a thread's key files and links one click away in a strip above the composer
 
 ![A pull request, a Markdown file, a localhost dev server, a Linear issue and a Figma link pinned above the composer](plugins/file-pins/docs/strip.png)
 
-![Unpinned files and links in the ⋯ list above the strip](plugins/file-pins/docs/more-list.png)
-
-![A pinned file's menu with Open preview, Open externally, Copy file path, Copy file name, Unpin and Remove, in dark mode](plugins/file-pins/docs/pin-menu-dark.png)
+![A pinned file's menu with Open preview, Open externally, Copy file path, Copy file name and Unpin, in dark mode](plugins/file-pins/docs/pin-menu-dark.png)
 
 ![The Pin pill in the composer, followed by the files and link to pin](plugins/file-pins/docs/pin-files-pill.png)
 
-![Pins with whole labels on a phone, the last one shortened to fill the row, and the rest in the full-width ⋯ list](plugins/file-pins/docs/phone-more-list.png)
+![Pins on a phone in one row, scrolled partway, with fades on both sides where more pins wait](plugins/file-pins/docs/phone-strip.png)
 
 [Source](plugins/file-pins) · [README](plugins/file-pins/README.md)
 

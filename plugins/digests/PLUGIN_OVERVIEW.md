@@ -12,5 +12,8 @@ X scorecards can be published by another thread with `bb digest publish`.
 Uses existing bb Browser sign-ins; import opens bb’s own Browser settings.
 Failures show Retry or Reconnect. Each email appears in one brief only: Money
 gets money mail, Reading gets newsletters, and copies in several inboxes
-collapse into one row, all without marking Gmail read. Collection is read-only; only an approved Inline
-Action Card click authorizes an external write.
+collapse into one row. Gmail emails are read in full, including every message
+in a thread, and left read by default. Choose Keep unread under any Gmail
+account to preserve original read states. Briefs never summarizes list previews.
+Only Gmail read-state changes are allowed during collection; other external
+writes require an approved Inline Action Card click.

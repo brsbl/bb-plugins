@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { EmailReadInputSchema, EmojiSchema, ConnectionSchema, DigestDefinitionSchema, IssuePatchSchema, IssueSchema, PublishInputSchema, ScheduleSchema } from "./model";
+import { SaveDigestSchema, EmailReadInputSchema, EmojiSchema, ConnectionSchema, DigestDefinitionSchema, IssuePatchSchema, IssueSchema, PublishInputSchema, ScheduleSchema } from "./model";
 import { DIGEST_RECIPES } from "./recipes";
 import { collectionInstructions, issueTitle } from "./prompts";
 
@@ -11,9 +11,37 @@ describe("digest contracts", () => {
     });
     expect(definition).toMatchObject({
       enabled: false, schedule: null, automationId: null, providerId: null, model: null, reasoningLevel: null,
-      permissionMode: "auto", environment: { type: "project-default" }, connectionIds: [],
+      afterReading: "mark-read", permissionMode: "auto", environment: { type: "project-default" }, connectionIds: [],
     });
     expect(DigestDefinitionSchema.safeParse({ ...definition, id: "../reading" }).success).toBe(false);
+  });
+
+  it("defaults absent preferences to mark-read while partial saves preserve explicit choices", () => {
+    const input = { id: "reading", name: "Reading", projectId: "proj_test", instructions: "Read mail.", createdAt: 1 };
+    expect(DigestDefinitionSchema.parse(input).afterReading).toBe("mark-read");
+    expect(DigestDefinitionSchema.parse({ ...input, afterReading: "keep-unread" }).afterReading).toBe("keep-unread");
+    expect(SaveDigestSchema.parse({ connectionId: "gmail", name: "Reading", instructions: "Read mail.", schedule: null })).not.toHaveProperty("afterReading");
+  });
+
+  it.each(["mark-read", "keep-unread"] as const)("requires full-body collection in %s mode without unknown-state gaps", (afterReading) => {
+    const definition = DigestDefinitionSchema.parse({ id: "reading", name: "Reading", projectId: "proj_test", instructions: "Read mail.", createdAt: 1, afterReading });
+    const runtime = collectionInstructions(definition);
+    expect(runtime).toContain("every message in a multi-message thread");
+    expect(runtime).toContain("never summarize from list previews or snippets");
+    expect(runtime).toContain("Snapshot candidate thread/message IDs");
+    expect(runtime).toContain("view=pt");
+    expect(runtime).toContain("preserve authuser or the account path");
+    expect(runtime).not.toContain("do not open the thread: disclose the gap");
+    if (afterReading === "mark-read") {
+      expect(runtime).toContain("otherwise omit it");
+      expect(runtime).toContain("explicitly mark those messages read");
+      expect(runtime).toContain("once per batch");
+      expect(runtime).not.toContain("Restore each originally unread message immediately");
+    } else {
+      expect(runtime).toContain("Use read-only print access when per-message state is unknown");
+      expect(runtime).toContain("Never mark an entire mixed-state thread unread");
+      expect(runtime).not.toContain("explicitly mark those messages read");
+    }
   });
 
   it("validates schedule syntax and timezones before an automation is created", () => {
@@ -60,7 +88,7 @@ describe("digest contracts", () => {
       expect(runtime).toContain("No source is recorded as processed until publication succeeds");
       expect(runtime).toContain("read their full bodies");
       expect(runtime).toContain("digest_email_read");
-      expect(runtime).toContain("Keep unread (default)");
+      expect(runtime).toContain("Mark as read (default)");
       expect(runtime).toContain("only a user CLICK");
     }
   });

@@ -53,7 +53,7 @@ export const DigestDefinitionSchema = z.object({
   emoji: EmojiSchema.optional(),
   projectId: IdSchema,
   instructions: z.string().trim().min(1).max(30_000),
-  afterReading: z.enum(["keep-unread", "mark-read"]).optional(),
+  afterReading: z.enum(["keep-unread", "mark-read"]).default("mark-read"),
   connectionIds: z.array(DigestIdSchema).max(20).default([]).refine(
     (ids) => new Set(ids).size === ids.length,
     "List each connection only once.",
@@ -150,7 +150,8 @@ const sourceLink = z.object({
 export const EmailReadSchema = z.object({
   messageId: IdSchema,
   threadId: IdSchema.optional(),
-  wasUnread: z.boolean(),
+  // Unknown is permitted when the target state is read; never invent original state.
+  wasUnread: z.boolean().optional(),
   title: z.string().trim().min(1).max(180).optional(),
   url: sourceLink.shape.url.optional(),
   afterReading: z.enum(["keep-unread", "mark-read"]),
@@ -220,7 +221,7 @@ export const SaveDigestSchema = z.object({
   // Optional so saved definitions fall back to their starter icon.
   emoji: EmojiSchema.optional(),
   instructions: DigestDefinitionSchema.shape.instructions,
-  afterReading: DigestDefinitionSchema.shape.afterReading,
+  afterReading: z.enum(["keep-unread", "mark-read"]).optional(),
   schedule: ScheduleSchema.nullable(),
   execution: ExecutionChoiceSchema.nullable().optional(),
 }).strict();

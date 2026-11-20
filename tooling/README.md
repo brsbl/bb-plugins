@@ -33,12 +33,18 @@ merge after CI passes.
 The existing publish job creates `<slug>/v<version>` from the same bundles as
 `plugin/<slug>`. The tag retains `plugins/<slug>`, so marketplace URLs and
 version ranges stay valid. Do not tag the source commit manually.
+Thread Hover Cards uses the same nested layout under `thread-hover-cards/v<version>`.
 
 The generated release commit is parented by its source commit and records the
 package tree, lockfile digest, SDK archive, and builder provenance in
 `plugin-release.json`. Its plugin manifest points to prebuilt wrappers and has
 no install-time package dependencies. Source manifests on `main` retain the
 dependencies needed for development.
+
+Pinned Files & Links also publishes `file-pins/v<version>` tags. Its existing
+marketplace entry has no subdirectory, so these tags contain the same root package
+tree as `plugin/file-pins`. The tag commit records its source as its parent; the
+root package does not include the monorepo provenance file.
 
 Published version tags are immutable. A rerun accepts an existing tag only when
 its plugin contents match; otherwise bump the version. Other plugins keep their

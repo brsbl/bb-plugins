@@ -491,6 +491,7 @@ export const SECTION_CARD_CSS = String.raw`
   width: max-content;
   max-width: min(20rem, calc(100vw - 1rem));
   padding: 0.625rem 0.75rem;
+  font-size: 0.6875rem;
 }
 
 /* Band 1 — the projects this section spans. */
@@ -501,7 +502,6 @@ export const SECTION_CARD_CSS = String.raw`
   gap: 0.375rem;
   overflow: hidden;
   color: var(--muted-foreground);
-  font-size: 0.6875rem;
   white-space: nowrap;
 }
 
@@ -535,15 +535,14 @@ export const SECTION_CARD_CSS = String.raw`
   display: inline-flex;
   flex: none;
   align-items: center;
-  gap: 0.3125rem;
-  font-size: 0.8125rem;
+  gap: 0.25rem;
   font-variant-numeric: tabular-nums;
   font-weight: 450;
 }
 
 .bb-section-hover-card__chip-icon {
-  width: 0.8125rem;
-  height: 0.8125rem;
+  width: 0.6875rem;
+  height: 0.6875rem;
 }
 
 /*
@@ -576,7 +575,6 @@ export const SECTION_CARD_CSS = String.raw`
   padding-top: 0.4375rem;
   border-top: 1px solid color-mix(in srgb, var(--foreground) 7%, transparent);
   color: var(--muted-foreground);
-  font-size: 0.6875rem;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -597,6 +595,5 @@ export const SECTION_CARD_CSS = String.raw`
 .bb-section-hover-card__empty {
   margin: 0;
   color: var(--muted-foreground);
-  font-size: 0.75rem;
 }
 `;

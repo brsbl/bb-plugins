@@ -1,7 +1,8 @@
 import { z } from "zod";
+import { githubPreview, githubReference, type GitHubPreview } from "./github-preview.js";
 import { decode } from "./preview-metadata.js";
 
-export type ProviderPreview = { title: string; description: string; site: string; image: null };
+export type ProviderPreview = { title: string; description: string; site: string; image: null; github?: GitHubPreview };
 export type ProviderRead = (url: URL) => Promise<{ url: URL; body: Buffer; contentType: string }>;
 
 /** A provider API asked for a pause; no request should be sent before `retryAt` (epoch ms). */
@@ -66,9 +67,26 @@ function json(page: { body: Buffer; contentType: string }): unknown {
  */
 export class PreviewProviders {
   private stackPausedUntil = 0;
+  private githubPausedUntil = 0;
   constructor(private readonly now: () => number = Date.now) {}
 
   async get(url: URL, read: ProviderRead): Promise<ProviderPreview | null> {
+    const github = githubReference(url.href);
+    if (github) {
+      if (this.now() < this.githubPausedUntil) throw new ProviderRateLimited(this.githubPausedUntil);
+      return githubPreview(github, async (target) => {
+        if (this.now() < this.githubPausedUntil) throw new ProviderRateLimited(this.githubPausedUntil);
+        try { return await read(target); }
+        catch (error) {
+          const detail = error as { status?: number; retryAt?: number };
+          if (detail?.status === 403 || detail?.status === 429) {
+            this.githubPausedUntil = Math.max(this.githubPausedUntil, detail.retryAt ?? this.now() + 10 * 60_000);
+            throw new ProviderRateLimited(this.githubPausedUntil);
+          }
+          throw error;
+        }
+      });
+    }
     const npm = npmEndpoint(url);
     if (npm) {
       const pkg = npmSchema.parse(json(await read(npm)));

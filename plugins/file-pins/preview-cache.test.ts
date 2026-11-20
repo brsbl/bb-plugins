@@ -51,13 +51,30 @@ it("returns a stale preview at once and refreshes it once in the background", as
   let title = "Old";
   serve({ [PAGE]: async () => html(`<meta property="og:title" content="${title}">`) });
   await previews.getResult(PAGE);
+  expect((await previews.getResult(PAGE)).refreshing).toBeUndefined();
   vi.setSystemTime(Date.now() + PREVIEW_LIMITS.freshMs);
   title = "New";
-  expect((await previews.getResult(PAGE)).preview?.title).toBe("Old");
-  expect((await previews.getResult(PAGE)).preview?.title).toBe("Old");
-  await vi.advanceTimersByTimeAsync(0);
+  const stale = await previews.getResult(PAGE);
+  expect(stale.preview?.title).toBe("Old");
+  expect(stale.refreshing).toBe(true);
+  expect((await previews.getResult(PAGE)).refreshing).toBe(true);
+  // A waiting card gets the reload already running, without starting another.
+  const forced = previews.getResult(PAGE, true);
+  const settled = await previews.settled(PAGE);
+  expect(await forced).toEqual(settled);
+  expect(settled.preview?.title).toBe("New");
+  expect(settled.refreshing).toBeUndefined();
   expect((await previews.getResult(PAGE)).preview?.title).toBe("New");
   expect(read).toHaveBeenCalledTimes(2);
+});
+
+it("lets a waiting card join the running reload but never start or force one", async () => {
+  serve({ [PAGE]: html('<meta property="og:title" content="Post">') });
+  expect(await previews.settled(PAGE)).toEqual({ preview: null, status: "busy" });
+  expect(await previews.settled("not a url")).toEqual({ preview: null, status: "unsupported" });
+  await previews.getResult(PAGE);
+  expect((await previews.settled(PAGE)).preview?.title).toBe("Post");
+  expect(read).toHaveBeenCalledTimes(1);
 });
 
 it("keeps useful text and an earlier image through a transient failure, then retries after thirty seconds", async () => {
@@ -70,7 +87,9 @@ it("keeps useful text and an earlier image through a transient failure, then ret
   const ready = await previews.getResult(PAGE);
   expect(ready.status).toBe("ready");
   page = httpError(503);
-  const failed = await previews.getResult(PAGE, true);
+  vi.setSystemTime(Date.now() + PREVIEW_LIMITS.freshMs);
+  expect(await previews.getResult(PAGE)).toEqual({ preview: ready.preview, status: "ready", refreshing: true });
+  const failed = await previews.settled(PAGE);
   expect(failed).toEqual({ preview: ready.preview, status: "network" });
   expect(await previews.get(PAGE)).toEqual(ready.preview);
   vi.setSystemTime(Date.now() + PREVIEW_LIMITS.transientMs - 1);
@@ -83,13 +102,14 @@ it("keeps useful text and an earlier image through a transient failure, then ret
   expect((await previews.getResult(PAGE)).preview?.title).toBe("Post again");
 });
 
-it("distinguishes blocked pages, cools them down and lets a debounced refresh bypass the cooldown", async () => {
+it("distinguishes blocked pages, keeps waiting cards in cooldown and debounces manual refresh", async () => {
   serve({ [PAGE]: httpError(403) });
   expect(await previews.getResult(PAGE)).toEqual({ preview: null, status: "blocked" });
   vi.setSystemTime(Date.now() + PREVIEW_LIMITS.cooldownMs - 1);
-  expect((await previews.getResult(PAGE)).status).toBe("blocked");
-  expect(read).toHaveBeenCalledTimes(1);
   serve({ [PAGE]: html("<title>Open now</title>") });
+  expect((await previews.getResult(PAGE)).status).toBe("blocked");
+  expect((await previews.settled(PAGE)).status).toBe("blocked");
+  expect(read).toHaveBeenCalledTimes(1);
   expect((await previews.getResult(PAGE, true)).status).toBe("no-image");
   expect((await previews.getResult(PAGE, true)).status).toBe("no-image");
   expect(read).toHaveBeenCalledTimes(2);
@@ -105,6 +125,8 @@ it("never refreshes through a server-directed rate limit", async () => {
   serve({ [PAGE]: httpError(429, retryAt) });
   expect(await previews.getResult(PAGE)).toEqual({ preview: null, status: "rate-limited", retryAt });
   vi.setSystemTime(retryAt - 1);
+  expect((await previews.getResult(PAGE)).status).toBe("rate-limited");
+  expect((await previews.settled(PAGE)).status).toBe("rate-limited");
   expect((await previews.getResult(PAGE, true)).status).toBe("rate-limited");
   expect(read).toHaveBeenCalledTimes(1);
 });
@@ -236,7 +258,7 @@ it("does not grow the cache for a burst of distinct URLs while the queue is satu
   expect(cache.size).toBeLessThanOrEqual(PREVIEW_LIMITS.active);
 });
 
-it("keeps text when an image is rate-limited, skips that origin and honors the pause on refresh", async () => {
+it("keeps text when an image is rate-limited, skips that origin and honors the pause", async () => {
   const retryAt = Date.now() + 15 * 60_000;
   serve({
     [PAGE]: html('<meta property="og:title" content="Post"><meta property="og:image" content="/a.png"><meta property="og:image" content="/b.png">'),
@@ -246,6 +268,8 @@ it("keeps text when an image is rate-limited, skips that origin and honors the p
   expect(await previews.getResult(PAGE)).toEqual({ preview: { title: "Post", description: "", site: "example.com", image: null }, status: "rate-limited", retryAt });
   expect(fetched()).toEqual([PAGE, "https://example.com/a.png"]);
   vi.setSystemTime(retryAt - 1);
+  expect((await previews.getResult(PAGE)).retryAt).toBe(retryAt);
+  expect((await previews.settled(PAGE)).retryAt).toBe(retryAt);
   expect((await previews.getResult(PAGE, true)).retryAt).toBe(retryAt);
   expect(read).toHaveBeenCalledTimes(2);
 });

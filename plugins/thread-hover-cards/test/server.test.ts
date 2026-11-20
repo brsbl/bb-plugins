@@ -215,6 +215,7 @@ const fakeBb = {
       },
     },
     threads: {
+      interactions: { async list() { return [{ id: "question_1" }]; } },
       async list({ sectionId }: { sectionId?: string } = {}) {
         if (sectionThreadsFail) throw new Error("threads unavailable");
         return sectionThreadsById.get(sectionId ?? "") ?? [];
@@ -319,6 +320,8 @@ const fakeBb = {
                   : "env_1",
           projectId,
           providerId: "codex",
+          id: input.threadId, title: "Improve navigation",
+          lastReadAt: 100, latestAttentionAt: 120,
           runtime: { displayStatus },
           updatedAt: 123,
         };
@@ -428,6 +431,7 @@ assert.ok(
 
 const summary = await summaryHandler({ threadId: "thr_1" });
 assert.deepEqual(withoutDiagnostics(summary), {
+  title: "Improve navigation", threadId: "thr_1", updatedAt: 123, unread: true, hasPendingInteraction: true,
   currentTurnCompletedAt: null,
   currentTurnStartedAt: null,
   hostName: "Brsbl Mac",

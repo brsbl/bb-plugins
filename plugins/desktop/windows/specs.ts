@@ -21,7 +21,8 @@ export type WindowSpec =
   | { kind: "app"; key: string }
   | { kind: "new-folder" }
   | { kind: "media-player" }
-  | { kind: "new-thread"; groupKey: string | null };
+  | { kind: "new-thread"; groupKey: string | null }
+  | { kind: "new-app" };
 
 export type WindowKind = WindowSpec["kind"];
 export type SpecOf<K extends WindowKind> = Extract<WindowSpec, { kind: K }>;
@@ -67,7 +68,7 @@ const SIMPLE_KINDS: ReadonlySet<string> = new Set([
 ] satisfies WindowKind[]);
 
 /**
- * Reads a stored spec. Form windows (`new-folder`, `new-thread`) are deliberately not restored,
+ * Reads a stored spec. Form windows (`new-folder`, `new-thread`, `new-app`) are deliberately not restored,
  * so they are dropped here and never persisted.
  */
 export function parseSpec(value: unknown): WindowSpec | null {

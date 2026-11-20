@@ -76,26 +76,51 @@ const COMPACT_COMPOSER = `${ROOT} [data-testid="root-compose-compact-composer"]`
 /** bb pads the plugin sidebar header past the traffic lights and toggle, so it never becomes a pill itself; its plugin content does. */
 const SIDEBAR_RESERVE_PILL = '[data-testid="app-sidebar-top-reserve-row"] > div:not([data-sidebar-header-slot])';
 const SIDEBAR_HEADER_CONTENT = "[data-sidebar-header-slot] > [data-bb-plugin-root]";
+/** Settings puts bb's own search field in the section sidebar header; it becomes a pill like plugin header content. */
+const SIDEBAR_HEADER_SEARCH = "[data-sidebar-header-slot] > label";
 // AppPageHeader no longer marks its actions wrapper; its second child still owns the action groups.
 const HEADER_ACTIONS = '[data-testid="app-page-header-content-row"] > :nth-child(2)';
-const CHROME_PILLS = `${ROOT} :is([data-testid="app-page-header-content-row"] > :first-child, ${HEADER_ACTIONS}, ${SIDEBAR_RESERVE_PILL}, ${SIDEBAR_HEADER_CONTENT}:not(:empty), button[data-sidebar="trigger"])`;
+const CHROME_PILLS = `${ROOT} :is([data-testid="app-page-header-content-row"] > :first-child, ${HEADER_ACTIONS}, ${SIDEBAR_RESERVE_PILL}, ${SIDEBAR_HEADER_CONTENT}:not(:empty), ${SIDEBAR_HEADER_SEARCH}, button[data-sidebar="trigger"])`;
 const HEADER_FIRST = `${ROOT} [data-testid="app-page-header-content-row"] > :first-child`;
 const RIGHT_PANEL_BUTTON = 'button[aria-label*="right panel" i]';
 const SIDEBAR_CARDS = `${ROOT} :is([data-testid="sidebar-navigation-region"], [data-sidebar="content"], [data-sidebar="footer"])`;
 const SIDEBAR_FOOTER = `${ROOT} [data-sidebar="footer"]`;
+/** bb up to 0.46.0 nests the overflow fade, footer panels and the customize editor in the footer; that footer keeps its full glass card. */
+const FOOTER_TRAY = `${SIDEBAR_FOOTER}:not(:has(> [data-overflow-fade]))`;
+/** bb's default icon rail: its scrolling icon column, and Settings in the rail's footer cell. */
+const RAIL = `${ROOT} [data-testid="app-nav-rail"] > :not([data-prism-frame-layer])`;
+const RAIL_SETTINGS = `${ROOT} [data-testid="sidebar-navigation-rail"] ~ div > button[aria-label^="Settings"]`;
 /** Plugins, Settings and Skills put "Back to app" above the section card; it joins the card as its first row. */
 const SECTION_BACK = `${ROOT} [data-testid$="-sidebar-top-reserve-row"] + div:has(+ [data-sidebar="content"])`;
+/** The sidebar body and footer row beside bb's icon rail; its cards sit one gap right of the rail. Plain sibling selectors: a :has()
+    hook here would restyle the whole sidebar on every row change. */
+const RAIL_SIDEBAR = `${ROOT} [data-testid="sidebar-navigation-rail"] ~ [data-sidebar="collapsible-body"]`;
+/** bb's back/forward pair in the sidebar header; its gap class is unique to it (the in-app browser's toolbar is a different
+    component). In the desktop title bar bb overrides that class, so the pair is found as the first child of the title-bar controls. */
+const HISTORY_PAIR = 'div[class~="gap-(--bb-chrome-control-gap)"]';
+const TITLE_BAR_HISTORY_PAIR = 'div[class~="gap-(--bb-title-bar-sidebar-toggle-gap)"] > div:first-child';
 const SIDEBAR_OPEN = `${ROOT} .peer[data-state="expanded"][data-side="left"] + [data-sidebar="inset"]`;
 const THREAD_TITLE_ROW =
   '[data-split-pane-id]:has([data-thread-window]) > header > [data-testid="app-page-header-content-row"]';
 const PLUGIN_PAGE_BODY = '[data-testid="plugin-panel-body"]';
+const CONTENT_SHELL = '[data-testid="app-layout-content-shell"]';
+/** A page's header row. Thread rows match too, but the more specific thread-row rules win; no :has() exclusion here, which would
+    restyle a whole thread pane on every streamed token. */
+const PAGE_HEADER_ROW = `${CONTENT_SHELL} [data-testid="app-page-header-content-row"]`;
 const PAGE_COLUMN = `:is(.max-w-5xl, [class~="max-w-[760px]"], ${PLUGIN_PAGE_BODY})`;
 
 const COLUMN_HALF = "404px";
 /** bb's pl-[104px] traffic-light reserve, plus the 6px a header pill reaches outward. */
 const TRAFFIC_LIGHT_RESERVE = "110px";
-const COLUMN_LEFT = `max(var(--ambient-column-gutter, 8px), 50% - ${COLUMN_HALF})`;
-const COLUMN_RIGHT = `max(8px, 50% - ${COLUMN_HALF})`;
+/** Newer bb's reserve for a header row beside the title-bar controls when the sidebar is collapsed; other pages keep it as is. */
+const COLLAPSED_TITLE_BAR_RESERVE =
+  "calc(var(--bb-window-title-bar-controls-end) + 12px - var(--bb-window-card-collapsed-left) - 1rem)";
+// Center the glass and header in the same space bb leaves for the transcript.
+const THREAD_INSET = "var(--ambient-thread-inset-end, 0px)";
+const THREAD_COLUMN_START = `50% - ${THREAD_INSET} / 2 - ${COLUMN_HALF}`;
+const THREAD_COLUMN_END = `50% + ${THREAD_INSET} / 2 - ${COLUMN_HALF}`;
+const COLUMN_LEFT = `max(var(--ambient-column-gutter, 8px), ${THREAD_COLUMN_START})`;
+const COLUMN_RIGHT = `max(8px + ${THREAD_INSET}, ${THREAD_COLUMN_END})`;
 const COLUMN_BOTTOM = "8px";
 const COMPACT_INSET = "max(16px, calc((100% - 760px) / 2 + 16px))";
 
@@ -103,7 +128,8 @@ const HIDE = "display: none;";
 const NO_BLUR = "-webkit-backdrop-filter: none; backdrop-filter: none;";
 const BLUR = "-webkit-backdrop-filter: var(--ambient-blur); backdrop-filter: var(--ambient-blur);";
 const INK_WASH = mix("var(--ink)", "9%");
-const EDGE = `border: 1px solid ${INK_WASH};`;
+/** Glass separates by fill and shadow, not outlines; the transparent border keeps bb's sizing. */
+const EDGE = "border: 1px solid transparent;";
 const SHEEN = `linear-gradient(to bottom, ${mix("var(--canvas)", "28%")}, transparent 45%)`;
 const LAYER = "content: \"\"; position: absolute; z-index: -1; pointer-events: none;";
 /** Glass without the blur: fill, edge and lift. */
@@ -121,6 +147,32 @@ ${SHELL} {
   --ambient-glass-solid: ${mix("var(--ambient-background)", "clamp(88%, calc(var(--ambient-glass, 60%) + 30%), 92%)")};
   --ambient-blur: blur(12px);
 }
+/* The scene is the window's backdrop. A theme's image on bb's desktop window frame is opaque and would hide it. */
+${ROOT} [data-framed] { background-image: none; background-color: var(--background); }
+/* One spacing system for the chrome: every outer surface sits --ambient-edge from the window, neighbors sit --ambient-gap apart,
+   and controls in one row share its top and bottom. The other values place bb's own rows on that grid in each layout. */
+/* On macOS bb raises the title row onto the traffic-light axis even outside the desktop frame (narrow windows); the cards follow it
+   by the same amount so they stay one gap under the chips. Elsewhere this is 0. */
+${ROOT} { --ambient-edge: 8px; --ambient-gap: 8px; --ambient-chip-top: 8px;
+  --ambient-card-shift: calc(var(--bb-macos-traffic-light-center-y, calc(var(--bb-app-chrome-row-height, 3rem) / 2)) - var(--bb-app-chrome-row-height, 3rem) / 2); --ambient-rail-lift: -4px; --ambient-rail-cell-slack: 10px; }
+/* The desktop window's frame lip draws no edge under the scene, so it would only double the inset; without it the window card's
+   1px edge plus Ambient's 8px inset is the edge. Title-bar chips sit on the traffic-light axis, and the content line (rail, New
+   thread, thread and page cards) starts one gap under them. bb's title bar is 50px for the cards' and rail's own offsets
+   (header plus its 1px seam, and the rail's 10px top padding); the values below are derived from its real height. */
+${ROOT} [data-framed] {
+  --bb-window-frame-lip: 0px; --ambient-edge: 9px; --ambient-rail-cell-slack: 11px; --ambient-footer-seam: 1px; /* the sidebar's own 1px edge at its start and bottom */
+  --ambient-chip-top: calc(var(--bb-macos-traffic-light-center-y) - 16px);
+  --ambient-content-top: calc(var(--ambient-chip-top) + 32px + var(--ambient-gap));
+  --ambient-card-shift: calc(var(--ambient-content-top) - var(--bb-window-title-bar-height) - 1px);
+  --ambient-rail-lift: calc(var(--ambient-content-top) - var(--bb-window-title-bar-height) - 10px);
+}
+/* Prism Frame paints the same frame, rail and title bar with an opaque gradient; the scene replaces it. */
+${ROOT} [data-prism-frame-layer] { ${HIDE} }
+/* No hairlines over the scene: the desktop window card's outline, its title-bar seam, and the frame edges. */
+${ROOT} [data-sidebar="inset-edge"] { ${HIDE} }
+${ROOT} [data-sidebar="inset"]::after, ${ROOT} [data-sidebar="collapsible-body"] { border-color: transparent; background-color: transparent; }
+/* The frame carries the one Show-through tint; the card's and sidebar's own fills would draw their edges as tone steps. */
+${ROOT} [data-framed] [data-sidebar="inset"]::before, ${ROOT} [data-framed] [data-sidebar="panel"] { background-color: transparent; border-color: transparent; }
 ${SHELL}[data-ambient-glass="low"] { --ambient-blur: blur(6px); }
 ${SHELL}[data-ambient-glass="solid"] { --ambient-blur: none; --ambient-glass-fill: var(--ambient-glass-solid); }
 :is(${PANES}) { --background: ${mix("var(--ambient-background)", "var(--ambient-keep, 23%)")}; --sidebar: ${mix("var(--ambient-sidebar)", "var(--ambient-keep, 23%)")}; }
@@ -138,6 +190,12 @@ ${THREAD} { position: relative; isolation: isolate; }
 ${THREAD} > * { clip-path: inset(0 0 ${COLUMN_BOTTOM} 0); }
 /* Dense thread content needs the same protective tint as chrome, even at the lowest Glass setting. */
 ${THREAD}::before { ${LAYER} ${GLASS_SURFACE} background-color: var(--ambient-glass-solid); border-radius: 20px; top: 0; bottom: ${COLUMN_BOTTOM}; left: ${COLUMN_LEFT}; right: ${COLUMN_RIGHT}; }
+/* In the desktop window the card starts on the content line, like the rail and New thread beside it. The thread window clips its
+   overflow, so it lets a card raised above its box through. */
+/* Chrome takes only a plain length here (math computes to 0); 4px covers the 2px the card rises in a narrow macOS window. */
+${ROOT} [data-split-pane-id] [data-thread-window] { overflow-clip-margin: 4px; }
+${ROOT} [data-split-pane-id] [data-thread-window]::before, ${ROOT} [data-framed] ${PAGE_MAIN}:not(:has([data-testid="app-page-header-content-row"]))::before { top: var(--ambient-card-shift); }
+${ROOT} [data-split-pane-id] [data-thread-window]::after { top: calc(var(--ambient-card-shift) + 1px); }
 ${THREAD} [data-overflow-fade] { ${HIDE} }
 ${PAGE} { position: relative; isolation: isolate; }
 ${PAGE}::before { ${LAYER} ${GLASS_SURFACE} border-radius: 20px; inset: 0 8px 8px; }
@@ -146,19 +204,62 @@ ${PAGE} ${PLUGIN_PAGE_BODY} { margin-left: max(calc(var(--ambient-column-gutter,
 ${PAGE_MAIN} ${PAGE_COLUMN}:not(${PAGE_COLUMN} *) { anchor-name: --ambient-page-column; }
 ${PAGE_MAIN} #thread-detail-secondary-panel ${PAGE_COLUMN} { anchor-name: none; }
 ${PAGE}::before { left: max(var(--ambient-column-gutter, 8px), anchor(--ambient-page-column left, 8px)); right: max(8px, anchor(--ambient-page-column right, 8px)); }
-${PAGE}:has([data-testid="app-page-header-content-row"])::before { top: var(--bb-app-chrome-row-height, 3rem); }
+/* bb's resource collection pages (Plugins, Skills) scroll in a scroll area that keeps a 12px scrollbar strip right of their column;
+   the card covers it, so its right side matches its left (and reaches the window edge when the column fills the page). The hook is
+   bb's data attribute: an attribute selector on class ([class~=…]) inside :has() would restyle the whole page on every class change. */
+@media (min-width: 768px) { ${PAGE}:has([data-resource-collection-viewport]:not(#thread-detail-secondary-panel *)):not(:has(${PLUGIN_PAGE_BODY}))::before { right: max(8px, calc(anchor(--ambient-page-column right, 20px) - 12px)); } }
+${PAGE}:has([data-testid="app-page-header-content-row"])::before { top: calc(var(--bb-app-chrome-row-height, 3rem) + var(--ambient-card-shift)); }
+/* In the desktop window a page with its header inside it (plugin pages, Automations) starts at the window top; its card starts on
+   the content line. Outside the frame, a page whose header sits above it moves with bb's raised title row. */
+${ROOT} [data-framed] ${PAGE_MAIN}:has([data-testid="app-page-header-content-row"])::before { top: var(--ambient-content-top); }
+${ROOT} [data-testid="app-layout-content-shell"] > header + ${PAGE_MAIN.replace('[data-testid="app-layout-content-shell"] > ', '')}::before { top: var(--ambient-card-shift); }
 @media (max-width: 767px) { ${PAGE} header:has([data-testid="app-page-header-content-row"]) + div { clip-path: inset(0 8px 8px round 0 0 20px 20px); } }
 ${PAGE} { --card: ${mix("var(--ambient-card)", "55%")}; }
 /* Plugin controls own their surfaces; a search input may sit inside an already painted field. */
 ${PAGE} :is(input[type="search"], input[placeholder^="Search" i]):not([data-bb-plugin-root] *) { background-color: ${mix("var(--ambient-card)", "72%")}; border-color: ${mix("var(--ink)", "12%")}; }
 ${PAGE} .bg-card[class*="hover:bg-"]:hover { background-color: color-mix(in oklab, var(--ambient-card) 97%, var(--ink)); border-color: ${mix("var(--ink)", "14%")}; box-shadow: 0 8px 24px -16px ${mix("var(--ink)", "35%")}; }
+/* With the sidebar collapsed, the window card (and its 1px edge) starts right of the rail cell; its column starts one gap after the rail. */
+@media (min-width: 768px) { ${ROOT} .peer[data-collapsible="rail"][data-side="left"] + [data-sidebar="inset"] { --ambient-column-gutter: calc(var(--ambient-edge) + var(--ambient-gap) - var(--ambient-rail-cell-slack) - 1px); } }
 @media (min-width: 768px) { ${SIDEBAR_OPEN} { --ambient-column-gutter: 0px; } ${SIDEBAR_OPEN} [data-testid="app-page-header-content-row"] > :first-child { margin-inline-start: -16px; } }
-@media (min-width: 768px) { ${ROOT} ${THREAD_TITLE_ROW} { padding-inline-start: max(32px, 50% - ${COLUMN_HALF} + 6px); } ${ROOT} ${THREAD_TITLE_ROW}[class~="pl-[104px]"] { padding-inline-start: max(${TRAFFIC_LIGHT_RESERVE}, 50% - ${COLUMN_HALF} + 6px); } ${SIDEBAR_OPEN} ${THREAD_TITLE_ROW} { padding-inline-start: max(0px, 50% - ${COLUMN_HALF} + 16px); } }
+@media (min-width: 768px) { ${ROOT} ${THREAD_TITLE_ROW} { padding-inline-start: max(32px, ${THREAD_COLUMN_START} + 6px); } ${ROOT} ${THREAD_TITLE_ROW}[class~="pl-[104px]"] { padding-inline-start: max(${TRAFFIC_LIGHT_RESERVE}, ${THREAD_COLUMN_START} + 6px); } ${ROOT} ${THREAD_TITLE_ROW}[class*="pl-[calc(var(--bb-window-title-bar-controls-end)"] { padding-inline-start: max(${COLLAPSED_TITLE_BAR_RESERVE}, ${THREAD_COLUMN_START} + 6px); } ${SIDEBAR_OPEN} ${THREAD_TITLE_ROW} { padding-inline-start: max(0px, ${THREAD_COLUMN_START} + 16px); } }
+/* Header pills sit on the edges of the card under them. Threads: the actions pill ends where the 808px thread card ends. */
+@media (min-width: 768px) { ${ROOT} ${THREAD_TITLE_ROW} { padding-inline-end: max(${THREAD_INSET}, ${THREAD_COLUMN_END} + 8px); } }
+/* Pages center a card as wide as their column, which depends on the page type; each sets half its width and the header row follows it
+   the same way thread rows follow the thread card (bb's reserve beside the title-bar controls stays the minimum). Unknown pages keep
+   bb's layout: the 100vw default never wins the max(). Real class selectors (not [class~=…]) keep these :has() checks cheap. */
+${ROOT} { --ambient-page-half: 100vw; }
+${ROOT} ${CONTENT_SHELL}:not(:has([data-thread-window])):has(> main .max-w-\\[760px\\]:not(#thread-detail-secondary-panel *)) { --ambient-page-half: 380px; --ambient-page-row-transition: 0s; }
+${ROOT} ${CONTENT_SHELL}:not(:has([data-thread-window])):has(> main .max-w-5xl:not(#thread-detail-secondary-panel *)) { --ambient-page-half: 512px; --ambient-page-row-transition: 0s; }
+${ROOT} ${CONTENT_SHELL}:not(:has([data-thread-window])):has(> main [data-resource-collection-viewport]:not(#thread-detail-secondary-panel *)) { --ambient-page-half: 518px; --ambient-page-row-transition: 0s; }
+${ROOT} ${CONTENT_SHELL}:not(:has([data-thread-window])):has(> main ${PLUGIN_PAGE_BODY}:not(#thread-detail-secondary-panel *)) { --ambient-page-half: ${COLUMN_HALF}; --ambient-page-row-transition: 0s; }
+/* With the right panel open the column centers in the left part only, and in a split each pane has its own header; both keep bb's
+   layout. bb hides the closed panel with aria-hidden and renders the focus scrim only in split panes. */
+${ROOT} ${CONTENT_SHELL}:has(> main #thread-detail-secondary-panel-handle + [data-panel] > aside:not([aria-hidden="true"])) { --ambient-page-half: 100vw; --ambient-page-row-transition: 200ms; }
+${ROOT} ${CONTENT_SHELL}:has(> main [data-pane-focus-scrim]:not(#thread-detail-secondary-panel *)) { --ambient-page-half: 100vw; --ambient-page-row-transition: 200ms; }
+@media (min-width: 768px) {
+  ${ROOT} ${PAGE_HEADER_ROW} { padding-inline: max(0px, 50% - var(--ambient-page-half) + 6px) max(0px, 50% - var(--ambient-page-half) + 8px); }
+  /* bb animates this padding; on a page that would slide the pill after a card that moves at once. */
+  ${ROOT} ${PAGE_HEADER_ROW} { transition-duration: var(--ambient-page-row-transition, 200ms); }
+  ${ROOT} ${PAGE_HEADER_ROW}[class~="pl-[32px]"] { padding-inline-start: max(32px, 50% - var(--ambient-page-half) + 6px); }
+  ${ROOT} ${PAGE_HEADER_ROW}[class~="pl-[104px]"] { padding-inline-start: max(${TRAFFIC_LIGHT_RESERVE}, 50% - var(--ambient-page-half) + 6px); }
+  ${ROOT} ${PAGE_HEADER_ROW}[class*="pl-[calc(var(--bb-window-title-bar-controls-end)"] { padding-inline-start: max(${COLLAPSED_TITLE_BAR_RESERVE}, 50% - var(--ambient-page-half) + 6px); }
+  ${SIDEBAR_OPEN} ${PAGE_HEADER_ROW} { padding-inline-start: max(0px, 50% - var(--ambient-page-half) + 16px); }
+}
 ${THREAD}::after { content: ""; position: absolute; z-index: 1; pointer-events: none; top: 1px; height: 28px; left: calc(${COLUMN_LEFT} + 1px); right: calc(${COLUMN_RIGHT} + 1px); border-radius: 19px 19px 0 0; background: linear-gradient(to bottom, ${mix("var(--ambient-background)", "18%")}, transparent); }
 ${THREAD} [data-timeline-row-list] :is([data-message-column].border, [data-message-column] .border) { border-color: ${mix("var(--ink)", "8%")}; }
 ${THREAD} [data-markdown-preview] div:has(> div > table) { width: 100% !important; margin-inline: 0 !important; }
-${ROOT} [data-ambient-scroll-clip] { clip-path: inset(0 0 var(--ambient-scroll-clip-bottom, 0px) 0); }
+/* Clip only the bottom: bb portals the text-selection menu into the transcript, and it can overhang the column's sides. */
+${ROOT} [data-ambient-scroll-clip] { clip-path: inset(-100vmax -100vmax var(--ambient-scroll-clip-bottom, 0px) -100vmax); }
 ${THREAD} [data-scroll-footer] > .bg-background { background-color: transparent; }
+@media (max-width: 767px) {
+  /* bb reserves the safe area outside the thread. Leave room inside the glass for the composer too. */
+  ${THREAD} [data-scroll-footer] .chat-prompt-box { padding-block-end: calc(${COLUMN_BOTTOM} + 8px); }
+  /* Let pending questions read across lines within the compact timeline column. */
+  ${THREAD} [data-timeline-row-id*=":question:"] span[title].whitespace-nowrap {
+    display: block; white-space: normal; overflow-wrap: anywhere;
+  }
+  ${THREAD} [data-timeline-row-id*=":question:"] span[title].whitespace-nowrap > span { white-space: normal; }
+}
 /* Pending interactions overlap the scrolling timeline, so their surface must be fully opaque. */
 ${ROOT} :is([data-testid="user-question-banner"], [data-testid="plugin-interaction-shell"], [data-testid="approval-banner"], [data-testid="plan-review-banner"]) { background-color: var(--ambient-background); border-radius: 12px; }
 /* Keep short secret-request actions on one compact row, including on mobile. */
@@ -166,7 +267,8 @@ ${ROOT} [data-testid="plugin-interaction-shell"] [data-bb-plugin="secrets"] form
 ${ROOT} [data-testid="plugin-interaction-shell"] [data-bb-plugin="secrets"] form > .sticky > button { width: auto; }
 ${ROOT} header.bg-surface-scrim { border-color: transparent; }
 ${COMPACT_HOME} > [data-testid="root-compose-compact-scroll-viewport"] { top: auto !important; bottom: 6px; left: ${COMPACT_INSET}; right: ${COMPACT_INSET}; max-height: min(calc(100% - 68px), 594px); border-radius: 20px; }
-${COMPACT_HOME} [data-testid="root-compose-compact-recents-offset"] { ${HIDE} }
+/* bb pads the compact home so Recent rests a few rows above the composer; Ambient bounds that pane itself. */
+${COMPACT_HOME} [data-testid="root-compose-compact-leading-spacer"] { ${HIDE} }
 ${COMPACT_HOME} [data-testid="root-compose-compact-bottom-spacer"] { margin-block-start: -6px; }
 ${COMPACT_HOME} [data-testid="root-compose-compact-scroll-content"] > .px-4 { padding-inline: 0; }
 ${ROOT} [data-root-compose-mobile-recents] { ${GLASS_SURFACE} border-radius: 20px; padding-block: 0 6px; }
@@ -177,57 +279,135 @@ ${COMPACT_COMPOSER} > .bg-background { background: ${SHEEN}, var(--ambient-glass
 /* Recent and the compact composer meet as one glass surface, without a double edge at the join. */
 ${COMPACT_HOME} [data-root-compose-mobile-recents] { border-radius: 20px 20px 0 0; border-block-end: 0; box-shadow: inset 0 1px 0 ${mix("var(--canvas)", "60%")}; }
 ${COMPACT_HOME} [data-testid="root-compose-compact-composer"] > .bg-background { background: var(--ambient-glass-fill); border-radius: 0 0 20px 20px; border-block-start: 0; box-shadow: 0 12px 32px -16px ${mix("var(--ink)", "35%")}; }
-${ROOT} [data-app-composer]:has([data-new-thread-footer]):not([data-testid="root-compose-compact-composer"] *) { ${GLASS_SURFACE} border-radius: 20px; padding: 10px 10px 4px; }
+/* bb wraps the wide home composer in the compact composer too; only the compact one has its own glass. */
+${ROOT} [data-app-composer]:has([data-new-thread-footer]):not([data-testid="root-compose-compact-composer"] > .bg-background *) { ${GLASS_SURFACE} border-radius: 20px; padding: 10px 10px 4px; }
 ${ROOT} [data-app-composer] { --background: ${mix("var(--ambient-background)", "68%")}; }
 /* The opaque follow-up shell fills the seam behind the input and its footer lip. */
 ${ROOT} [data-follow-up-composer] { background-color: var(--ambient-background); border-radius: 12px; }
+/* Low specificity on purpose: plugins that restyle a composer, like Desktop's IM window, keep their own border. */
+:where(${ROOT}) [data-promptbox] { border-color: transparent; }
 ${ROOT} [data-follow-up-composer] [data-promptbox] { --background: var(--ambient-background); ${NO_BLUR} }
 ${ROOT} [data-follow-up-composer-footer] { border-radius: 0 0 12px 12px; padding-inline: 4px; }
 ${ROOT} [data-follow-up-composer-footer] button { background-color: transparent; }
 ${ROOT} [data-follow-up-composer-footer] button:hover { background-color: ${INK_WASH}; }
 ${ROOT} [role="img"][aria-label="bb"] + div { ${GLASS_SURFACE} border-radius: 20px; padding: 6px; }
-${ROOT} div.fixed:has(> ${RIGHT_PANEL_BUTTON}) { top: calc(6px + env(safe-area-inset-top)); right: calc(6px + env(safe-area-inset-right)); }
-${ROOT} div.fixed > ${RIGHT_PANEL_BUTTON} { ${GLASS_CHIP} border-radius: 12px; }
+/* The lone right-panel toggle lines up with the header pills: same 8px inset and 32px height. */
+${ROOT} div.fixed:has(> ${RIGHT_PANEL_BUTTON}) { top: calc(8px + env(safe-area-inset-top)); right: calc(8px + env(safe-area-inset-right)); }
+${ROOT} div.fixed > ${RIGHT_PANEL_BUTTON} { ${GLASS_CHIP} border-radius: 12px; width: 32px; height: 32px; }
+/* In the desktop window bb moves it onto the traffic-light axis itself; 10px puts it on the chips' line there, on the edge. */
+${ROOT} [data-framed] div.fixed:has(> ${RIGHT_PANEL_BUTTON}) { top: 10px; right: var(--ambient-edge); }
 ${ROOT} [data-sidebar="panel"] { background-color: var(--background); border-inline-end-color: transparent; }
 :is(${CHROME_PILLS}) { ${GLASS_CHIP} border-radius: 12px; padding-inline: 6px; }
+/* Content sits 13px inside every chrome pill: an icon button gets it from the pill's 6px plus its own 6px inset (and the 1px edge),
+   text and bare icons from 12px of padding. bb pads some of these buttons on one side only. */
+:is(${CHROME_PILLS}):is([data-testid="app-page-header-content-row"] > :first-child) { padding-inline: 12px; }
+${HEADER_FIRST} button[aria-label="Thread actions"] { margin-inline-end: -6px; }
+${ROOT} ${SIDEBAR_HEADER_CONTENT} > :is(button, a) { padding-inline: 6px; }
+${ROOT} ${SIDEBAR_HEADER_SEARCH} { min-height: 32px; max-height: 32px; padding-inline: 12px 6px; }
+${ROOT} ${SIDEBAR_HEADER_SEARCH}:is(:hover, :focus-within) { background-image: linear-gradient(var(--state-hover), var(--state-hover)); }
+${ROOT} ${HEADER_ACTIONS} button[aria-label^="Open workspace"] { padding-inline-start: 6px; }
 ${ROOT} ${SIDEBAR_RESERVE_PILL} { margin-inline: -6px; }
 ${ROOT} [data-testid="app-desktop-sidebar-trigger"][class~="left-[84px]"] { margin-inline-start: 6px; }
 ${ROOT} [data-testid="app-page-header-content-row"][class~="pl-[104px]"] { padding-inline-start: ${TRAFFIC_LIGHT_RESERVE}; }
 ${ROOT} ${SIDEBAR_HEADER_CONTENT} { display: flex; align-items: center; min-width: 0; max-width: 100%; min-height: 32px; overflow: hidden; }
+/* Like the other title-row chips, the header pill is 32px tall on touch screens too; bb's 36px touch buttons fit inside it. */
+${ROOT} ${SIDEBAR_HEADER_CONTENT}:not(:empty) { max-height: 32px; } ${ROOT} ${SIDEBAR_HEADER_CONTENT} button { max-height: 32px; }
 ${ROOT} button[data-sidebar="trigger"] { margin-inline: -4px 0; width: 32px; height: 32px; }
+/* Outside the desktop title bar the toggle heads the rail column, so it starts on the same edge. bb insets it by the rail padding,
+   less 2px except on touch phones. */
+${ROOT} button[data-sidebar="trigger"]:not([data-framed] *, [data-testid="app-desktop-sidebar-trigger"] *) { margin-inline-start: calc(var(--ambient-edge) - var(--bb-sidebar-rail-padding, 12px) + 2px); }
+@media (width < 48rem) and (pointer: coarse) { ${ROOT} button[data-sidebar="trigger"]:not([data-framed] *, [data-testid="app-desktop-sidebar-trigger"] *) { margin-inline-start: calc(var(--ambient-edge) - var(--bb-sidebar-rail-padding, 12px)); } }
+/* In the desktop title bar, back and forward share one chip like the sidebar toggle beside them. */
+${ROOT} [data-framed] ${TITLE_BAR_HISTORY_PAIR} { ${GLASS_CHIP} border-radius: 12px; height: 32px; padding-inline: 2px; margin-inline-end: 7px; }
+/* That chip widens the title-bar controls by 13px (edge, padding, gap). bb's reserve token grows with it, plus 1px so a collapsed-sidebar header
+   pill sits one gap from the toggle. */
+${ROOT} [data-framed] { --bb-window-title-bar-controls-end: calc(var(--bb-macos-traffic-light-reserve) + 3 * var(--bb-title-bar-control-size) + var(--bb-title-bar-sidebar-toggle-gap) + 14px); }
+/* Outside the desktop title bar the pair sits in the sidebar header at the same 32px height; touch buttons fit inside it. */
+${ROOT} ${HISTORY_PAIR} { height: 32px; }
+${ROOT} ${HISTORY_PAIR} > button { max-height: 100%; }
+/* Rail icons sit on the same opaque chip as the toggle above them; the column hugs its icons. */
+${RAIL} { flex: 0 1 auto; width: auto; padding: 6px; ${GLASS_CHIP} border-radius: 12px; }
+${RAIL_SETTINGS} { ${GLASS_CHIP} border-radius: 12px; width: 38px; height: 38px; margin-block: 0; }
+/* The rail column starts on the window edge and at the content line: one gap under the title-bar chips. */
+${ROOT} [data-testid="app-nav-rail"] { align-items: flex-start; padding-inline-start: var(--ambient-edge); margin-block-start: var(--ambient-rail-lift); }
+/* Settings closes the bottom row: on the edge, and its bottom on the edge like the footer tray and the cards beside it. */
+/* The row is one control plus one gap tall, so a footer panel open above it ends one gap above the tray. */
+${ROOT} [data-testid="sidebar-navigation-rail"] ~ div:has(> button[aria-label^="Settings"]) { justify-content: flex-start; align-items: flex-end; block-size: calc(38px + var(--ambient-gap) + var(--ambient-edge) + env(safe-area-inset-bottom)); padding: 0 0 calc(var(--ambient-edge) + env(safe-area-inset-bottom)) var(--ambient-edge); }
+/* Touch screens get bb's 36px rail buttons; Settings keeps the rail's width so the column's edges line up. */
+@media (width < 48rem) and (pointer: coarse) { ${RAIL_SETTINGS} { width: 50px; } }
 ${ROOT} [data-testid="app-sidebar-top-reserve-row"] > div:nth-child(n) { margin-inline-end: 0; min-height: 32px; }
-${HEADER_FIRST} { flex: 0 1 auto; min-width: 0; min-height: 32px; margin-inline: -6px 6px; padding-inline-start: 12px; }
+/* The header row lines up with the cards under it: same start, and its last pill ends where they end. */
+${RAIL_SIDEBAR} [data-testid="app-sidebar-top-reserve-row"] { margin-inline: calc(var(--ambient-edge) + var(--ambient-gap) - var(--ambient-rail-cell-slack) - 8px) -1px; }
+/* In the desktop window the sidebar's first row (New thread, a section's search, or nothing) starts on the content line too. */
+${ROOT} [data-framed] [data-testid$="-sidebar-top-reserve-row"] { margin-block-start: calc(var(--ambient-content-top) - var(--bb-window-title-bar-height) - 9px); }
+/* Header pills sit one gap apart, whatever gap bb gives the row. */
+${ROOT} [data-testid="app-page-header-content-row"] { column-gap: var(--ambient-gap); }
+${HEADER_FIRST} { flex: 0 1 auto; min-width: 0; min-height: 32px; margin-inline: -6px 0; padding-inline-start: 12px; }
+/* In narrow windows the title pill starts one gap after the toggle; bb reserves 32px for it, or 40px on phones. */
+@media (max-width: 767px) { ${HEADER_FIRST} { margin-inline-start: 0; } }
+@media (max-width: 767px) and (pointer: coarse) { ${HEADER_FIRST} { margin-inline-start: -8px; } }
 ${HEADER_FIRST}:has([data-pane-header-focus-tab]) { background-image: linear-gradient(var(--state-active), var(--state-active)); }
 ${ROOT} [data-pane-header-focus-tab] { background-color: transparent; }
 ${ROOT} ${HEADER_ACTIONS} { margin-inline: auto -8px; min-height: 32px; }
 ${ROOT} ${HEADER_ACTIONS} button.border { border-color: transparent; }
+/* bb pulls the desktop title bar's right-panel toggles, and the slot one reserves in split panes, out to the window edge; inside the pill and the panel they keep their padding. */
+${ROOT} ${HEADER_ACTIONS} :is(${RIGHT_PANEL_BUTTON}, [data-thread-header-pane-actions] > span[aria-hidden]), ${RIGHT_PANEL} ${RIGHT_PANEL_BUTTON} { margin-inline-end: 0; }
+/* The split panes' floating toggle sits exactly on that slot (bb's 16px chrome padding, less the pill's 8px overhang, plus its padding and gap). */
+${ROOT} [data-testid="split-workspace-panel-toggle"] { right: 15px; }
 ${ROOT} [data-thread-header-workflow-actions]:not(:has(button, a)) { ${HIDE} }
 ${ROOT} ${HEADER_ACTIONS}:has(> [data-thread-header-pane-actions]) { column-gap: 0; }
 ${ROOT} ${HEADER_ACTIONS} [data-thread-header-pane-actions] { margin-inline-start: 0; column-gap: 0; }
-@media (max-width: 767px) { ${ROOT} div.fixed:has(> ${RIGHT_PANEL_BUTTON}) { top: calc(8px + env(safe-area-inset-top)); right: calc(8px + env(safe-area-inset-right)); } ${ROOT} :is(div.fixed, ${HEADER_ACTIONS}) ${RIGHT_PANEL_BUTTON}, ${ROOT} [data-thread-header-pane-actions] button { width: 32px; height: 32px; } :is(${HEADER_FIRST}, ${ROOT} ${HEADER_ACTIONS}) { height: 32px; min-height: 32px; } ${ROOT} ${HEADER_ACTIONS}:has(${RIGHT_PANEL_BUTTON}) { padding-inline-end: 0; } }
-:is(${THREAD}, ${PAGE}, ${SIDEBAR_CARDS}, ${SECTION_BACK}, ${CHROME_PILLS}, ${OVERLAY}) { --state-hover: ${INK_WASH}; --state-active: ${mix("var(--ink)", "15%")}; --sidebar-accent: var(--state-hover); }
-${SIDEBAR_CARDS} { ${GLASS_SURFACE} border-radius: 16px; margin-inline: 8px; }
-${SECTION_BACK} { ${GLASS_SURFACE} border-block-end: 0; border-radius: 16px 16px 0 0; margin-inline: 8px; padding-block: 8px 4px; box-shadow: inset 0 1px 0 ${mix("var(--canvas)", "60%")}; }
-${SECTION_BACK} + [data-sidebar="content"] { border-block-start-color: ${INK_WASH}; border-start-start-radius: 0; border-start-end-radius: 0; box-shadow: 0 12px 32px -16px ${mix("var(--ink)", "35%")}; }
+@media (max-width: 767px) { ${ROOT} :is(div.fixed, ${HEADER_ACTIONS}) ${RIGHT_PANEL_BUTTON}, ${ROOT} [data-thread-header-pane-actions] button { width: 32px; height: 32px; } :is(${HEADER_FIRST}, ${ROOT} ${HEADER_ACTIONS}) { height: 32px; min-height: 32px; } ${ROOT} ${HEADER_ACTIONS}:has(${RIGHT_PANEL_BUTTON}) { padding-inline: 3px; } }
+:is(${THREAD}, ${PAGE}, ${SIDEBAR_CARDS}, ${SECTION_BACK}, ${CHROME_PILLS}, ${RAIL}, ${RAIL_SETTINGS}, ${OVERLAY}) { --state-hover: ${INK_WASH}; --state-active: ${mix("var(--ink)", "15%")}; --sidebar-accent: var(--state-hover); }
+/* The sidebar column ends 1px before the window card, so the cards end one gap before the thread and page cards. */
+${SIDEBAR_CARDS} { ${GLASS_SURFACE} border-radius: 16px; margin-inline: calc(var(--ambient-edge) - var(--ambient-footer-seam, 0px)) calc(var(--ambient-gap) - 1px); }
+${SECTION_BACK} { ${GLASS_SURFACE} border-block-end: 0; border-radius: 16px 16px 0 0; margin-inline: 8px calc(var(--ambient-gap) - 1px); padding-block: 8px 4px; box-shadow: inset 0 1px 0 ${mix("var(--canvas)", "60%")}; }
+/* Beside the icon rail, the cards start one gap after it (bb's rail cell is the rail plus this slack). */
+${RAIL_SIDEBAR} :is([data-sidebar="content"], [data-sidebar="footer"], [data-testid$="-sidebar-top-reserve-row"] + div:has(+ [data-sidebar="content"])) { margin-inline-start: calc(var(--ambient-edge) + var(--ambient-gap) - var(--ambient-rail-cell-slack)); }
+/* In the rail layout the footer row below already holds one gap; the list card ends on it. Footer panels and the footer editor
+   under the list share the cards' column and sit one gap above the tray, while the card above keeps its own height. */
+${RAIL_SIDEBAR} [data-testid="app-sidebar-body"] > [data-sidebar="content"] { margin-block-end: 0; }
+${RAIL_SIDEBAR} [data-testid="app-sidebar-body"] > [data-sidebar="content"] ~ div:not([data-testid]) { padding-inline: calc(var(--ambient-edge) + var(--ambient-gap) - var(--ambient-rail-cell-slack)) calc(var(--ambient-gap) - 1px); margin-block-start: auto; padding-block-start: 0; }
+/* The gap goes on the first panel (bb's overflow fade, positioned absolutely, may come first), so an empty container takes no space. */
+${RAIL_SIDEBAR} [data-testid="app-sidebar-body"] > [data-sidebar="content"] ~ div:not([data-testid]) > :first-child:not([data-overflow-fade]), ${RAIL_SIDEBAR} [data-testid="app-sidebar-body"] > [data-sidebar="content"] ~ div:not([data-testid]) > [data-overflow-fade]:first-child + * { margin-block-start: var(--ambient-gap); }
+${SECTION_BACK} + [data-sidebar="content"] { border-block-start-color: transparent; border-start-start-radius: 0; border-start-end-radius: 0; box-shadow: 0 12px 32px -16px ${mix("var(--ink)", "35%")}; }
 ${SECTION_BACK} + [data-sidebar="content"] > .px-2:first-child { padding-block-start: 8px; }
 :is(${SIDEBAR_CARDS}, ${OVERLAY}) .w-px.bg-border-hairline, :is(${SIDEBAR_CARDS}, ${OVERLAY}) [class*="before:bg-border-hairline"]::before { ${HIDE} }
 ${ROOT} [data-testid="sidebar-navigation-region"] { margin-block: 0 8px; }
 ${ROOT} [data-testid="sidebar-navigation-region"] [data-testid="navigation-divider"] { ${HIDE} }
 ${ROOT} [data-sidebar="content"] { flex: 0 1 auto; min-height: min(7rem, 18dvh); margin-block-end: auto; }
-${ROOT} [data-sidebar="content"]:not(:has(~ [data-sidebar="footer"])) { margin-block-end: 8px; }
+/* Without a footer, the card itself ends on the bottom edge. */
+${ROOT} [data-sidebar="content"]:not(:has(~ [data-sidebar="footer"])) { margin-block-end: calc(var(--ambient-edge) - var(--ambient-footer-seam, 0px)); }
 ${ROOT} [data-sidebar="content"] > .px-2:first-child { padding-block-start: 12px; }
 @media (max-height: 560px) { ${ROOT} [data-testid="sidebar-navigation-region"] { flex: 0 1 auto; min-height: 3rem; overflow-y: auto; } }
 /* bb measures this row to decide which icons fit. Shrink-to-content makes overflow capacity depend on the icons it already hid. */
 ${SIDEBAR_FOOTER} { flex-shrink: 0; margin-block: 8px; align-self: stretch; width: auto; }
-${SIDEBAR_FOOTER} [data-testid^="plugin-sidebar-footer-disclosure-"] { border-color: transparent; background-color: transparent; }
+${ROOT} [data-framed] [data-sidebar="footer"] { margin-block: 0; }
+/* The footer tray is a glass strip as tall as the Settings chip beside it, as wide as the cards above it, on the same bottom edge. */
+${FOOTER_TRAY} { position: relative; isolation: isolate; background: none; box-shadow: none; ${NO_BLUR} block-size: 38px; padding-block: 0; padding-inline: 6px; margin-block: var(--ambient-gap) calc(var(--ambient-edge) - var(--ambient-footer-seam, 0px)); }
+/* In the rail layout the footer shares a row with Settings: it fills the row's width and sits at its bottom. */
+${ROOT} [data-testid="sidebar-footer-body"] [data-sidebar="footer"]:not(:has(> [data-overflow-fade])) { flex: 1 1 0%; min-inline-size: 0; align-self: flex-end; }
+/* The glass covers bb's 1px transparent footer border too, so it is exactly the footer's 38px. */
+${FOOTER_TRAY}::before { ${LAYER} ${GLASS_SURFACE} border-radius: 12px; inset: -1px; }
+${SIDEBAR_FOOTER} [data-testid^="plugin-sidebar-footer-disclosure-"] { background-color: transparent; }
+${ROOT} [data-testid^="plugin-sidebar-footer-disclosure-"] { border-color: transparent; }
 ${SIDEBAR_FOOTER} > [data-overflow-fade], ${SIDEBAR_FOOTER} > ul > li[aria-hidden="true"]:empty { ${HIDE} }
 :is(${SIDEBAR_CARDS}, ${RIGHT_PANEL}) :is(.sticky, [data-sidebar-sticky-tier], [data-sidebar-sticky-stack]), ${OVERLAY} :is(.sticky:not(.bg-sidebar, .bg-background, .bg-popover), [data-sidebar-sticky-tier], [data-sidebar-sticky-stack]), :is(${SIDEBAR_CARDS}) [data-sidebar-sticky-stack]::before { ${NO_BLUR} }
 :is(${SIDEBAR_CARDS}) [data-sidebar-sticky-stack] [data-sidebar-sticky-tier] { position: relative; top: auto; }
-${RIGHT_PANEL} { ${GLASS_SURFACE} inset: 8px 8px 8px 2px; height: auto; max-width: calc(100% - 10px); border-radius: 20px; overflow: hidden; --background: transparent; --sidebar: transparent; }
+${RIGHT_PANEL} { ${GLASS_SURFACE} inset: var(--ambient-chip-top) 8px 8px 0; height: auto; max-width: calc(100% - 8px); border-radius: 20px; overflow: hidden; --background: transparent; --sidebar: transparent; }
+/* A thread in the right panel (Side chat) uses the panel as its card: no centered card of its own, the same solid tint behind its text. */
+${RIGHT_PANEL} [data-thread-window]::before, ${RIGHT_PANEL} [data-thread-window]::after { ${HIDE} }
+${RIGHT_PANEL} [data-thread-window] { background-color: var(--ambient-glass-solid); }
+${RIGHT_PANEL} [data-thread-window] > * { clip-path: none; }
+/* Split panes' cards sit one gap apart: the invisible 1px separator overlaps the next pane instead of adding to the gap. */
+${ROOT} [role="separator"][data-split-resize-grid-boundary] { margin-inline-end: -1px; }
+${ROOT} [role="separator"][data-split-resize-grid-boundary] + div { --ambient-column-gutter: 0px; }
 ${ROOT} :is([role="separator"][data-split-resize-grid-boundary], [data-panel-resize-handle-id]):not(:hover, [data-dragging], [data-resize-handle-state="drag"]), ${ROOT} [data-panel-resize-handle-id]:not(:hover, [data-resize-handle-state="drag"]) > span { background-color: transparent; }
 ${RIGHT_PANEL} [data-app-browser] > [class~="flex-1"]:last-child { margin: 0 8px 8px; border-radius: 12px; overflow: hidden; }
 ${OVERLAY} { ${GLASS_PANE} --background: transparent; --popover: transparent; --sidebar: transparent; }
 ${OVERLAY}::before { ${LAYER} inset: 0; border-radius: inherit; ${BLUR} }
+/* Menus inside a thread, like the text-selection menu, sit on dense text; their surface is opaque. */
+${THREAD} [data-bb-portaled-overlay]:is([role="dialog"], [role="menu"], [role="listbox"]) { background-color: var(--ambient-background); }
 ${OVERLAY} .sticky:is(.bg-sidebar, .bg-background, .bg-popover) { --sidebar: transparent; --background: transparent; --popover: transparent; ${BLUR} }
 ${SHELL}[data-ambient-glass="solid"] ${OVERLAY} .sticky:is(.bg-sidebar, .bg-background, .bg-popover) { --sidebar: var(--ambient-glass-solid); --background: var(--ambient-glass-solid); --popover: var(--ambient-glass-solid); }
 ${OVERLAY}[data-testid="secondary-panel-shelf"] .sticky:is(.bg-sidebar, .bg-background, .bg-popover) { --sidebar: var(--ambient-glass-solid); --background: var(--ambient-glass-solid); --popover: var(--ambient-glass-solid); ${NO_BLUR} }

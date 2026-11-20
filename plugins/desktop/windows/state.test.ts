@@ -74,6 +74,7 @@ describe("stored windows (v1)", () => {
   it("never stores form windows", () => {
     expect(parseSpec({ kind: "new-folder" })).toBeNull();
     expect(parseSpec({ kind: "new-thread", groupKey: null })).toBeNull();
+    expect(parseSpec({ kind: "new-app" })).toBeNull();
     const opened = windowReducer({ windows: [], nextZ: 1 }, { type: "open", spec: { kind: "new-folder" }, rect: area });
     expect(JSON.parse(serializeWindows(opened.windows))).toEqual([]);
   });

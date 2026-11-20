@@ -24,6 +24,7 @@ describe("Quick Launch ids", () => {
       "skills",
       "maze",
       "finder",
+      "new-app",
     ]);
   });
 

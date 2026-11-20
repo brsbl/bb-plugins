@@ -52,6 +52,7 @@ ${after} {
 }
 
 export const STYLESHEET = pillStyles(['[data-bb-url-pill]:not([data-bb-url-pill-expanded])'], 'attr(data-bb-url-pill-label)') + `
+a[data-bb-url-pill] > span.whitespace-nowrap > :last-child { display: none; }
 a[data-bb-url-pill]:hover { background: var(--accent, #8882); }
 a[data-bb-url-pill]:focus-visible { outline: 2px solid var(--ring, #748dff); outline-offset: 2px; }
 `;

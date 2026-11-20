@@ -2,7 +2,9 @@
 
 Paste an HTTP or HTTPS URL into the composer to show it as a compact pill with a website icon. Sent messages and agent replies use the same presentation. Click a pill to open its destination using your bb browser preference.
 
-The original URL stays in your draft and messages, including its query and fragment. Code and authored Markdown labels keep their native presentation. URLs with overlapping editor highlights stay as text.
+Local file paths appear with file-type icons and open using bb’s normal file flow, including configured plugin handlers. Named file links keep their labels. A path containing spaces becomes a pill when it is alone on its line. Paths without a known opening context stay as text.
+
+The original URL stays in your draft and messages, including its query and fragment. Code and authored website-link labels keep their native presentation. URLs with overlapping editor highlights stay as text.
 
 ## Website icons
 

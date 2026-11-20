@@ -1,6 +1,6 @@
 ---
 name: playgrounds
-description: "Answer with something the person can operate, inline in a bb message: Anatomy figures (working machines, via the bundled how-it-works skill), calculators, charts, clickable mock-ups, live design previews, motion previews, simulations and step-by-step guides. Use it even when nobody says playground: explaining how a system, protocol, pipeline or mechanism works (to them or their team), \"show me\", \"let me play with / adjust\", comparing options or settings, mocking up a screen or flow, picking design values, or seeing a tradeoff play out over time."
+description: "Publish an interactive calculator, simulation, prototype, or guided activity inline in bb. Use for explicit Playground requests or when operating the result materially helps someone explore assumptions, try a workflow, or see how a system responds. Use prose or static visuals for ordinary explanations, status updates, reports, and simple comparisons."
 ---
 
 # Playgrounds
@@ -24,12 +24,14 @@ at 16 KiB; pass larger HTML playgrounds as `--playground '<json>'`.
 
 ## Choose the form
 
-Build something they can operate whenever it explains better than prose, even if
-they never say "playground". Answer in prose only when one sentence would do.
+Use a Playground when the user asks for one or when operating the result
+materially helps them explore, decide, or try something. Use prose or a static
+visual for ordinary explanations, status updates, reports, and simple comparisons.
+When an interactive card fits, choose the form below.
 
-| They ask about | Build |
+| Useful interaction | Build |
 | --- | --- |
-| How a system, mechanism, protocol or pipeline works ("how does OAuth login work?", "walk my team through our job queue") | A quick Anatomy figure: load the bundled `how-it-works` skill, use its default quick workflow, and expose the model's inputs as playground parameters (see Anatomy figures) |
+| Change inputs and see how a system, mechanism, protocol or pipeline responds | A quick Anatomy figure: load the bundled `how-it-works` skill, use its default quick workflow, and expose the model's inputs as playground parameters (see Anatomy figures) |
 | Numbers, pricing, "how much / which", a decision | Calculator set |
 | Funnels, time series, distributions | A chart, with the inputs that drive it |
 | A screen or flow | A clickable mock-up of it |
@@ -164,7 +166,8 @@ not supported. Long prompts that do not fit at 32px fail visibly; try portrait.
 
 Write body markup with inline `<style>` and `<script>`. It renders in a
 sandboxed, opaque-origin frame inside a rounded bb card that sizes itself to
-the content; `width` (320–1200) caps the card width.
+the content and supplies an inset around the frame; `width` (320–1200) caps the
+card width.
 
 ### Behavior
 
@@ -180,11 +183,13 @@ the content; `width` (320–1200) caps the card width.
   the event log.
 - Use real buttons with `aria-pressed` or `aria-current`, visible focus, and
   keyboard support (arrow keys for steps).
-- The frame cannot reach bb, cookies, the conversation, or the network. It
-  shares only what it saves or emits. Scripts, styles, and fonts must be
-  inline (bb supplies Inter). Images load only from `data:`/`blob:` URLs and
-  `https://upload.wikimedia.org`; bb blocks every other request, including
-  remote scripts, `fetch`, and map tiles. Credit photo sources in your prose.
+- Embed photos and screenshots as `data:image/…` URLs so they work across
+  reloads, saved copies, and export. Compress large images before embedding and
+  use `--playground-file` for HTML above the CLI stdin limit. Verify each image
+  decodes in the published frame. Blob URLs must be created inside that frame.
+  The only remote image host is `https://upload.wikimedia.org`.
+- Inline scripts, styles, and fonts (bb supplies Inter). The sandbox blocks
+  fetch, remote scripts, map tiles, and access to bb or cookies.
 - The frame grows to fit its content. Never size the page from the viewport
   (`100vh`, `height: 100%` on `body`), or the frame keeps growing.
 - Web links and `window.playground.send()` work only right after the user clicks
@@ -402,14 +407,10 @@ they're stuck on a step. Drawings carry the guide:
   that step, so no two steps show the same picture. Mark folds and creases
   with dashed lines and motion with an arrow.
 
-**Photos.** Whenever the answer is about real places, plants, foods or
-products (a garden plan, a day trip, a recipe), open with two or three real
-photos: `<div data-pg="photos"><img src="…" alt="…">…</div>` lays them out
-(one tall, two stacked) and drops any that fail. Find them on Wikimedia
-Commons, use the `upload.wikimedia.org` host (swap it in for
-`thumb.wikimedia.org`; thumbnails come in fixed sizes such as 960px), check
-each link returns 200 with `curl -sI` before publishing, and credit them in
-the details.
+**Photos.** Include images when they help the person identify or compare
+something. Use the embedded image guidance above. The optional
+`<div data-pg="photos">` arranges images and removes any that fail. Supply
+descriptive alt text and credit the source in accompanying prose.
 
 **Places and routes.** Map tiles are blocked, so draw the area as a
 schematic SVG: water and parks as shapes, numbered stops joined by the
@@ -498,8 +499,9 @@ shows a setup step, two boards and hidden pieces), and
 [Anatomy](https://skills.wheresryan.sh/anatomy), by Ryan
 ([@wheresryan22](https://github.com/wheresryan22)), draws a technical idea as a
 working isometric machine. Playgrounds ships a copy as the `how-it-works` skill.
-Whenever someone asks how a system, mechanism, protocol or pipeline works, load
-the `how-it-works` skill and follow its **quick figure** workflow: one mechanism,
+Use the `how-it-works` skill when the user asks for an interactive figure or
+when changing inputs makes the mechanism easier to understand. Its **quick
+figure** workflow covers one mechanism,
 at most 40 parts, SVG only, no audit pass, and about 3 minutes to a working card.
 Start from the nearest bundled example when it fits. Show progress, choose
 reasonable defaults without clarifying questions, and leave the full Figure/Hero
