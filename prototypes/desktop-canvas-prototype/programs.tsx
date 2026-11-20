@@ -3,7 +3,6 @@ import { toast } from "sonner";
 import {
   experimental_Icon as Icon,
   experimental_NewThreadComposer as NewThreadComposer,
-  experimental_ProviderIcon as ProviderIcon,
   experimental_useSidebarThreadActions as useSidebarThreadActions,
   ThreadChat,
   type NewThreadRequest,
@@ -16,13 +15,13 @@ import { acceptsDrop, type Collection } from "./canvas-organization";
 import { Button } from "./components/ui/button";
 import { describeStatus, folderSummary, groupTone, relativeTime, statusTone, type Rect } from "./core";
 import { errorMessage, useDesktop, type DesktopContextValue } from "./data";
-import { useAskText, useMenu } from "./menu";
+import { useAskText, useMenu, type MenuEntry } from "./menu";
 import { useSideChatActions } from "./side-chat";
 import { TerminalWindow } from "./terminal-window";
 import { InfoWindow, RelatedWindow, activityLine, useAgentName } from "./thread-companions";
 import { besideRect, isAttached } from "./window-state";
 import { useCanvasControls } from "./camera";
-import { WindowFrame, clampInto, isTap, usePointerTracker, visibleRect, useWindowManager, windowSize, type DesktopWindow, type WindowSpec } from "./windows";
+import { WindowFrame, clampInto, isTap, usePointerTracker, visibleRect, useWindowManager, windowSize, type DesktopWindow, type WindowManager, type WindowSpec } from "./windows";
 
 /** Every window the canvas opens: Desktop's programs without the Windows XP skin. */
 
@@ -60,22 +59,14 @@ function ThreadStatus({ thread }: { thread: PluginSidebarThread }) {
   );
 }
 
-/** Threads carry no glyph, as in bb's sidebar, unless the sidebar shows provider icons. */
-function ThreadGlyph({ thread }: { thread: PluginSidebarThread }) {
-  const { preferences } = useDesktop();
-  return preferences.showProviderIcons ? <ProviderIcon providerKind="agent" provider={{ id: thread.providerId }} /> : null;
-}
-
-function Nav({ window: desktopWindow }: { window: DesktopWindow }) {
-  const manager = useWindowManager();
+/** Back and Forward, in a folder window's … menu. */
+function navEntries(desktopWindow: DesktopWindow, manager: WindowManager): MenuEntry[] {
   const back = desktopWindow.history?.back.length ?? 0;
   const forward = desktopWindow.history?.forward.length ?? 0;
-  return (
-    <span className="cdc-nav">
-      <button type="button" className="cdc-tool" aria-label="Back" title="Back" disabled={back === 0} onClick={() => manager.goBack(desktopWindow.id)}><Icon name="ChevronLeft" /></button>
-      <button type="button" className="cdc-tool" aria-label="Forward" title="Forward" disabled={forward === 0} onClick={() => manager.goForward(desktopWindow.id)}><Icon name="ChevronRight" /></button>
-    </span>
-  );
+  return [
+    { label: "Back", icon: "ChevronLeft", disabled: back === 0, run: () => manager.goBack(desktopWindow.id) },
+    { label: "Forward", icon: "ChevronRight", disabled: forward === 0, run: () => manager.goForward(desktopWindow.id) },
+  ];
 }
 
 function Search({ value, onChange, label }: { value: string; onChange: (value: string) => void; label: string }) {
@@ -87,13 +78,12 @@ function Search({ value, onChange, label }: { value: string; onChange: (value: s
   );
 }
 
-function ViewToggle({ view, onChange }: { view: "icons" | "list"; onChange: (view: "icons" | "list") => void }) {
-  return (
-    <span className="cdc-segmented" role="group" aria-label="View">
-      <button type="button" className="cdc-tool" aria-label="Icon view" title="Icon view" aria-pressed={view === "icons"} onClick={() => onChange("icons")}><Icon name="GridView" /></button>
-      <button type="button" className="cdc-tool" aria-label="List view" title="List view" aria-pressed={view === "list"} onClick={() => onChange("list")}><Icon name="ListView" /></button>
-    </span>
-  );
+/** Icons or a list, in a folder window's … menu. */
+function viewEntries(view: "icons" | "list", onChange: (view: "icons" | "list") => void): MenuEntry[] {
+  return [
+    { label: "Icons", icon: "GridView", checked: view === "icons", run: () => onChange("icons") },
+    { label: "List", icon: "ListView", checked: view === "list", run: () => onChange("list") },
+  ];
 }
 
 const matches = (needle: string) => (thread: PluginSidebarThread) => needle === "" || thread.displayTitle.toLocaleLowerCase().includes(needle);
@@ -192,7 +182,6 @@ function ThreadCollection({ windowId, folders = [], threads, group, view, empty,
           ))}
           {shown.map((thread) => (
             <div key={thread.id} className="cdc-file-icon cdc-thread-card" data-unread={thread.isUnread || undefined} {...itemProps(thread)}>
-              <ThreadGlyph thread={thread} />
               <span className="cdc-file-label">{thread.displayTitle}</span>
               <ThreadStatus thread={thread} />
             </div>
@@ -224,7 +213,6 @@ function ThreadCollection({ windowId, folders = [], threads, group, view, empty,
       {shown.map((thread) => (
         <div key={thread.id} className="cdc-row" data-unread={thread.isUnread || undefined} {...itemProps(thread)}>
           <span className="cdc-row-name">
-            <ThreadGlyph thread={thread} />
             <span>
               <span className="cdc-row-title">{thread.displayTitle}</span>
               {showFolders && desktop.foldersOf(thread.id).length > 0 ? <small>{desktop.foldersOf(thread.id).join(", ")}</small> : null}
@@ -265,14 +253,12 @@ function FinderWindow({ window: desktopWindow, groupKey }: { window: DesktopWind
   return (
     <WindowFrame window={desktopWindow} title={group.name} icon={group.icon} iconClassName={RESOURCE_ICON}
       overview={{ detail: `${total} ${total === 1 ? "thread" : "threads"}`, tone: groupTone(collectionMembers(group)).tone }}
-      statusBar={<><span>{needle ? threads.length : total} {(needle ? threads.length : total) === 1 ? "thread" : "threads"}{!needle && group.children.length ? ` · ${group.children.length} folders` : ""}</span></>}
+      menu={() => [...navEntries(desktopWindow, manager), "separator", ...viewEntries(view, setView)]}
       bodyProps={threadDropTarget(group) as Record<string, string>}>
       <div className="cdc-finder">
         <div className="cdc-toolbar">
-          <Nav window={desktopWindow} />
           <Search value={query} onChange={setQuery} label={`Search ${group.name}`} />
           {canStartThread(group) ? <Button size="sm" variant="ghost" aria-label="New thread" onClick={() => manager.open({ kind: "new-thread", groupKey: group.key })}><Icon name="MessageSquarePlus" /><span className="cdc-toolbar-label">New thread</span></Button> : null}
-          <ViewToggle view={view} onChange={setView} />
         </div>
         <div className="cdc-finder-body">
           <ThreadCollection windowId={desktopWindow.id} folders={folders} threads={threads} group={group} view={view}
@@ -294,14 +280,14 @@ function ListWindow({ window: desktopWindow, title, icon, threads, empty, showFo
   showFolders?: boolean;
   footer?: ReactNode;
 }) {
+  const manager = useWindowManager();
   const [query, setQuery] = useState("");
   const shown = threads.filter(matches(query.trim().toLocaleLowerCase()));
   return (
     <WindowFrame window={desktopWindow} title={title} icon={icon} overview={{ detail: `${threads.length} ${threads.length === 1 ? "thread" : "threads"}` }}
-      statusBar={<><span>{shown.length} {shown.length === 1 ? "thread" : "threads"}</span></>}>
+      menu={() => navEntries(desktopWindow, manager)}>
       <div className="cdc-finder">
         <div className="cdc-toolbar">
-          <Nav window={desktopWindow} />
           <Search value={query} onChange={setQuery} label={`Search ${title}`} />
         </div>
         <div className="cdc-finder-body">
@@ -428,8 +414,7 @@ const MIN_THREAD_BESIDE = 420;
 
 function ThreadWindow({ window: desktopWindow, threadId }: { window: DesktopWindow; threadId: string }) {
   const context = useMenuContext();
-  const { desktop, actions, manager } = context;
-  const menu = useMenu();
+  const { desktop, manager } = context;
   const thread = desktop.threadById.get(threadId);
   const archived = thread?.isArchived === true;
   const agent = useAgentName(thread?.providerId);
@@ -461,8 +446,8 @@ function ThreadWindow({ window: desktopWindow, threadId }: { window: DesktopWind
       && others.every((other) => rect.x + rect.width <= other.x || other.x + other.width <= rect.x);
     const sides = [besideRect(desktopWindow.rect, preferred, width), besideRect(desktopWindow.rect, preferred === "right" ? "left" : "right", width)];
     const thread = desktopWindow.rect;
-    // Below the thread's title bar and tool strip, so its own controls and the Info and Related toggles stay reachable.
-    const inside = { ...sides[0]!, x: preferred === "right" ? thread.x + thread.width - width : thread.x, y: thread.y + 84, height: Math.max(240, thread.height - 84) };
+    // Below the thread's title bar, so its own controls and its … menu stay reachable.
+    const inside = { ...sides[0]!, x: preferred === "right" ? thread.x + thread.width - width : thread.x, y: thread.y + 44, height: Math.max(240, thread.height - 44) };
     const free = sides.find(fits);
     if (free !== undefined) {
       manager.open(spec, free);
@@ -518,38 +503,19 @@ function ThreadWindow({ window: desktopWindow, threadId }: { window: DesktopWind
   return (
     <WindowFrame window={desktopWindow} title={thread?.displayTitle ?? "Thread"} bodyProps={{ "data-chat-thread": threadId }}
       overview={thread === undefined ? undefined : { detail: activityLine(thread, agent), tone: statusTone(thread) ?? (thread.status === "error" ? "error" : null) }}
-      titleActions={
-        <>
-          {thread === undefined ? null : (
-            <button type="button" className="cdc-title-button" aria-label="Thread actions" aria-haspopup="menu" title="Thread actions"
-              onClick={(event) => menu.openFrom(event.currentTarget, (latest) => {
-                const current = latest.threadById.get(threadId);
-                return current === undefined ? [] : threadMenu({ ...context, desktop: latest }, current, null, { includeOpen: false });
-              })}>
-              <Icon name="MoreHorizontal" />
-            </button>
-          )}
-          <button type="button" className="cdc-title-button" aria-label="Open in bb" title="Open in bb" onClick={() => actions.open(threadId)}>
-            <Icon name="ExternalLink" />
-          </button>
-        </>
-      }
+      menu={(latest) => {
+        const current = latest.threadById.get(threadId);
+        return [
+          { label: "Related threads", icon: "Layers", checked: companionOpen("related"), run: () => toggleCompanion("related") },
+          { label: "Info", icon: "Info", checked: companionOpen("info"), run: () => toggleCompanion("info") },
+          { label: "Browser", icon: "Globe", disabled: !browserAvailable, run: () => openTab("browser") },
+          { label: "Terminal", icon: "Terminal", run: () => openTab("terminal") },
+          "separator",
+          ...(current === undefined ? [] : threadMenu({ ...context, desktop: latest }, current, null, { includeOpen: false })),
+        ];
+      }}
       statusBar={archived ? <><span className="cdc-statusbar-note">Thread is archived</span><Button size="sm" variant="secondary" onClick={() => void desktop.restoreThread(threadId)}>Unarchive</Button></> : undefined}>
       <div className="cdc-thread">
-        <div className="cdc-thread-strip">
-          {thread === undefined ? <span /> : (
-            <span className="cdc-thread-activity" aria-live="polite" data-tone={statusTone(thread) ?? (thread.status === "error" ? "error" : "idle")}>
-              {statusTone(thread) === "running" ? <Icon name="Loading" /> : <span className="cdc-status-pip" />}
-              <span>{activityLine(thread, agent)}</span>
-            </span>
-          )}
-          <span className="cdc-thread-tools">
-            <button type="button" className="cdc-tool" aria-pressed={companionOpen("related")} aria-label="Related threads" title="Threads in this project and environment" onClick={() => toggleCompanion("related")}><Icon name="Layers" /></button>
-            <button type="button" className="cdc-tool" aria-pressed={companionOpen("info")} aria-label="Info" title="Status, branch, pull request and folders" onClick={() => toggleCompanion("info")}><Icon name="Info" /></button>
-            <button type="button" className="cdc-tool" aria-label="Browser" disabled={!browserAvailable} title={browserAvailable ? "Open a browser for this thread" : "Browser windows need the bb desktop app"} onClick={() => openTab("browser")}><Icon name="Globe" /></button>
-            <button type="button" className="cdc-tool" aria-label="Terminal" title="Open a terminal in this thread’s environment" onClick={() => openTab("terminal")}><Icon name="Terminal" /></button>
-          </span>
-        </div>
         <div className="cdc-thread-chat">
           <ThreadChat threadId={threadId} variant={archived ? "timeline" : "compact"} layout="contained" permissionPolicy="editable" messageActions={messageActions} className="h-full" />
         </div>
