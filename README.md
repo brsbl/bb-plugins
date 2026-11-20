@@ -1,12 +1,10 @@
 # bb plugins
 
-Personal bb plugins I use for product design work, kept together with the few build and repository tools they share. [![CI](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml/badge.svg)](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml)
+[bb](https://getbb.app) is an agentic IDE. This repository contains plugins that extend its interface, add commands, and connect external services.
 
-[bb](https://getbb.app) is an agentic IDE for running coding agents across projects, threads, and environments. Its plugins can add UI, commands, skills, and server capabilities; this repository is where I build and maintain mine.
+[![CI](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml/badge.svg)](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml)
 
 ## Plugins
-
-Each plugin has its own workspace under `plugins/` and a short README with the story behind it.
 
 ### Design Doctrine
 
@@ -17,16 +15,6 @@ Turns recurring product-design feedback into a searchable rule library that agen
 [Source](plugins/design-doctrine) · [README](plugins/design-doctrine/README.md)
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/design-doctrine --yes`
-
-### Briefs
-
-Delivers private briefings as threads with numbered priorities, review buttons, and collapsed routine details. Add or edit a prompt-based brief under the site it reads in Settings. Connections reuse existing bb Browser sign-ins; Reading remembers summarized newsletters without marking them read. Other threads can publish their own briefs.
-
-![A brief with numbered priorities and review buttons](https://github.com/user-attachments/assets/6d6f4f82-9f51-475a-b5e7-356a1e43459f)
-
-[Source](plugins/digests) · [README](plugins/digests/README.md)
-
-Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/digests --yes`
 
 ### FPL Draft
 
@@ -149,18 +137,6 @@ Shows how full each thread's context window is as a Katamari Damacy-style ball i
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/context-katamari --yes`
 
-### CRM
-
-Prioritize customer companies by potential impact and investors by the value they add. Two heatmap tables keep scores, customer milestones, investor ranks and next steps readable, with manual priority overrides, parked investors and a CLI for agents.
-
-![Customer companies grouped by impact tier, with scores and milestones](https://github.com/user-attachments/assets/6b8f75ec-24cc-4bf2-9e04-6a92fe466d92)
-
-![Investors ranked by value, with criterion scores, rationale and asks](https://github.com/user-attachments/assets/f9b444b4-b1d7-42cf-8a3b-abea0b2c7cf9)
-
-[Source](plugins/crm) · [README](plugins/crm/README.md)
-
-Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/crm --yes`
-
 ### Image Carousel
 
 Shows screenshots inline as a carousel: design research with one product per slide, or Before and After side by side with one shared description. It replaces long runs of images and screenshot tables in agent replies.
@@ -225,16 +201,6 @@ Frank Ocean's *Endless* as a bb palette — achromatic, grained, squared. Ten ye
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/endless --yes`
 
-### Theme Preview
-
-A skeleton of the bb app in every configuration — sidebar, splits, panels, overlays, real thread timelines and controls — drawn from the active theme's tokens, so a palette can be judged before it ships.
-
-![Theme Preview in bb](plugins/theme-preview/docs/screenshot.png)
-
-[Source](plugins/theme-preview) · [README](plugins/theme-preview/README.md)
-
-Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/theme-preview --yes`
-
 ### Color Swatches
 
 Renders an inline swatch beside every color literal in a thread — hex, `rgb()`, `hsl()`, `oklch()` and friends — the way an editor decorates code.
@@ -297,12 +263,6 @@ Answers you can play with: agents put calculators, charts, step-by-step guides, 
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/playgrounds --yes`
 
-### Saved Places
-
-Your saved places on a map that gets clearer as you zoom, with lists, notes, walking distance between saves, and an Ask agent button that hands the current view to a new thread. It now lives in its own template repository, [brsbl/saved-places](https://github.com/brsbl/saved-places), so you can make a copy with your own Google Maps saves.
-
-Install: `bb plugin install git:https://github.com/brsbl/saved-places.git --yes`
-
 ### Plugin Finder
 
 Find installed and Community plugins with `#plugin` or `@plugin` or let your agent search through the CLI, with full overviews and screenshot links.
@@ -363,22 +323,6 @@ Review product films in bb with inline playback, frame annotations, and version 
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/video-markup --yes`
 
-Each `plugin/*` install ref is generated from `main` after CI passes. The separate refs are necessary because bb installs from the root of a git checkout.
-
-## Develop
-
-The root tooling handles the unglamorous shared work: finding plugin workspaces, building them, checking the repository, validating artifacts, and publishing install refs. Runtime code, tests, SDK declarations, and UI stay with the plugin that owns them.
-
-```bash
-npm ci
-npm run check
-npm run new:plugin -- --slug example --name "Example" --description "Adds an example capability."
-```
-
-To work on one plugin, install its workspace directly: `bb plugin install "path:$PWD/plugins/<slug>" --yes`.
-
-See [contributor guidance](CONTRIBUTING.md), the [plugin catalog entry template](tooling/plugin-catalog-entry.md), and [repository tooling](tooling/README.md).
-
 ### Pinned Files & Links
 
 Keep a thread's key files and links one click away in a strip above the composer. Ask the agent to pin files from the composer's Pin pill, let agents pin the PR, issue, spec and dev site they work with, and open, unpin or remove pins from their menus.
@@ -394,18 +338,6 @@ Keep a thread's key files and links one click away in a strip above the composer
 [Source](plugins/file-pins) · [README](plugins/file-pins/README.md)
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/file-pins --yes`
-
-### Coordinator Mode
-
-Turn any thread into a coordinator that tracks your asks as items, starts sub-threads for them, and moves each item forward only on real evidence such as a merged PR or your approval. Coordinator rules decide what it may do alone, must ask about, or must never do.
-
-![Coordinator panel set-up form with the Ship template](https://github.com/user-attachments/assets/9754ab68-1937-4849-bfd8-b2e57807481d)
-
-![Coordinator tracker with a proposed item waiting in Needs you](https://github.com/user-attachments/assets/d51eaa0b-c084-4dd6-968f-6593a4481ff6)
-
-[Source](plugins/coordinator-mode) · [README](plugins/coordinator-mode/README.md)
-
-Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/coordinator-mode --yes`
 
 ### Server Switcher
 
@@ -430,3 +362,54 @@ Run a team of bb threads from one lead: skills to delegate work, relay your deci
 [Source](plugins/delegation) · [README](plugins/delegation/README.md)
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/delegation --yes`
+
+## Moved plugins
+
+- [Saved Places](https://github.com/brsbl/saved-places) has its own template repository for mapping Google Maps saves.
+- [Theme Preview](https://github.com/get-bb/bb/tree/main/plugins/theme-preview) ships with bb. Install the official plugin from Extensions.
+
+<details>
+<summary>Original Theme Preview plugin</summary>
+
+**Theme Preview** · [Source](plugins/theme-preview) · [README](plugins/theme-preview/README.md) · [`@plugin/theme-preview`](https://github.com/brsbl/bb-plugins/tree/plugin/theme-preview)
+
+![Theme Preview in bb](plugins/theme-preview/docs/screenshot.png)
+
+</details>
+
+## Earlier plugins
+
+Coordinator Mode and CRM are legacy plugins. For weekday inbox summaries, see [Email](#email). Briefs is the earlier prompt-based briefing plugin.
+
+<details>
+<summary>Briefs, Coordinator Mode and CRM</summary>
+
+**Briefs** · [Source](plugins/digests) · [README](plugins/digests/README.md) · [`@plugin/digests`](https://github.com/brsbl/bb-plugins/tree/plugin/digests)
+
+![A brief with numbered priorities and review buttons](https://github.com/user-attachments/assets/6d6f4f82-9f51-475a-b5e7-356a1e43459f)
+
+**Coordinator Mode** · [Source](plugins/coordinator-mode) · [README](plugins/coordinator-mode/README.md) · [`@plugin/coordinator-mode`](https://github.com/brsbl/bb-plugins/tree/plugin/coordinator-mode)
+
+![Coordinator panel set-up form with the Ship template](https://github.com/user-attachments/assets/9754ab68-1937-4849-bfd8-b2e57807481d)
+![Coordinator tracker with a proposed item waiting in Needs you](https://github.com/user-attachments/assets/d51eaa0b-c084-4dd6-968f-6593a4481ff6)
+
+**CRM** · [Source](plugins/crm) · [README](plugins/crm/README.md) · [`@plugin/crm`](https://github.com/brsbl/bb-plugins/tree/plugin/crm)
+
+![Customer companies grouped by impact tier, with scores and milestones](https://github.com/user-attachments/assets/6b8f75ec-24cc-4bf2-9e04-6a92fe466d92)
+![Investors ranked by value, with criterion scores, rationale and asks](https://github.com/user-attachments/assets/f9b444b4-b1d7-42cf-8a3b-abea0b2c7cf9)
+
+</details>
+
+## Develop
+
+Each plugin has its own workspace under `plugins/`. After CI passes on `main`, the publish workflow generates the `plugin/*` install branches.
+
+```bash
+npm ci
+npm run check
+npm run new:plugin -- --slug example --name "Example" --description "Adds an example capability."
+```
+
+To work on one plugin, install its workspace directly: `bb plugin install "path:$PWD/plugins/<slug>" --yes`.
+
+See [contributor guidance](CONTRIBUTING.md), the [plugin catalog entry template](tooling/plugin-catalog-entry.md), and [repository tooling](tooling/README.md).
