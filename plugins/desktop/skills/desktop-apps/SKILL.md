@@ -1,13 +1,13 @@
 ---
 name: desktop-apps
-description: Make a bb plugin open in the Desktop plugin's Windows XP windows, Start menu, and Quick Launch. Use when a plugin author wants their panel, tool, or controls to be a Desktop "program", or asks to make a plugin compatible with Desktop.
+description: Make a bb plugin open in the Desktop plugin's Windows XP windows, Start menu, and Quick Launch. Use when a plugin author wants their panel, tool, or controls to be a Desktop app, or asks to make a plugin compatible with Desktop.
 ---
 
 # Desktop apps
 
 The Desktop plugin turns bb's new-thread page into Windows XP. Any plugin can opt in so its UI opens as an XP window on that desktop:
 
-- The app appears under **Programs** in the Start menu and can be pinned to **Quick Launch**.
+- The app appears under **Apps** in the Start menu and can be pinned to **Quick Launch**.
 - Opening it creates a draggable, resizable, minimizable XP window with a taskbar button.
 - The plugin renders its own React UI inside the window. Its SDK hooks (`useRpc`, `useSettings`, sidebar threads, and so on) keep working, because the UI is portaled from one of the plugin's own slots.
 
@@ -46,7 +46,9 @@ export default definePluginApp((app) => {
 });
 ```
 
-3. Optional: open the window from elsewhere in your plugin, falling back to your normal UI when Desktop is not active.
+3. Build the plugin and install it in bb, for example `bb plugin install "path:$PWD" --yes` from the plugin's directory, then reload it after each change. The app appears in **Start › Apps** once the plugin is loaded.
+
+4. Optional: open the window from elsewhere in your plugin, falling back to your normal UI when Desktop is not active.
 
 ```tsx
 import { openInDesktop } from "./desktop-app";
@@ -63,8 +65,8 @@ if (!openInDesktop("my-plugin", "main")) {
 | `pluginId` | Yes | Your plugin's id (letters, digits, `-`, `_`). Use the same value every time; it keys saved windows and Quick Launch pins. |
 | `id` | Yes | The app's id within your plugin. Register several apps with different ids if you have several tools. |
 | `title` | Yes | Window title, taskbar button, Start menu, and Quick Launch label (80 characters max). |
-| `description` | No | One line under the title in the Start menu. |
-| `icon` | No | An image URL: a same-origin path such as your plugin's asset route, an `https:` URL, or a `data:image/` URI. Without one, Desktop shows a generic program icon. |
+| `description` | No | One line, shown as the app's tooltip in the Start menu's Apps list. |
+| `icon` | No | An image URL: a same-origin path such as your plugin's asset route, an `https:` URL, or a `data:image/` URI. Without one, Desktop shows a generic app icon. |
 | `width`, `height` | No | The window's first size in CSS pixels (240 to 2000). |
 
 `children` is a function that receives the window's id and returns the UI to render in that window. It renders once per open window of the app (Desktop opens at most one window per app).

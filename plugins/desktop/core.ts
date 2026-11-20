@@ -231,7 +231,7 @@ export function naturalDirection(key: SortKey): SortDirection {
 }
 
 // One collator for every comparison: localeCompare with options builds a new one each call, about 20x slower.
-const titleCollator = new Intl.Collator(undefined, { sensitivity: "base", numeric: true });
+export const titleCollator = new Intl.Collator(undefined, { sensitivity: "base", numeric: true });
 
 export function sortThreads(
   threads: readonly DesktopThread[],
