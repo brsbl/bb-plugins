@@ -9,144 +9,8 @@ import {
   type WaiverPlanPayload,
   type WeekPayload,
 } from "./server";
-import type { FetchLike } from "./api";
 
-const BOOTSTRAP = {
-  elements: [
-    {
-      id: 1, web_name: "Raya", team: 1, element_type: 1, status: "a", news: "",
-      draft_rank: 59, total_points: 6, event_points: 6, form: "3.0", points_per_game: "6.0",
-      minutes: 90, starts: 1, goals_scored: 0, assists: 0, clean_sheets: 1, bonus: 0, bps: 20,
-      defensive_contribution: 0, expected_goals: "0.00", expected_assists: "0.00",
-      chance_of_playing_next_round: null,
-    },
-    {
-      id: 2, web_name: "Semenyo", team: 2, element_type: 3, status: "a", news: "",
-      draft_rank: 40, total_points: 24, event_points: 12, form: "7.3", points_per_game: "12.0",
-      minutes: 180, starts: 2, goals_scored: 3, assists: 1, clean_sheets: 0, bonus: 5, bps: 60,
-      defensive_contribution: 4, expected_goals: "1.20", expected_assists: "0.40",
-      chance_of_playing_next_round: null,
-    },
-    {
-      id: 3, web_name: "Gone", team: 2, element_type: 3, status: "u", news: "Left the league",
-      draft_rank: 600, total_points: 0, event_points: 0, form: "0.0", points_per_game: "0.0",
-      minutes: 0, starts: 0, goals_scored: 0, assists: 0, clean_sheets: 0, bonus: 0, bps: 0,
-      defensive_contribution: 0, expected_goals: "0.00", expected_assists: "0.00",
-      chance_of_playing_next_round: null,
-    },
-  ],
-  element_types: [
-    { id: 1, singular_name_short: "GKP" },
-    { id: 2, singular_name_short: "DEF" },
-    { id: 3, singular_name_short: "MID" },
-    { id: 4, singular_name_short: "FWD" },
-  ],
-  teams: [
-    { id: 1, name: "Arsenal", short_name: "ARS" },
-    { id: 2, name: "Bournemouth", short_name: "BOU" },
-  ],
-  events: {
-    current: 2,
-    next: 3,
-    data: [
-      { id: 1, name: "Gameweek 1", deadline_time: "2026-08-21T17:30:00Z", waivers_time: null, trades_time: null, finished: true },
-      { id: 2, name: "Gameweek 2", deadline_time: "2026-08-28T17:30:00Z", waivers_time: null, trades_time: null, finished: false },
-      { id: 3, name: "Gameweek 3", deadline_time: "2026-09-04T17:30:00Z", waivers_time: "2026-09-03T17:30:00Z", trades_time: "2026-09-02T17:30:00Z", finished: false },
-    ],
-  },
-  settings: {
-    squad: { select_GKP: 2, select_DEF: 5, select_MID: 5, select_FWD: 3, size: 15, play: 11 },
-    league: { h2h_win: 3, h2h_draw: 1, h2h_lose: 0 },
-  },
-};
-
-const DETAILS = {
-  league: {
-    id: 4211, name: "Test League", scoring: "h", transaction_mode: "waivers",
-    start_event: 1, stop_event: 38,
-  },
-  league_entries: [
-    { id: 100, entry_id: 900, entry_name: "Alpha", player_first_name: "Ada", player_last_name: "One", short_name: "AO", waiver_pick: 1 },
-    { id: 200, entry_id: 800, entry_name: "Beta", player_first_name: "Ben", player_last_name: "Two", short_name: "BT", waiver_pick: 2 },
-  ],
-  matches: [
-    { event: 1, started: true, finished: true, league_entry_1: 100, league_entry_1_points: 60, league_entry_2: 200, league_entry_2_points: 20 },
-    { event: 2, started: true, finished: false, league_entry_1: 200, league_entry_1_points: 70, league_entry_2: 100, league_entry_2_points: 10 },
-    { event: 3, started: false, finished: false, league_entry_1: 100, league_entry_1_points: 0, league_entry_2: 200, league_entry_2_points: 0 },
-  ],
-};
-
-interface FetchLog {
-  urls: string[];
-}
-
-function fakeFetch(log: FetchLog, overrides: Record<string, unknown> = {}): FetchLike {
-  return async (url) => {
-    log.urls.push(url);
-    const path = url.replace("https://draft.premierleague.com/api", "");
-    const key = Object.keys(overrides).find((candidate) => path.startsWith(candidate));
-    if (key !== undefined) {
-      const value = overrides[key];
-      if (value === null) {
-        return { ok: false, status: 404, json: async () => ({}) };
-      }
-      return { ok: true, status: 200, json: async () => value };
-    }
-    if (path === "/bootstrap-static") {
-      return { ok: true, status: 200, json: async () => BOOTSTRAP };
-    }
-    if (path.endsWith("/details")) {
-      return { ok: true, status: 200, json: async () => DETAILS };
-    }
-    if (path.includes("/element-status")) {
-      return {
-        ok: true, status: 200,
-        json: async () => ({
-          element_status: [
-            // owner is the global entry id (900), not the league entry id (100).
-            { element: 1, owner: null, status: "a", in_accepted_trade: false },
-            { element: 2, owner: 900, status: "o", in_accepted_trade: false },
-          ],
-        }),
-      };
-    }
-    if (path.includes("/transactions")) {
-      return {
-        ok: true, status: 200,
-        json: async () => ({
-          transactions: [
-            // Accepted after GW2: this manager already swapped 1 out for 2.
-            { event: 3, entry: 900, index: 1, kind: "w", element_in: 2, element_out: 1, result: "a" },
-            // Denied, so it must not be replayed.
-            { event: 3, entry: 900, index: 2, kind: "w", element_in: 3, element_out: 2, result: "di" },
-          ],
-        }),
-      };
-    }
-    if (path.startsWith("/element-summary/")) {
-      return {
-        ok: true, status: 200,
-        json: async () => ({
-          fixtures: [{ event: 3, difficulty: 2, is_home: true, team_a: 2, team_h: 1 }],
-          history: [{ event: 1, opponent_team: 2, total_points: 7, minutes: 90 }],
-        }),
-      };
-    }
-    if (path.includes("/event/") && path.startsWith("/entry/")) {
-      return {
-        ok: true, status: 200,
-        json: async () => ({ picks: [{ element: 1, position: 1 }, { element: 2, position: 12 }] }),
-      };
-    }
-    if (path.startsWith("/event/") && path.endsWith("/live")) {
-      return {
-        ok: true, status: 200,
-        json: async () => ({ elements: { "1": { stats: { total_points: 6, minutes: 90 } } } }),
-      };
-    }
-    return { ok: false, status: 404, json: async () => ({}) };
-  };
-}
+import { BOOTSTRAP, DETAILS, fakeFetch, type FetchLog } from "./fixtures/api";
 
 type Harness = ReturnType<typeof createFakePluginHost>["harness"];
 
@@ -167,7 +31,7 @@ async function bootPlugin(overrides: Record<string, unknown> = {}) {
   const log: FetchLog = { urls: [] };
   const { bb, harness } = createFakePluginHost({ pluginId: "fpl-draft" });
   createFplDraftPlugin(fakeFetch(log, overrides))(bb);
-  await harness.behavior.setSettings({ leagueId: "4211", managerName: "Alpha" });
+  await harness.behavior.setSettings({ leagueId: "900001", managerName: "Alpha" });
   return { harness, log };
 }
 
@@ -194,12 +58,12 @@ describe("FPL Draft plugin", () => {
     const { harness, log } = await bootPlugin();
     const provider = harness.inspection.registrations.mentionProviders.find(item => item.id === "waivers")!;
     const items = await provider.search({ trigger: "@", query: "waivers", projectId: null, threadId: null });
-    expect(items).toEqual([{ id: '["4211",100]', title: "FPL Draft · Waivers" }]);
+    expect(items).toEqual([{ id: '["900001",100]', title: "FPL Draft · Waivers" }]);
     const plan = await call.getWaiverPlan(harness);
     await harness.behavior.setSettings({ leagueId: "9999", managerName: "Beta" });
     const { context } = await provider.resolve(items[0]!.id);
     const resolved = JSON.parse(context);
-    expect(resolved).toMatchObject({ source: "FPL Draft", league: { id: 4211, name: "Test League" },
+    expect(resolved).toMatchObject({ source: "FPL Draft", league: { id: 900001, name: "Test League" },
       team: { leagueEntryId: 100, teamName: "Alpha" },
       plan: { available: true, weakSpots: plan.weakSpots, swaps: plan.swaps },
     });
@@ -209,7 +73,7 @@ describe("FPL Draft plugin", () => {
     await harness.lifecycle.dispose();
   });
 
-  it.each(['not-json', '["4211",0]', '["4211",999]', '["not-a-league",100]'])(
+  it.each(['not-json', '["900001",0]', '["900001",999]', '["not-a-league",100]'])(
     "rejects an invalid or unavailable waiver reference: %s", async id => {
       const { harness } = await bootPlugin();
       const provider = harness.inspection.registrations.mentionProviders.find(item => item.id === "waivers")!;
@@ -221,7 +85,7 @@ describe("FPL Draft plugin", () => {
   it("blocks sending a waiver mention when its squad is unavailable", async () => {
     const { harness } = await bootPlugin({ "/entry/900/event/2": null });
     const provider = harness.inspection.registrations.mentionProviders.find(item => item.id === "waivers")!;
-    await expect(provider.resolve('["4211",100]')).rejects.toThrow();
+    await expect(provider.resolve('["900001",100]')).rejects.toThrow();
     await harness.lifecycle.dispose();
   });
 
@@ -229,11 +93,11 @@ describe("FPL Draft plugin", () => {
     const { harness, log } = await bootPlugin();
     const provider = harness.inspection.registrations.mentionProviders[0]!;
     const items = await provider.search({ trigger: "@", query: "gameweek 1", projectId: null, threadId: null });
-    expect(items).toMatchObject([{ id: '["4211",1]', title: "FPL Draft · GW 1" }]);
+    expect(items).toMatchObject([{ id: '["900001",1]', title: "FPL Draft · GW 1" }]);
     await harness.behavior.setSettings({ leagueId: "9999", managerName: "" });
     const { context } = await provider.resolve(items[0]!.id);
     const resolved = JSON.parse(context);
-    expect(resolved).toMatchObject({ source: "FPL Draft", league: { id: 4211, name: "Test League" }, gameweek: 1 });
+    expect(resolved).toMatchObject({ source: "FPL Draft", league: { id: 900001, name: "Test League" }, gameweek: 1 });
     expect(resolved.matchups).toMatchObject([{ event: 1, home: { points: 60 }, away: { points: 20 } }]);
     expect(resolved.table).toHaveLength(2);
     expect(resolved.tableScope).toContain("including later gameweeks");
@@ -241,7 +105,7 @@ describe("FPL Draft plugin", () => {
     await harness.lifecycle.dispose();
   });
 
-  it.each(['not-json', '["4211",0]', '["4211",99]', '["not-a-league",1]'])(
+  it.each(['not-json', '["900001",0]', '["900001",99]', '["not-a-league",1]'])(
     "rejects an invalid or unavailable week mention: %s", async (id) => {
       const { harness } = await bootPlugin();
       await expect(harness.inspection.registrations.mentionProviders[0]!.resolve(id)).rejects.toThrow(/FPL Draft/);
@@ -268,11 +132,11 @@ describe("FPL Draft plugin", () => {
     const { bb, harness } = createFakePluginHost({ pluginId: "fpl-draft" });
     createFplDraftPlugin(fakeFetch(log))(bb);
     await harness.behavior.setSettings({
-      leagueId: "https://draft.premierleague.com/league/4211/standings",
+      leagueId: "https://draft.premierleague.com/league/900001/standings",
       managerName: "",
     });
     await call.getLeague(harness);
-    expect(log.urls.some((url) => url.includes("/league/4211/details"))).toBe(true);
+    expect(log.urls.some((url) => url.includes("/league/900001/details"))).toBe(true);
     await harness.lifecycle.dispose();
   });
 
@@ -290,7 +154,7 @@ describe("FPL Draft plugin", () => {
   it("warns instead of failing when the viewer name matches nothing", async () => {
     const { bb, harness } = createFakePluginHost({ pluginId: "fpl-draft" });
     createFplDraftPlugin(fakeFetch({ urls: [] }))(bb);
-    await harness.behavior.setSettings({ leagueId: "4211", managerName: "Nobody" });
+    await harness.behavior.setSettings({ leagueId: "900001", managerName: "Nobody" });
     const league = await call.getLeague(harness);
     expect(league.viewerLeagueEntryId).toBeNull();
     expect(league.viewerWarning).toMatch(/Nobody/);
@@ -368,12 +232,12 @@ describe("FPL Draft plugin", () => {
     const players = await call.getPlayers(harness);
     // The player with status "u" is excluded.
     expect(players.players).toHaveLength(2);
-    const semenyo = players.players.find((player) => player.name === "Semenyo");
+    const semenyo = players.players.find((player) => player.name === "Midfielder Indigo");
     expect(semenyo?.ownedBy).toBe("Alpha");
     expect(semenyo?.goals).toBe(3);
     expect(semenyo?.defensiveContribution).toBe(4);
     expect(semenyo?.form).toBe(7.3);
-    const raya = players.players.find((player) => player.name === "Raya");
+    const raya = players.players.find((player) => player.name === "Keeper Amber");
     expect(raya?.ownedBy).toBeNull();
     expect(raya?.fixtureDifficulty).toBe(2);
     await harness.lifecycle.dispose();
@@ -402,7 +266,7 @@ describe("FPL Draft plugin", () => {
     await call.getLeague(harness);
     const first = log.urls.filter((url) => url.includes("/details")).length;
     expect(first).toBe(1);
-    await harness.behavior.setSettings({ leagueId: "4211", managerName: "Beta" });
+    await harness.behavior.setSettings({ leagueId: "900001", managerName: "Beta" });
     await call.getLeague(harness);
     expect(log.urls.filter((url) => url.includes("/details")).length).toBe(2);
     await harness.lifecycle.dispose();
@@ -429,8 +293,8 @@ describe("FPL Draft plugin", () => {
         { ...BOOTSTRAP.elements[1], element_type: 1, form },
       ] },
       "/entry/900/event/2": { picks: [{ element: 1, position: 1 }] },
-      "/draft/league/4211/transactions": { transactions: [] },
-      "/league/4211/element-status": { element_status: [
+      "/draft/league/900001/transactions": { transactions: [] },
+      "/league/900001/element-status": { element_status: [
         { element: 1, owner: 900, status: "o", in_accepted_trade: false },
         { element: 2, owner: null, status: "a", in_accepted_trade: false },
       ] },
@@ -476,7 +340,7 @@ describe("FPL Draft plugin", () => {
   it("asks for the viewer rather than guessing when no team is set", async () => {
     const { bb, harness } = createFakePluginHost({ pluginId: "fpl-draft" });
     createFplDraftPlugin(fakeFetch({ urls: [] }))(bb);
-    await harness.behavior.setSettings({ leagueId: "4211", managerName: "" });
+    await harness.behavior.setSettings({ leagueId: "900001", managerName: "" });
     const plan = await call.getWaiverPlan(harness);
     expect(plan.available).toBe(false);
     expect(plan.reason).toMatch(/which team is yours/i);
@@ -490,7 +354,7 @@ describe("FPL Draft plugin", () => {
     createFplDraftPlugin(async () => ({
       ok: false, status: 503, json: async () => ({}),
     }))(bb);
-    await harness.behavior.setSettings({ leagueId: "4211", managerName: "" });
+    await harness.behavior.setSettings({ leagueId: "900001", managerName: "" });
     await expect(call.getLeague(harness)).rejects.toThrow(/503/);
     expect(log.urls).toEqual([]);
     await harness.lifecycle.dispose();

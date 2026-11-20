@@ -1,0 +1,127 @@
+{
+  "synthetic": true,
+  "matches": [
+    {
+      "event": 1,
+      "league_entry_1": 910001,
+      "league_entry_2": 910002,
+      "league_entry_1_points": 11,
+      "league_entry_2_points": 21
+    },
+    {
+      "event": 1,
+      "league_entry_1": 910003,
+      "league_entry_2": 910004,
+      "league_entry_1_points": 31,
+      "league_entry_2_points": 31
+    },
+    {
+      "event": 2,
+      "league_entry_1": 910001,
+      "league_entry_2": 910002,
+      "league_entry_1_points": 12,
+      "league_entry_2_points": 22
+    },
+    {
+      "event": 2,
+      "league_entry_1": 910003,
+      "league_entry_2": 910004,
+      "league_entry_1_points": 32,
+      "league_entry_2_points": 32
+    },
+    {
+      "event": 3,
+      "league_entry_1": 910001,
+      "league_entry_2": 910002,
+      "league_entry_1_points": 13,
+      "league_entry_2_points": 23
+    },
+    {
+      "event": 3,
+      "league_entry_1": 910003,
+      "league_entry_2": 910004,
+      "league_entry_1_points": 33,
+      "league_entry_2_points": 33
+    }
+  ],
+  "managers": [
+    {
+      "leagueEntryId": 910001,
+      "entryId": 920001,
+      "publishedPick": 1
+    },
+    {
+      "leagueEntryId": 910002,
+      "entryId": 920002,
+      "publishedPick": 4
+    },
+    {
+      "leagueEntryId": 910003,
+      "entryId": 920003,
+      "publishedPick": 2
+    },
+    {
+      "leagueEntryId": 910004,
+      "entryId": 920004,
+      "publishedPick": 3
+    }
+  ],
+  "firstProcessedRequests": {
+    "2": [
+      {
+        "entryId": 920001,
+        "index": 1
+      },
+      {
+        "entryId": 920003,
+        "index": 2
+      },
+      {
+        "entryId": 920004,
+        "index": 3
+      },
+      {
+        "entryId": 920002,
+        "index": 4
+      }
+    ],
+    "3": [
+      {
+        "entryId": 920001,
+        "index": 1
+      },
+      {
+        "entryId": 920003,
+        "index": 2
+      },
+      {
+        "entryId": 920004,
+        "index": 3
+      },
+      {
+        "entryId": 920002,
+        "index": 4
+      }
+    ]
+  },
+  "currentPublishedQueueCheck": {
+    "positions": [
+      {
+        "leagueEntryId": 910001,
+        "pick": 1
+      },
+      {
+        "leagueEntryId": 910002,
+        "pick": 4
+      },
+      {
+        "leagueEntryId": 910003,
+        "pick": 2
+      },
+      {
+        "leagueEntryId": 910004,
+        "pick": 3
+      }
+    ]
+  }
+}

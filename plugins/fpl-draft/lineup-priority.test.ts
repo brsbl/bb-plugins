@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { buildWaiverPlan, buildWeakSpots, type Position, type SwapCandidate } from "./core";
 
 const player = (elementId: number, name: string, pointsPerGame: number, minutesPerGame = 90): SwapCandidate => ({
-  elementId, name, pointsPerGame, minutesPerGame, team: "ARS", seasonPoints: 0,
+  elementId, name, pointsPerGame, minutesPerGame, team: "AMB", seasonPoints: 0,
   goals: 0, assists: 0, defending: 0, bonus: 0, availability: "a", news: "", opponents: [],
   fplStats: { pointsPerMatch: pointsPerGame, form: pointsPerGame, minutes: minutesPerGame * 3,
     starts: minutesPerGame >= 60 ? 3 : minutesPerGame >= 30 ? 1 : 0, cleanSheets: 0, expectedGoals: pointsPerGame, expectedAssists: 0 },
@@ -35,18 +35,18 @@ describe("full-squad waiver priorities", () => {
     expect(swaps[1]!.fallbacks.map(player => player.name)).toEqual(["Keeper fallback"]);
   });
 
-  it("suggests Wilson to Thomas-Asante even though Sesko already rates higher", () => {
-    const forwards = [player(13, "Nmecha", 0.8, 13), player(14, "Wilson", 0.5, 4), player(15, "Sesko", 1.2, 18)];
+  it("suggests Forward Amber to Forward Copper even though Forward Indigo already rates higher", () => {
+    const forwards = [player(13, "Forward Cedar", 0.8, 13), player(14, "Forward Amber", 0.5, 4), player(15, "Forward Indigo", 1.2, 18)];
     // Nine regular outfield players keep both reserve forwards outside the XI.
     const others = squad.filter(player => squadPositions.get(player.elementId) !== "FWD")
       .map(player => player.elementId === 7 ? { ...player, pointsPerGame: 3 } : player);
     const swaps = buildWaiverPlan({
       squad: [...others, ...forwards],
       squadPositions, competition: new Map(),
-      pool: [player(20, "Thomas-Asante", 0.7, 40)], poolPositions: new Map([[20, "FWD"]]),
+      pool: [player(20, "Forward Copper", 0.7, 40)], poolPositions: new Map([[20, "FWD"]]),
     });
     expect(swaps).toHaveLength(1);
-    expect(swaps[0]).toMatchObject({ out: { name: "Wilson" }, in: { name: "Thomas-Asante" }, lineupGain: 0 });
+    expect(swaps[0]).toMatchObject({ out: { name: "Forward Amber" }, in: { name: "Forward Copper" }, lineupGain: 0 });
     expect(swaps[0]!.gain).toBeGreaterThan(0.15);
   });
 
