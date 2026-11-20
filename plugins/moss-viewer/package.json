@@ -6,8 +6,10 @@
   "license": "UNLICENSED",
   "files": [
     "dist",
+    "docs",
     "vendor",
-    "README.md"
+    "README.md",
+    "PLUGIN_OVERVIEW.md"
   ],
   "scripts": {
     "build": "node ../../tooling/build-plugin.mjs",
