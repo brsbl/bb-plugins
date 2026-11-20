@@ -71,6 +71,28 @@ it("keeps the shipped .pg-photos row layout for cards that don't use the photos 
   expect(doc).toContain(".pg-photos { display: grid; grid-template-columns: repeat(3, 1fr);");
 });
 
+it("removes photos that failed before initialization and hides an exhausted gallery", async () => {
+  const { dom } = frame(
+    '<div data-pg="photos"><img src="data:image/png,invalid"><img id="pending" src="data:image/png,pending"></div>' +
+    '<script>Object.defineProperty(document.querySelector("img"), "complete", { value: true }); Object.defineProperty(document.querySelector("#pending"), "complete", { value: false });</script>',
+  );
+  const { window } = dom;
+  try {
+    if (window.document.readyState !== "complete") {
+      await new Promise((resolve) => window.addEventListener("load", resolve));
+    }
+    const gallery = window.document.querySelector<HTMLElement>('[data-pg="photos"]')!;
+    const pending = window.document.querySelector("#pending")!;
+    expect(Array.from(gallery.querySelectorAll("img"))).toEqual([pending]);
+    expect(gallery.hidden).toBe(false);
+    pending.dispatchEvent(new window.Event("error"));
+    expect(gallery.querySelector("img")).toBeNull();
+    expect(gallery.hidden).toBe(true);
+  } finally {
+    window.close();
+  }
+});
+
 it("keeps buttons and segments whole at narrow widths, and scrolls wide tables", () => {
   const doc = buildWidgetDocument({ id: "a", html: '<div data-pg="table" data-name="t"></div>', state: null, theme: fallbackTheme });
   expect(doc).toMatch(/\.pg-btn, \.pg-btn-primary \{[^}]*white-space: nowrap/);
