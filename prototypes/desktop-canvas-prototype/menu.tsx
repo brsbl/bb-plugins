@@ -143,6 +143,18 @@ function MenuList({ entries, onClose, onBack }: { entries: MenuEntry[]; onClose:
   const [anchor, setAnchor] = useState<DOMRect | null>(null);
   const [focusSubmenu, setFocusSubmenu] = useState(false);
   const buttons = useRef(new Map<number, HTMLButtonElement>());
+  const listRef = useRef<HTMLDivElement>(null);
+  // A scrolled menu moves its rows; an open submenu follows its row so it stays beside it.
+  useEffect(() => {
+    const scroller = listRef.current?.closest<HTMLElement>(".cdc-menu");
+    if (scroller == null || openIndex === null) return;
+    const follow = () => {
+      const button = buttons.current.get(openIndex);
+      if (button !== undefined) setAnchor(button.getBoundingClientRect());
+    };
+    scroller.addEventListener("scroll", follow, { passive: true });
+    return () => scroller.removeEventListener("scroll", follow);
+  }, [openIndex]);
 
   const openSubmenu = (index: number, focus: boolean) => {
     const button = buttons.current.get(index);
@@ -179,7 +191,7 @@ function MenuList({ entries, onClose, onBack }: { entries: MenuEntry[]; onClose:
 
   const open = openIndex === null ? null : entries[openIndex];
   return (
-    <div className="cdc-menu-list" onKeyDown={onKeyDown}>
+    <div ref={listRef} className="cdc-menu-list" onKeyDown={onKeyDown}>
       {entries.map((entry, index) => {
         if (entry === "separator") return <div key={`separator-${index}`} className="cdc-menu-separator" role="separator" />;
         if ("heading" in entry) return <div key={`heading-${index}`} className="cdc-menu-heading">{entry.heading}</div>;
