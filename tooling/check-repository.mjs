@@ -119,8 +119,16 @@ export async function checkRepository(repositoryRoot = defaultRoot, options = {}
   const rootManifest = await readJson(resolve(root, "package.json"));
   const rootLock = await readJson(resolve(root, "package-lock.json"));
   const readme = await readFile(resolve(root, "README.md"), "utf8");
-  const rootImages = markdownImageTargets(readme);
   const plugins = await readPluginWorkspaces(root);
+  const catalog = readme.split(/^## Plugins$/m)[1]?.split(/^## /m)[0] ?? "";
+  const entries = new Map();
+  for (const section of catalog.split(/^### /m).slice(1)) {
+    const name = section.split("\n", 1)[0].trim();
+    assert(plugins.some((plugin) => plugin.name === name), `unknown catalog plugin: ${name}`);
+    assert(!entries.has(name), `duplicate catalog entry: ${name}`);
+    entries.set(name, section);
+  }
+  assert(entries.size > 0, "root plugin catalog is empty");
   const bundledTypesDirectory = resolve(
     options.bundledTypesDirectory ??
       resolve(root, "node_modules/@get-bb/plugin-sdk/bundled-types"),
@@ -296,13 +304,6 @@ export async function checkRepository(repositoryRoot = defaultRoot, options = {}
     for (const heading of ["## Install", "## Use", "## Develop"]) {
       assert(pluginReadme.includes(heading), `${slug}: README missing ${heading}`);
     }
-    assert(readme.includes(`(${source})`), `${slug}: root source link missing`);
-    assert(
-      readme.includes(`[README](${source}/README.md)`),
-      `${slug}: root README link missing`,
-    );
-    assert(readme.includes(`@${installRef}`), `${slug}: root install ref missing`);
-
     const screenshots = localImageTargets(pluginReadme).map((path) =>
       normalizeRelativePath(path, `${slug}: screenshot`),
     );
@@ -321,11 +322,21 @@ export async function checkRepository(repositoryRoot = defaultRoot, options = {}
         `${slug}: screenshot ${screenshot} is omitted by package files`,
       );
     }
-    assert(
-      screenshots.some((screenshot) => rootImages.includes(`${source}/${screenshot}`)) ||
-        attachedScreenshots.some((screenshot) => rootImages.includes(screenshot)),
-      `${slug}: root representative screenshot missing`,
-    );
+    const entry = entries.get(name);
+    if (entry) {
+      const rootImages = markdownImageTargets(entry);
+      assert(entry.includes(`(${source})`), `${slug}: root source link missing`);
+      assert(
+        entry.includes(`[README](${source}/README.md)`),
+        `${slug}: root README link missing`,
+      );
+      assert(entry.includes(`@${installRef}`), `${slug}: root install ref missing`);
+      assert(
+        screenshots.some((screenshot) => rootImages.includes(`${source}/${screenshot}`)) ||
+          attachedScreenshots.some((screenshot) => rootImages.includes(screenshot)),
+        `${slug}: root representative screenshot missing`,
+      );
+    }
     assert(
       !(await directoryContainsFiles(resolve(directory, ".github/workflows"))),
       `${slug}: nested plugin .github/workflows is not allowed`,

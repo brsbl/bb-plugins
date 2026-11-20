@@ -301,47 +301,6 @@ Organizes work into configurable workflow sections that agents follow, and keeps
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/thread-organizer --yes`
 
-<details>
-<summary>Archived plugin listings</summary>
-
-**Agent Channels** · [Source](plugins/delegation) · [README](plugins/delegation/README.md) · [`@plugin/delegation`](https://github.com/brsbl/bb-plugins/tree/plugin/delegation)
-
-![Agent Channels in a lead's right panel: one channel per agent, with the conversation in order](plugins/delegation/docs/channels.png)
-
-**Coordinator Mode** · [Source](plugins/coordinator-mode) · [README](plugins/coordinator-mode/README.md) · [`@plugin/coordinator-mode`](https://github.com/brsbl/bb-plugins/tree/plugin/coordinator-mode)
-
-![Coordinator tracker with a proposed item waiting in Needs you](https://github.com/user-attachments/assets/d51eaa0b-c084-4dd6-968f-6593a4481ff6)
-
-**CRM** · [Source](plugins/crm) · [README](plugins/crm/README.md) · [`@plugin/crm`](https://github.com/brsbl/bb-plugins/tree/plugin/crm)
-
-![Customer companies grouped by impact tier, with scores and milestones](https://github.com/user-attachments/assets/6b8f75ec-24cc-4bf2-9e04-6a92fe466d92)
-
-**FPL Draft** · [Source](plugins/fpl-draft) · [README](plugins/fpl-draft/README.md) · [`@plugin/fpl-draft`](https://github.com/brsbl/bb-plugins/tree/plugin/fpl-draft)
-
-![FPL Draft waiver suggestion with expanded player comparison](https://github.com/user-attachments/assets/ea04832a-1a7f-4fdc-bcf7-66b85b951611)
-
-**GitHub Activity** · [Source](plugins/github-notifications) · [README](plugins/github-notifications/README.md) · [`@plugin/github-notifications`](https://github.com/brsbl/bb-plugins/tree/plugin/github-notifications)
-
-![GitHub Activity in BB](plugins/github-notifications/docs/screenshot.png)
-
-**Mesh Gradient** · [Source](plugins/mesh-gradient) · [README](plugins/mesh-gradient/README.md) · [`@plugin/mesh-gradient`](https://github.com/brsbl/bb-plugins/tree/plugin/mesh-gradient)
-
-![Mesh Gradient in bb](plugins/mesh-gradient/docs/screenshot.png)
-
-**Pull Requests** · [Source](plugins/pull-requests) · [README](plugins/pull-requests/README.md) · [`@plugin/pull-requests`](https://github.com/brsbl/bb-plugins/tree/plugin/pull-requests)
-
-![Compact sidebar and pull request Summary with status rail and linked thread](https://github.com/user-attachments/assets/1ed45e6e-163d-44e9-852a-7e818eef0c2c)
-
-**Timeline Comments** · [Source](plugins/timeline-comments) · [README](plugins/timeline-comments/README.md) · [`@plugin/timeline-comments`](https://github.com/brsbl/bb-plugins/tree/plugin/timeline-comments)
-
-![Comment action in the floating text-selection menu](plugins/timeline-comments/docs/selection-action.png)
-
-**Video Markup** · [Source](plugins/video-markup) · [README](plugins/video-markup/README.md) · [`@plugin/video-markup`](https://github.com/brsbl/bb-plugins/tree/plugin/video-markup)
-
-![The Video Markup panel with a marked frame, an open frame note, and selected notes in the prompt box](plugins/video-markup/docs/screenshot.png)
-
-</details>
-
 ## Develop
 
 Each plugin has its own workspace under `plugins/`. After CI passes on `main`, the publish workflow generates the `plugin/*` install branches.

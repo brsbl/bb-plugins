@@ -1,13 +1,13 @@
 # Plugin catalog entry template
 
-Use this template when adding a plugin to the root README or when a plugin's durable purpose has changed enough to revise its existing entry. The plugin workspace manifests are the inventory; every workspace under `plugins/*` needs exactly one catalog entry.
+Use this template when adding a plugin to the root README or when a plugin's durable purpose has changed enough to revise its existing entry. The root catalog is a selection. The workspace manifests under `plugins/*` are the full inventory.
 
 ## Add a plugin
 
 1. Create the plugin with `npm run new:plugin -- --slug <slug> --name <name> --description <purpose>`.
 2. Finish and verify the user-facing workflow before writing catalog copy.
 3. List the plugin's major user-visible states, then capture enough representative screenshots from the real bb interface to show every one. One image may cover multiple states when each remains legible. Store them under `plugins/<slug>/docs/` and reference the complete set from the root README; reference at least one from the plugin README too.
-4. Add the entry in the same order as `node tooling/plugin-workspaces.mjs`.
+4. Place the entry alphabetically by display name.
 5. Run the verification checklist below.
 
 ```markdown
@@ -43,7 +43,7 @@ Change an existing description when the plugin gains, loses, or materially chang
 
 ## Verify the catalog
 
-1. Run `node tooling/plugin-workspaces.mjs` and compare every emitted plugin name and path with the root README.
+1. Run `node tooling/plugin-workspaces.mjs` and check each catalog entry against the emitted plugin names and paths.
 2. Inspect every referenced image and confirm its file exists, decodes, renders at a useful size, matches its alt text, and collectively covers every major state named in the plugin's catalog description.
 3. Run `npm run hygiene`; it verifies inventory links, install refs, plugin README coverage, and representative screenshot paths.
 4. Run `git diff --check` and inspect `git diff -- README.md CONTRIBUTING.md .bb/AGENTS.md tooling/plugin-catalog-entry.md plugins/*/docs` for stale entries or unrelated changes.
