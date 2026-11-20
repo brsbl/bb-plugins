@@ -2,7 +2,7 @@
 
 Read and edit Moss notes in a bb panel the way Moss does, saving to the note's files on your Mac.
 
-![A Moss note with a wiki link pill and an embedded X post in bb's panel](https://github.com/user-attachments/assets/1f0ba527-c96d-4f11-9083-a2780231f7ef)
+![A sample Moss note open read-only in bb's panel, explaining it stays read-only until opened once in Moss on a Mac, with its callout and table rendered](docs/viewer-read-only.png)
 
 ![A Moss note in Moss's own editor in bb's panel after a save, with a quiet header](https://github.com/user-attachments/assets/72e28ca7-3c9c-46b3-bca9-035f064c1fd3)
 
