@@ -6,96 +6,27 @@
 
 ## Plugins
 
-### Design Doctrine
+### Ambient
 
-Turns recurring product-design feedback into a searchable rule library that agents can apply while designing, building, and critiquing. Its maintenance workflow keeps the rules grounded in real review evidence.
+Paints a living generative background behind bb that reacts to your agents: working threads drift through it as lights, threads waiting on you pulse, and finished turns ripple outward. Tune any scene with its own sliders and palette, or ask an agent to write a new one.
 
-![Design Doctrine's searchable rule library open in bb](plugins/design-doctrine/docs/screenshot.png)
+![Ambient's Tide scene behind bb with two working agents as lights and the Ambient controls open in the sidebar](plugins/ambient/docs/screenshot.png)
 
-[Source](plugins/design-doctrine) · [README](plugins/design-doctrine/README.md)
+Contour draws a calm night map with muted gold lines and agent peaks.
 
-Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/design-doctrine --yes`
+[Source](plugins/ambient) · [README](plugins/ambient/README.md)
 
-### FPL Draft
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/ambient --yes`
 
-Follow your Fantasy Premier League Draft league’s matches and standings, compare waiver options, and bring the current view into an agent conversation with a context pill.
+### Briefs
 
-![FPL Draft waiver suggestion with expanded player comparison](https://github.com/user-attachments/assets/ea04832a-1a7f-4fdc-bcf7-66b85b951611)
+Delivers private briefings as threads with numbered priorities, review buttons, and collapsed routine details. Add or edit a prompt-based brief under the site it reads in Settings. Connections reuse existing bb Browser sign-ins; Reading remembers summarized newsletters without marking them read. Other threads can publish their own briefs.
 
-[Source](plugins/fpl-draft) · [README](plugins/fpl-draft/README.md)
+![A brief with numbered priorities and review buttons](https://github.com/user-attachments/assets/6d6f4f82-9f51-475a-b5e7-356a1e43459f)
 
-Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/fpl-draft --yes`
+[Source](plugins/digests) · [README](plugins/digests/README.md)
 
-### GitHub Activity
-
-Brings incoming comments and mentions from GitHub pull requests and issues you authored into one searchable, filterable triage view, with open and resolved activity kept together.
-
-![GitHub Activity showing searchable filters and incoming pull-request and issue activity](plugins/github-notifications/docs/screenshot.png)
-
-[Source](plugins/github-notifications) · [README](plugins/github-notifications/README.md)
-
-Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/github-notifications --yes`
-
-### Prompt Improver
-
-Rewrites a rough bb composer draft into a clearer, context-complete prompt for review before you send it. The rewrite can be cancelled or undone without leaving the composer.
-
-![Prompt Improver working on a composer draft](plugins/improve-prompt/docs/screenshot-running.png)
-
-![Prompt Improver returning the revised draft for review](plugins/improve-prompt/docs/screenshot-result.png)
-
-[Source](plugins/improve-prompt) · [README](plugins/improve-prompt/README.md)
-
-Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/improve-prompt --yes`
-
-### Prism Frame
-
-Adds a moving, theme-derived sheen to the app frame, navigation rail, and outer title bar, with matching glass mention pills and distinct selected states. Includes motion, intensity, and independent pill controls.
-
-![Prism Frame in light mode with a glass plugin mention](plugins/prism-frame/docs/overview.png)
-
-
-[Source](plugins/prism-frame) · [README](plugins/prism-frame/README.md)
-
-Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/prism-frame --yes`
-
-### Pull Requests
-
-See your GitHub pull requests and review requests, inspect checks and changes, and continue related work in bb. Thread links are optional and survive branch changes.
-
-![Compact Pull Requests sidebar with status icons and timestamps](https://github.com/user-attachments/assets/00c9963c-89ac-4ee6-86e4-06c7840c725c)
-
-![Pull request Summary with status rail and linked thread](https://github.com/user-attachments/assets/1ed45e6e-163d-44e9-852a-7e818eef0c2c)
-
-![Read-only changed file selection](https://github.com/user-attachments/assets/e664001b-4dbc-4ecc-8f48-38e79cd82dc1)
-
-[Source](plugins/pull-requests) · [README](plugins/pull-requests/README.md)
-
-Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/pull-requests --yes`
-
-### Thread Hover Cards
-
-Shows a thread's live status, latest agent update, execution context, repository, and pull request without leaving the sidebar. Collapsed sections get a compact summary of their thread count and attention state.
-
-![A thread hover card showing live worker and repository context](plugins/thread-hover-cards/docs/screenshot.png)
-
-![A collapsed section hover card summarizing its scope, activity, and attention state](plugins/thread-hover-cards/docs/screenshot-section.png)
-
-[Source](plugins/thread-hover-cards) · [README](plugins/thread-hover-cards/README.md)
-
-Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/thread-hover-cards --yes`
-
-### Thread Organizer
-
-Organizes work into configurable workflow sections that agents follow, and keeps unread idle threads in Inbox. Sections can opt out of Inbox so their unread threads stay in place. Each section can carry an entry prompt that every arriving thread receives, so a review section can start a review and a testing section can ask for evidence.
-
-![Thread Organizer showing the current development-phase sections in bb's sidebar](plugins/thread-organizer/docs/screenshot.png)
-
-![Thread Organizer workflow settings](plugins/thread-organizer/docs/settings.png)
-
-[Source](plugins/thread-organizer) · [README](plugins/thread-organizer/README.md)
-
-Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/thread-organizer --yes`
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/digests --yes`
 
 ### Calendar
 
@@ -107,15 +38,25 @@ Lists upcoming events from your Google calendars as threads in a Calendar sectio
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/calendar --yes`
 
-### Discord
+### Color Swatches
 
-Puts Discord tags and a weekday summary of each channel's activity in a Discord section below Calendar. Tags of you or the Maintainer role, and replies to you, open a notifying thread; it only reads Discord.
+Renders an inline swatch beside every color literal in a thread — hex, `rgb()`, `hsl()`, `oklch()` and friends — the way an editor decorates code.
 
-![Discord section below Calendar with mention threads and an open daily summary](plugins/discord-inbox/docs/discord-section.png)
+![Color Swatches in bb](plugins/color-swatches/docs/screenshot.png)
 
-[Source](plugins/discord-inbox) · [README](plugins/discord-inbox/README.md)
+[Source](plugins/color-swatches) · [README](plugins/color-swatches/README.md)
 
-Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/discord-inbox --yes`
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/color-swatches --yes`
+
+### Compact Links
+
+Turns website URLs and local file paths into compact pills in drafts and conversations. Website links show favicons; files show their type and open through bb’s normal file flow.
+
+![SaaS and localhost links in drafts and conversations](https://github.com/user-attachments/assets/50b2bbde-30f6-4ac2-9060-a92d04a6bc07)
+
+[Source](plugins/url-pills) · [README](plugins/url-pills/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/url-pills --yes`
 
 ### Content Calendar
 
@@ -137,39 +78,37 @@ Shows how full each thread's context window is as a Katamari Damacy-style ball i
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/context-katamari --yes`
 
-### Image Carousel
+### Design Doctrine
 
-Shows screenshots inline as a carousel: design research with one product per slide, or Before and After side by side with one shared description. It replaces long runs of images and screenshot tables in agent replies.
+Turns recurring product-design feedback into a searchable rule library that agents can apply while designing, building, and critiquing. Its maintenance workflow keeps the rules grounded in real review evidence.
 
-![A before/after carousel in a bb thread](plugins/image-carousel/docs/screenshot.png)
+![Design Doctrine's searchable rule library open in bb](plugins/design-doctrine/docs/screenshot.png)
 
-[Source](plugins/image-carousel) · [README](plugins/image-carousel/README.md)
+[Source](plugins/design-doctrine) · [README](plugins/design-doctrine/README.md)
 
-Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/image-carousel --yes`
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/design-doctrine --yes`
 
-### Inline Decisions
+### Desktop
 
-Answer everything agents need from you in Waiting on you, a drawer above the prompt box that collects decisions, email replies and plain questions from every thread, urgent first. Track past choices and results in the Decision log.
+Turns bb's new-thread page into a Windows XP desktop for your agents. Folders mirror your sidebar, threads open as instant-message windows beside a Buddy List of their project, and a taskbar and Start menu launch XP programs and games, including a real terminal and in-app browser.
 
-![Minimal cards](https://github.com/user-attachments/assets/692e0678-252d-47cf-8e1f-01e2b5c3fa7e)
+![Desktop with a thread open as an Instant Message window between its project's Buddy List and its Buddy Info](plugins/desktop/docs/screenshot.png)
 
-![Action table and results](https://github.com/user-attachments/assets/ec63ecfe-86ad-4a46-8f6e-06a72e8923f0)
+![The Start menu opened from the bb button, listing bb Explorer, Terminal, Paint, and the games](plugins/desktop/docs/start-menu.png)
 
-![Mixed table with one reply expanded](https://github.com/user-attachments/assets/4eef8810-5a99-40af-8fa4-974d25f6937f)
+[Source](plugins/desktop) · [README](plugins/desktop/README.md)
 
-[Source](plugins/inline-action-cards) · [README](plugins/inline-action-cards/README.md)
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/desktop --yes`
 
-Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/inline-action-cards --yes`
+### Discord
 
-### Mesh Gradient
+Puts Discord tags and a weekday summary of each channel's activity in a Discord section below Calendar. Tags of you or the Maintainer role, and replies to you, open a notifying thread; it only reads Discord.
 
-Creates, edits, saves, and shares reusable mesh gradients from a visual studio beside a thread. Users can hand an exact saved gradient to the current agent, while agents can generate gradients, inspect the shared library, and apply saved designs through the same plugin.
+![Discord section below Calendar with mention threads and an open daily summary](plugins/discord-inbox/docs/discord-section.png)
 
-![Mesh Gradient's visual editor open beside a bb thread](plugins/mesh-gradient/docs/screenshot.png)
+[Source](plugins/discord-inbox) · [README](plugins/discord-inbox/README.md)
 
-[Source](plugins/mesh-gradient) · [README](plugins/mesh-gradient/README.md)
-
-Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/mesh-gradient --yes`
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/discord-inbox --yes`
 
 ### Email
 
@@ -201,35 +140,29 @@ Frank Ocean's *Endless* as a bb palette — achromatic, grained, squared. Ten ye
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/endless --yes`
 
-### Color Swatches
+### Image Carousel
 
-Renders an inline swatch beside every color literal in a thread — hex, `rgb()`, `hsl()`, `oklch()` and friends — the way an editor decorates code.
+Shows screenshots inline as a carousel: design research with one product per slide, or Before and After side by side with one shared description. It replaces long runs of images and screenshot tables in agent replies.
 
-![Color Swatches in bb](plugins/color-swatches/docs/screenshot.png)
+![A before/after carousel in a bb thread](plugins/image-carousel/docs/screenshot.png)
 
-[Source](plugins/color-swatches) · [README](plugins/color-swatches/README.md)
+[Source](plugins/image-carousel) · [README](plugins/image-carousel/README.md)
 
-Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/color-swatches --yes`
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/image-carousel --yes`
 
-### Compact Links
+### Inline Decisions
 
-Turns website URLs and local file paths into compact pills in drafts and conversations. Website links show favicons; files show their type and open through bb’s normal file flow.
+Answer everything agents need from you in Waiting on you, a drawer above the prompt box that collects decisions, email replies and plain questions from every thread, urgent first. Track past choices and results in the Decision log.
 
-![SaaS and localhost links in drafts and conversations](https://github.com/user-attachments/assets/50b2bbde-30f6-4ac2-9060-a92d04a6bc07)
+![Minimal cards](https://github.com/user-attachments/assets/692e0678-252d-47cf-8e1f-01e2b5c3fa7e)
 
-[Source](plugins/url-pills) · [README](plugins/url-pills/README.md)
+![Action table and results](https://github.com/user-attachments/assets/ec63ecfe-86ad-4a46-8f6e-06a72e8923f0)
 
-Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/url-pills --yes`
+![Mixed table with one reply expanded](https://github.com/user-attachments/assets/4eef8810-5a99-40af-8fa4-974d25f6937f)
 
-### Open in Moss
+[Source](plugins/inline-action-cards) · [README](plugins/inline-action-cards/README.md)
 
-Makes local Markdown links in bb open directly in Moss, with bb's viewer kept as the fallback.
-
-![A Markdown file link from bb open in Moss](plugins/open-in-moss/docs/screenshot.png)
-
-[Source](plugins/open-in-moss) · [README](plugins/open-in-moss/README.md)
-
-Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/open-in-moss --yes`
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/inline-action-cards --yes`
 
 ### Moss Viewer
 
@@ -246,6 +179,32 @@ Reads and edits Moss notes in a bb panel the way Moss does: tabs, tables, wiki l
 [Source](plugins/moss-viewer) · [README](plugins/moss-viewer/README.md)
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/moss-viewer --yes`
+
+### Open in Moss
+
+Makes local Markdown links in bb open directly in Moss, with bb's viewer kept as the fallback.
+
+![A Markdown file link from bb open in Moss](plugins/open-in-moss/docs/screenshot.png)
+
+[Source](plugins/open-in-moss) · [README](plugins/open-in-moss/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/open-in-moss --yes`
+
+### Pinned Files & Links
+
+Keep a thread's key files and links one click away in a strip above the composer. Ask the agent to pin files from the composer's Pin pill, let agents pin the PR, issue, spec and dev site they work with, and open, unpin or remove pins from their menus.
+
+![A pull request, a Markdown file, a localhost dev server, a Linear issue and a Figma link pinned above the composer](plugins/file-pins/docs/strip.png)
+
+![A pinned file's menu with Open preview, Open externally, Copy file path, Copy file name and Unpin, in dark mode](plugins/file-pins/docs/pin-menu-dark.png)
+
+![The Pin pill in the composer, followed by the files and link to pin](plugins/file-pins/docs/pin-files-pill.png)
+
+![Pins on a phone in one row, scrolled partway, with fades on both sides where more pins wait](plugins/file-pins/docs/phone-strip.png)
+
+[Source](plugins/file-pins) · [README](plugins/file-pins/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/file-pins --yes`
 
 ### Playgrounds
 
@@ -273,71 +232,28 @@ Find installed and Community plugins with `#plugin` or `@plugin` or let your age
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/at-plugin --yes`
 
-### Timeline Comments
+### Prism Frame
 
-Attaches durable discussion threads to selected timeline text. Users and agents can reply, edit, resolve or reopen comments, review them together, and add open feedback to the composer for follow-up.
+Adds a moving, theme-derived sheen to the app frame, navigation rail, and outer title bar, with matching glass mention pills and distinct selected states. Includes motion, intensity, and independent pill controls.
 
-![Timeline Comments adding a comment from bb's text-selection menu](plugins/timeline-comments/docs/selection-action.png)
+![Prism Frame in light mode with a glass plugin mention](plugins/prism-frame/docs/overview.png)
 
-![An anchored Timeline Comments pill with comment actions and its reply composer](plugins/timeline-comments/docs/screenshot.png)
 
-![Timeline Comments copying an open comment into bb's composer for agent follow-up](plugins/timeline-comments/docs/send-to-agent.png)
+[Source](plugins/prism-frame) · [README](plugins/prism-frame/README.md)
 
-![Timeline Comments List showing an open comment in bb's right panel](plugins/timeline-comments/docs/comments-panel.png)
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/prism-frame --yes`
 
-[Source](plugins/timeline-comments) · [README](plugins/timeline-comments/README.md)
+### Prompt Improver
 
-Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/timeline-comments --yes`
+Rewrites a rough bb composer draft into a clearer, context-complete prompt for review before you send it. The rewrite can be cancelled or undone without leaving the composer.
 
-### Desktop
+![Prompt Improver working on a composer draft](plugins/improve-prompt/docs/screenshot-running.png)
 
-Turns bb's new-thread page into a Windows XP desktop for your agents. Folders mirror your sidebar, threads open as instant-message windows beside a Buddy List of their project, and a taskbar and Start menu launch XP programs and games, including a real terminal and in-app browser.
+![Prompt Improver returning the revised draft for review](plugins/improve-prompt/docs/screenshot-result.png)
 
-![Desktop with a thread open as an Instant Message window between its project's Buddy List and its Buddy Info](plugins/desktop/docs/screenshot.png)
+[Source](plugins/improve-prompt) · [README](plugins/improve-prompt/README.md)
 
-![The Start menu opened from the bb button, listing bb Explorer, Terminal, Paint, and the games](plugins/desktop/docs/start-menu.png)
-
-[Source](plugins/desktop) · [README](plugins/desktop/README.md)
-
-Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/desktop --yes`
-
-### Ambient
-
-Paints a living generative background behind bb that reacts to your agents: working threads drift through it as lights, threads waiting on you pulse, and finished turns ripple outward. Tune any scene with its own sliders and palette, or ask an agent to write a new one.
-
-![Ambient's Tide scene behind bb with two working agents as lights and the Ambient controls open in the sidebar](plugins/ambient/docs/screenshot.png)
-
-Contour draws a calm night map with muted gold lines and agent peaks.
-
-[Source](plugins/ambient) · [README](plugins/ambient/README.md)
-
-Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/ambient --yes`
-
-### Video Markup
-
-Review product films in bb with inline playback, frame annotations, and version history. Send selected feedback and captured frames to the agent, guided by the bundled Product Demo Direction skill.
-
-![The Video Markup panel with a marked frame, an open frame note, and selected notes in the prompt box](plugins/video-markup/docs/screenshot.png)
-
-[Source](plugins/video-markup) · [README](plugins/video-markup/README.md)
-
-Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/video-markup --yes`
-
-### Pinned Files & Links
-
-Keep a thread's key files and links one click away in a strip above the composer. Ask the agent to pin files from the composer's Pin pill, let agents pin the PR, issue, spec and dev site they work with, and open, unpin or remove pins from their menus.
-
-![A pull request, a Markdown file, a localhost dev server, a Linear issue and a Figma link pinned above the composer](plugins/file-pins/docs/strip.png)
-
-![A pinned file's menu with Open preview, Open externally, Copy file path, Copy file name and Unpin, in dark mode](plugins/file-pins/docs/pin-menu-dark.png)
-
-![The Pin pill in the composer, followed by the files and link to pin](plugins/file-pins/docs/pin-files-pill.png)
-
-![Pins on a phone in one row, scrolled partway, with fades on both sides where more pins wait](plugins/file-pins/docs/phone-strip.png)
-
-[Source](plugins/file-pins) · [README](plugins/file-pins/README.md)
-
-Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/file-pins --yes`
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/improve-prompt --yes`
 
 ### Server Switcher
 
@@ -351,52 +267,78 @@ See which bb server you are on and switch to any other server on your bb account
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/server-switcher --yes`
 
-### Agent Channels
+### Theme Preview
 
-Run a team of bb threads from one lead: skills to delegate work, relay your decisions, collect results, and report back briefly, plus a right-panel view that gives each agent-to-agent conversation its own channel and flags reports waiting on you. Its defaults come from your own AGENTS.md, CLAUDE.md, skills, and memory, quoted in Settings.
-
-![A lead's Agent Channels panel, with one channel per agent and the conversation in order](plugins/delegation/docs/channels.png)
-
-![Agent Channels' settings: one table of models by role, with when a lead creates each role](plugins/delegation/docs/settings.png)
-
-[Source](plugins/delegation) · [README](plugins/delegation/README.md)
-
-Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/delegation --yes`
-
-## Moved plugins
-
-- [Saved Places](https://github.com/brsbl/saved-places) has its own template repository for mapping Google Maps saves.
-- [Theme Preview](https://github.com/get-bb/bb/tree/main/plugins/theme-preview) ships with bb. Install the official plugin from Extensions.
-
-<details>
-<summary>Original Theme Preview plugin</summary>
-
-**Theme Preview** · [Source](plugins/theme-preview) · [README](plugins/theme-preview/README.md) · [`@plugin/theme-preview`](https://github.com/brsbl/bb-plugins/tree/plugin/theme-preview)
+A skeleton of the bb app in every configuration — sidebar, splits, panels, overlays, real thread timelines and controls — drawn from the active theme's tokens, so a palette can be judged before it ships.
 
 ![Theme Preview in bb](plugins/theme-preview/docs/screenshot.png)
 
-</details>
+[Source](plugins/theme-preview) · [README](plugins/theme-preview/README.md)
 
-## Earlier plugins
+The [official Theme Preview plugin](https://github.com/get-bb/bb/tree/main/plugins/theme-preview) is available in bb’s Extensions. [Original install branch `@plugin/theme-preview`](https://github.com/brsbl/bb-plugins/tree/plugin/theme-preview).
 
-Coordinator Mode and CRM are legacy plugins. For weekday inbox summaries, see [Email](#email). Briefs is the earlier prompt-based briefing plugin.
+### Thread Hover Cards
+
+Shows a thread's live status, latest agent update, execution context, repository, and pull request without leaving the sidebar. Collapsed sections get a compact summary of their thread count and attention state.
+
+![A thread hover card showing live worker and repository context](plugins/thread-hover-cards/docs/screenshot.png)
+
+![A collapsed section hover card summarizing its scope, activity, and attention state](plugins/thread-hover-cards/docs/screenshot-section.png)
+
+[Source](plugins/thread-hover-cards) · [README](plugins/thread-hover-cards/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/thread-hover-cards --yes`
+
+### Thread Organizer
+
+Organizes work into configurable workflow sections that agents follow, and keeps unread idle threads in Inbox. Sections can opt out of Inbox so their unread threads stay in place. Each section can carry an entry prompt that every arriving thread receives, so a review section can start a review and a testing section can ask for evidence.
+
+![Thread Organizer showing the current development-phase sections in bb's sidebar](plugins/thread-organizer/docs/screenshot.png)
+
+![Thread Organizer workflow settings](plugins/thread-organizer/docs/settings.png)
+
+[Source](plugins/thread-organizer) · [README](plugins/thread-organizer/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/thread-organizer --yes`
 
 <details>
-<summary>Briefs, Coordinator Mode and CRM</summary>
+<summary>Archived plugin listings</summary>
 
-**Briefs** · [Source](plugins/digests) · [README](plugins/digests/README.md) · [`@plugin/digests`](https://github.com/brsbl/bb-plugins/tree/plugin/digests)
+**Agent Channels** · [Source](plugins/delegation) · [README](plugins/delegation/README.md) · [`@plugin/delegation`](https://github.com/brsbl/bb-plugins/tree/plugin/delegation)
 
-![A brief with numbered priorities and review buttons](https://github.com/user-attachments/assets/6d6f4f82-9f51-475a-b5e7-356a1e43459f)
+![Agent Channels in a lead's right panel: one channel per agent, with the conversation in order](plugins/delegation/docs/channels.png)
 
 **Coordinator Mode** · [Source](plugins/coordinator-mode) · [README](plugins/coordinator-mode/README.md) · [`@plugin/coordinator-mode`](https://github.com/brsbl/bb-plugins/tree/plugin/coordinator-mode)
 
-![Coordinator panel set-up form with the Ship template](https://github.com/user-attachments/assets/9754ab68-1937-4849-bfd8-b2e57807481d)
 ![Coordinator tracker with a proposed item waiting in Needs you](https://github.com/user-attachments/assets/d51eaa0b-c084-4dd6-968f-6593a4481ff6)
 
 **CRM** · [Source](plugins/crm) · [README](plugins/crm/README.md) · [`@plugin/crm`](https://github.com/brsbl/bb-plugins/tree/plugin/crm)
 
 ![Customer companies grouped by impact tier, with scores and milestones](https://github.com/user-attachments/assets/6b8f75ec-24cc-4bf2-9e04-6a92fe466d92)
-![Investors ranked by value, with criterion scores, rationale and asks](https://github.com/user-attachments/assets/f9b444b4-b1d7-42cf-8a3b-abea0b2c7cf9)
+
+**FPL Draft** · [Source](plugins/fpl-draft) · [README](plugins/fpl-draft/README.md) · [`@plugin/fpl-draft`](https://github.com/brsbl/bb-plugins/tree/plugin/fpl-draft)
+
+![FPL Draft waiver suggestion with expanded player comparison](https://github.com/user-attachments/assets/ea04832a-1a7f-4fdc-bcf7-66b85b951611)
+
+**GitHub Activity** · [Source](plugins/github-notifications) · [README](plugins/github-notifications/README.md) · [`@plugin/github-notifications`](https://github.com/brsbl/bb-plugins/tree/plugin/github-notifications)
+
+![GitHub Activity in BB](plugins/github-notifications/docs/screenshot.png)
+
+**Mesh Gradient** · [Source](plugins/mesh-gradient) · [README](plugins/mesh-gradient/README.md) · [`@plugin/mesh-gradient`](https://github.com/brsbl/bb-plugins/tree/plugin/mesh-gradient)
+
+![Mesh Gradient in bb](plugins/mesh-gradient/docs/screenshot.png)
+
+**Pull Requests** · [Source](plugins/pull-requests) · [README](plugins/pull-requests/README.md) · [`@plugin/pull-requests`](https://github.com/brsbl/bb-plugins/tree/plugin/pull-requests)
+
+![Compact sidebar and pull request Summary with status rail and linked thread](https://github.com/user-attachments/assets/1ed45e6e-163d-44e9-852a-7e818eef0c2c)
+
+**Timeline Comments** · [Source](plugins/timeline-comments) · [README](plugins/timeline-comments/README.md) · [`@plugin/timeline-comments`](https://github.com/brsbl/bb-plugins/tree/plugin/timeline-comments)
+
+![Comment action in the floating text-selection menu](plugins/timeline-comments/docs/selection-action.png)
+
+**Video Markup** · [Source](plugins/video-markup) · [README](plugins/video-markup/README.md) · [`@plugin/video-markup`](https://github.com/brsbl/bb-plugins/tree/plugin/video-markup)
+
+![The Video Markup panel with a marked frame, an open frame note, and selected notes in the prompt box](plugins/video-markup/docs/screenshot.png)
 
 </details>
 
