@@ -80,6 +80,7 @@ const KIT = String.raw`
 *, *::before, *::after { box-sizing: border-box; }
 html, body { margin: 0; background: transparent; }
 body { padding: 20px 24px 22px; font: var(--pg-text-body)/1.5 var(--font); color: var(--pg-ink); -webkit-font-smoothing: antialiased; overflow-wrap: anywhere; }
+:where(:root[data-embedded]) body { padding: 4px; }
 button, input, select, textarea { font: inherit; color: inherit; }
 button { cursor: pointer; }
 :focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
@@ -139,6 +140,7 @@ function bridge(id: string, state: unknown, theme: WidgetTheme) {
     root.style.setProperty("--font", theme.font);
     for (const [name, value] of Object.entries(theme.tokens)) root.style.setProperty("--" + name, value);
   };
+  if (parent !== window) document.documentElement.dataset.embedded = "";
   let init = {};
   try { if (location.hash.length > 1) init = JSON.parse(decodeURIComponent(location.hash.slice(1))); } catch {}
   let theme = init.theme || ${JSON.stringify(theme)};
@@ -217,7 +219,7 @@ ${CONTROLS_RUNTIME.replace("/*SETS*/", CHART_RUNTIME + SETS_RUNTIME)}
 }
 
 export const FRAME_PATH = "/frame";
-const IMAGE_HOSTS = ["https://upload.wikimedia.org"] as const;
+export const IMAGE_HOSTS = ["https://upload.wikimedia.org"] as const;
 const FRAME_CSP = [
   "sandbox allow-scripts",
   "default-src 'none'",
