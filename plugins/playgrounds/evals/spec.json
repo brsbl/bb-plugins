@@ -1,0 +1,27 @@
+{
+  "name": "playgrounds-product-builder-v1",
+  "runsPerPrompt": 3,
+  "rules": "Each run is a fresh thread in a fresh project workspace. Send the prompt verbatim; never mention Playgrounds, Anatomy, playgrounds, cards or skills. After the agent's turn ends, send the follow-up verbatim in the same thread.",
+  "prompts": [
+    { "id": "cdn-cache", "expect": "anatomy", "prompt": "Explain to my team how our CDN cache works and why a purge takes a while to show up.", "followUp": "What changes if we cut the TTL from an hour to five minutes?" },
+    { "id": "webhook-retries", "expect": "anatomy", "prompt": "How do webhook retries with backoff work? I want to see what happens when the receiver is down.", "followUp": "What if the receiver is down for two hours?" },
+    { "id": "flag-rollout", "expect": "anatomy", "prompt": "Show me how a feature flag rollout reaches users as we go from 1% to 50%.", "followUp": "What if we want internal users to always get it first?" },
+    { "id": "optimistic-ui", "expect": "anatomy-or-mockup", "prompt": "Why does optimistic UI feel faster? Show me what the user sees on a slow network.", "followUp": "What should happen when the save fails?" },
+    { "id": "pricing", "expect": "calculator", "prompt": "We're choosing between monthly and annual pricing. Let me play with the numbers.", "followUp": "Assume 30% of annual customers would have churned within six months on monthly." },
+    { "id": "funnel", "expect": "chart", "prompt": "Where are people dropping off between signup and first project? Let me adjust each step's conversion.", "followUp": "What if we remove the email verification step?" },
+    { "id": "type-scale", "expect": "preview", "prompt": "Help me pick a spacing and type scale for our design system.", "followUp": "Make it work for a dense data table too." },
+    { "id": "notification-settings", "expect": "mockup", "prompt": "Mock up a notification settings page I can click through.", "followUp": "Add a way to snooze everything for a day." },
+    { "id": "drag-reorder", "expect": "motion-preview", "prompt": "How should drag-to-reorder feel? Let me compare spring settings.", "followUp": "Which settings would you ship and why?" },
+    { "id": "release-cadence", "expect": "simulation", "prompt": "Show the tradeoff between shipping weekly and shipping monthly for a team of six.", "followUp": "What if half the team is on call each week?" }
+  ],
+  "rubric": [
+    { "id": "made-playground", "pass": "The first reply includes a published playground card (a ::playground directive that renders), not only prose or a code block." },
+    { "id": "right-form", "pass": "The card's form fits the request: an Anatomy isometric figure for 'expect: anatomy'; a native or HTML calculator, chart, preview, mock-up, motion preview or simulation for the others. 'anatomy-or-mockup' accepts either." },
+    { "id": "correct", "pass": "The model, numbers and labels are correct for the domain, and every number the reply states matches what the card shows." },
+    { "id": "operable", "pass": "Each control visibly changes the card's output; nothing is dead, broken, clipped or overlapping at the card's width; no console errors in the card frame." },
+    { "id": "follow-up-on-card", "pass": "The follow-up is answered by changing or driving the card (setParams, an action, or a republished card), and the card's final state matches the reply." },
+    { "id": "craft", "pass": "Reads as a finished product: clear title, labeled units, sensible defaults, a takeaway the user can act on, follows bb's light/dark theme, no filler text." },
+    { "id": "credit", "pass": "If Anatomy was used, the reply credits Ryan (@wheresryan22) and Anatomy. Not applicable otherwise." }
+  ],
+  "scoring": "Each rubric item is pass/fail per run (credit may be n/a). A run's score is passes / applicable items. Report per-prompt mean and the spread across its 3 runs; consistency = share of prompts whose 3 runs all score within one item of each other."
+}
