@@ -786,3 +786,206 @@ it.each(["action", "actions"])("reserves the last %s height across virtualized r
     slot.lifecycle.unmount();
   } finally { bounds.mockRestore(); }
 });
+
+
+// Exercise the same form on both host surfaces against the real storage/RPC handlers.
+type CommentType = "decide" | "choice" | "ask";
+type CommentSurface = "drawer" | "log";
+async function commentCard(type: CommentType, surface: CommentSurface) {
+  const host = recordingHost(); plugin(host.bb);
+  const item = gridCards[type];
+  await host.harness.behavior.runCli(["create", item.id, "--thread", item.threadId, "--item", JSON.stringify(item.content)]);
+  const app = await loadPluginApp(() => import("./app.js"));
+  const rpc = Object.fromEntries(["waiting", "log", "get", "prepare", "choose", "dispatch", "reopen", "decideFromLog"].map((name) => [name, (input: unknown) => host.harness.behavior.callRpc(name, input)]));
+  const mount = async () => {
+    const slot = surface === "drawer"
+      ? renderSlot(app.composerCustomizations[0]!.banners![0]!, {}, { ...inThread, rpc })
+      : renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc });
+    if (surface === "drawer") {
+      const header = await screen.findByRole("button", { name: /^Waiting on you/ });
+      if (header.getAttribute("aria-expanded") === "false") fireEvent.click(header);
+    }
+    return slot;
+  };
+  const get = async () => JSON.parse((await host.harness.behavior.runCli(["get", item.id, "--thread", item.threadId])).stdout!) as Item;
+  return { host, item, rpc, mount, get };
+}
+function pickCommentAnswer(type: CommentType) {
+  if (type === "ask") fireEvent.change(screen.getByRole("textbox", { name: "Your answer" }), { target: { value: "#feedback" } });
+  else answer(type === "decide" ? /^Merge/ : /^Staged/);
+}
+// An ask opens its comment with Add comment; a decision shows it under the picked option, and the user clicks into it.
+function typeComment(value: string) {
+  const toggle = screen.queryByRole("button", { name: "Add comment" });
+  if (toggle) fireEvent.click(toggle);
+  const field = screen.getByRole("textbox", { name: "Comment (optional)" }) as HTMLTextAreaElement;
+  if (!toggle) field.focus();
+  expect(document.activeElement).toBe(field);
+  expect(field.rows).toBe(1);
+  fireEvent.change(field, { target: { value } });
+  return field;
+}
+const commentCases = (["decide", "choice", "ask"] as const).flatMap((type) => (["drawer", "log"] as const).flatMap((surface) => [false, true].map((withComment) => [type, surface, withComment] as const)));
+it.each(commentCases)("submits %s from the %s with comment=%s in one delivery", async (type, surface, withComment) => {
+  const { host, item, mount, get } = await commentCard(type, surface);
+  try {
+    const slot = await mount();
+    await screen.findByRole("form");
+    expect(screen.queryByRole("textbox", { name: "Comment (optional)" })).toBeNull();
+    pickCommentAnswer(type);
+    if (withComment) typeComment("Keep the existing schedule.\nTell me when it is done.");
+    submit();
+    await waitFor(() => expect(submittedMentions).toHaveLength(1));
+    const saved = await get();
+    const comment = "Keep the existing schedule.\nTell me when it is done.";
+    const note = type === "ask" ? `#feedback${withComment ? `\n\nComment: ${comment}` : ""}` : withComment ? comment : undefined;
+    expect(saved.attempt?.note).toBe(note);
+    const context = JSON.parse((await host.harness.registrations.mentionProviders[0]!.resolve(submittedMentions[0]!.id)).context);
+    if (type === "ask") {
+      // Resolving the mention is the agent reading the answer; only then is the ask settled.
+      expect(context).toMatchObject({ intent: "answer", answer: note });
+      expect(await get()).toMatchObject({ state: "succeeded", attempt: { note, claimed: true } });
+    } else {
+      expect(context).toMatchObject({ intent: "approved-action", action: type === "choice" ? "choose" : "yes", ...(note ? { note } : {}) });
+      const claimed = await host.harness.behavior.runCli(["claim", item.id, "--thread", item.threadId, "--attempt", saved.attempt!.id]);
+      expect(JSON.parse(claimed.stdout!).attempt.note).toBe(note);
+    }
+    expect(submittedMessages).toHaveLength(1);
+    expect(slot.inspection.navigateCalls).toEqual([]);
+  } finally { await host.harness.lifecycle.dispose(); }
+});
+
+it.each((["drawer", "log"] as const).flatMap((surface) => (["decide", "choice"] as const).map((type) => [surface, type] as const)))("shows a %s %s comment under the picked option and keeps it when the pick changes", async (surface, type) => {
+  const { host, mount, get } = await commentCard(type, surface);
+  const [first, second] = type === "decide" ? [/^Merge/, /^Keep open/] : [/^Staged/, /^Everyone/];
+  const fieldAfter = (option: RegExp) => screen.getByRole("radio", { name: option }).closest("label")!.nextElementSibling?.querySelector("textarea") ?? null;
+  try {
+    await mount(); await screen.findByRole("form");
+    // Nothing before a pick: no field and no Add comment.
+    expect(screen.queryByRole("textbox", { name: "Comment (optional)" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add comment" })).toBeNull();
+    answer(first);
+    const field = screen.getByRole("textbox", { name: "Comment (optional)" }) as HTMLTextAreaElement;
+    expect(field.placeholder).toBe("Add a comment (optional)");
+    expect(field.value).toBe("");
+    expect(field.rows).toBe(1);
+    expect(fieldAfter(first)).toBe(field);
+    expect(screen.queryByRole("button", { name: "Add comment" })).toBeNull();
+    fireEvent.change(field, { target: { value: "Only after the 3pm freeze." } });
+    answer(second);
+    const moved = screen.getAllByRole("textbox", { name: "Comment (optional)" });
+    expect(moved).toHaveLength(1);
+    expect(fieldAfter(second)).toBe(moved[0]);
+    expect(fieldAfter(first)).toBeNull();
+    expect((moved[0] as HTMLTextAreaElement).value).toBe("Only after the 3pm freeze.");
+    submit();
+    await waitFor(() => expect(submittedMessages).toHaveLength(1));
+    expect((await get()).attempt).toMatchObject(type === "decide" ? { action: "no", note: "Only after the 3pm freeze." } : { action: "choose", choice: { id: "b" }, note: "Only after the 3pm freeze." });
+  } finally { await host.harness.lifecycle.dispose(); }
+});
+
+it.each((["drawer", "log"] as const).flatMap((surface) => (["decide", "choice", "ask"] as const).map((type) => [surface, type] as const)))("keeps Enter, Shift+Enter and number keys inside a %s %s comment", async (surface, type) => {
+  const { host, mount } = await commentCard(type, surface);
+  try {
+    await mount(); await screen.findByRole("form");
+    pickCommentAnswer(type);
+    const field = typeComment("First line");
+    for (const keys of [{ key: "Enter" }, { key: "Enter", shiftKey: true }, { key: "Enter", ctrlKey: true }, { key: "2" }]) {
+      expect(fireEvent.keyDown(field, keys)).toBe(true);
+    }
+    fireEvent.change(field, { target: { value: "First line\nSecond line" } });
+    expect(field.value).toBe("First line\nSecond line");
+    expect(submittedMessages).toEqual([]);
+    if (type !== "ask") expect((screen.getByRole("radio", { name: type === "decide" ? /^Merge/ : /^Staged/ }) as HTMLInputElement).checked).toBe(true);
+    // Deleting the text keeps focus in an empty editor, ready to type a replacement.
+    fireEvent.change(field, { target: { value: "" } });
+    expect(screen.getByRole("textbox", { name: "Comment (optional)" })).toBe(field);
+    expect(document.activeElement).toBe(field);
+  } finally { await host.harness.lifecycle.dispose(); }
+});
+
+it.each((["drawer", "log"] as const).flatMap((surface) => (["decide", "choice", "ask"] as const).map((type) => [surface, type] as const)))("validates the combined note without truncating a %s %s draft", async (surface, type) => {
+  const { host, mount, get } = await commentCard(type, surface);
+  try {
+    await mount(); await screen.findByRole("form");
+    pickCommentAnswer(type);
+    const overhead = type === "ask" ? "#feedback\n\nComment: ".length : 0;
+    const field = typeComment("x".repeat(1001 - overhead));
+    expect(field.value.length).toBe(1001 - overhead);
+    expect(field.getAttribute("aria-invalid")).toBe("true");
+    const error = screen.getByRole("alert");
+    expect(error.textContent).toContain("Remove 1 character to submit.");
+    expect(field.getAttribute("aria-describedby")).toBe(error.id);
+    expect((screen.getByRole("button", { name: "Submit" }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.submit(screen.getByRole("form"));
+    expect((await get()).attempt).toBeNull();
+    expect(submittedMessages).toEqual([]);
+    fireEvent.change(field, { target: { value: "x".repeat(1000 - overhead) } });
+    expect(screen.queryByRole("alert")).toBeNull();
+    submit();
+    await waitFor(() => expect(submittedMessages).toHaveLength(1));
+    expect((await get()).attempt?.note).toHaveLength(1000);
+  } finally { await host.harness.lifecycle.dispose(); }
+});
+
+it.each(["drawer", "log"] as const)("preserves the answer and comment after prepare fails in the %s", async (surface) => {
+  const { host, rpc, mount, get } = await commentCard("ask", surface);
+  const prepare = rpc.prepare!;
+  let failed = false;
+  rpc.prepare = (input) => { if (!failed) { failed = true; throw new Error("Connection lost. Try again."); } return prepare(input); };
+  try {
+    await mount(); await screen.findByRole("form");
+    pickCommentAnswer("ask");
+    const field = typeComment("Keep this detail.");
+    submit();
+    expect((await screen.findByRole("alert")).textContent).toContain("Connection lost");
+    expect(field.value).toBe("Keep this detail.");
+    expect((screen.getByRole("textbox", { name: "Your answer" }) as HTMLTextAreaElement).value).toBe("#feedback");
+    submit();
+    await waitFor(() => expect(submittedMessages).toHaveLength(1));
+    expect((await get()).attempt?.note).toBe("#feedback\n\nComment: Keep this detail.");
+  } finally { await host.harness.lifecycle.dispose(); }
+});
+
+it.each(["drawer", "log"] as const)("resends the stored comment after delivery fails in the %s", async (surface) => {
+  const { host, rpc, mount, get } = await commentCard("decide", surface);
+  const dispatch = rpc.dispatch!;
+  let failed = false;
+  rpc.dispatch = (input) => { if (!failed) { failed = true; throw new Error("Delivery unavailable"); } return dispatch(input); };
+  try {
+    await mount(); await screen.findByRole("form");
+    pickCommentAnswer("decide"); typeComment("Keep this condition."); submit();
+    await screen.findByRole("alert");
+    const prepared = await get();
+    if (surface === "log") {
+      fireEvent.keyDown(screen.getByRole("button", { name: "More actions" }), { key: "Enter" });
+      fireEvent.click(await screen.findByRole("menuitem", { name: "Resend request" }));
+    } else fireEvent.click(screen.getByRole("button", { name: "Resend" }));
+    await waitFor(() => expect(submittedMessages).toHaveLength(1));
+    expect((await get()).attempt).toMatchObject({ id: prepared.attempt!.id, note: "Keep this condition." });
+  } finally { await host.harness.lifecycle.dispose(); }
+});
+
+it.each(["drawer", "log"] as const)("reopening in the %s clears the previous answer and comment drafts", async (surface) => {
+  const { host, mount, get } = await commentCard("decide", surface);
+  try {
+    const slot = await mount(); await screen.findByRole("form");
+    pickCommentAnswer("decide"); typeComment("Old condition.");
+    // Another client takes and safely fails the decision while this client holds local drafts.
+    const current = await get();
+    const pending = await host.harness.behavior.callRpc("prepare", { id: current.id, threadId: current.threadId, revision: current.revision, action: "yes", note: "Old condition." }) as Item;
+    await host.harness.behavior.runCli(["claim", current.id, "--thread", current.threadId, "--attempt", pending.attempt!.id]);
+    await host.harness.behavior.runCli(["report", current.id, "--thread", current.threadId, "--attempt", pending.attempt!.id, "--outcome", "failed", "--retryable", "--message", "Nothing changed"]);
+    if (surface === "drawer") {
+      // A newly reported outcome closes the drawer's current card; reopen its waiting entry.
+      slot.lifecycle.unmount(); await mount();
+    } else await slot.behavior.emitRealtime("items", {});
+    fireEvent.click(await screen.findByRole("button", { name: "Choose again" }));
+    await screen.findByRole("radio", { name: /^Merge/ });
+    expect(screen.queryByRole("textbox", { name: "Comment (optional)" })).toBeNull();
+    expect(screen.getAllByRole("radio").every((radio) => !(radio as HTMLInputElement).checked)).toBe(true);
+    pickCommentAnswer("decide"); submit();
+    await waitFor(() => expect(submittedMessages).toHaveLength(1));
+    expect((await get()).attempt?.note).toBeUndefined();
+  } finally { await host.harness.lifecycle.dispose(); }
+});
