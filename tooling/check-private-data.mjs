@@ -15,6 +15,7 @@ const personalIdentifiers = new RegExp(['brs' + 'abel', 'ber' + 'sabel', 'ta' + 
 export function privateDataHits(text) {
   const hits = [];
   const patterns = [
+    { kind: 'server link', pattern: /(?<![a-z0-9-])(?:brsbl(?:-bbox)?|[a-z0-9-]*--[0-9][a-z0-9.-]*)\.getbb\.app(?![a-z0-9-])/gi, allowed: () => false },
     { kind: 'personal identifier', pattern: personalIdentifiers, allowed: () => false },
     { kind: 'home path', pattern: /\/(?:home|Users)\/[a-zA-Z0-9_.-]+/g, allowed: value => syntheticHomes.has(value) },
     { kind: 'thread ID', pattern: /thr_[a-z0-9]{10}(?![a-z0-9])/g, allowed: value => syntheticThread.test(value) },
