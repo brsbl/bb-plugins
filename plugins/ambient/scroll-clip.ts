@@ -5,12 +5,15 @@ export function mountScrollClip(): () => void {
 
   const clipped = new Set<HTMLElement>();
   const observed = new Set<Element>();
+  let insetPanes = new Set<HTMLElement>();
+  const insetProperty = "--ambient-thread-inset-end";
   let frame = 0;
 
   const measure = () => {
     frame = 0;
     const nextClipped = new Set<HTMLElement>();
     const nextObserved = new Set<Element>();
+    const nextInsetPanes = new Set<HTMLElement>();
     const clip = (content: HTMLElement, edge: Element, viewport: Element) => {
       const bounds = content.getBoundingClientRect();
       const bottom = Math.min(bounds.height, Math.max(0, bounds.bottom - edge.getBoundingClientRect().top));
@@ -28,6 +31,17 @@ export function mountScrollClip(): () => void {
       const content = footer.previousElementSibling;
       const viewport = footer.closest(".thread-scrollbar");
       if (content instanceof HTMLElement && viewport) clip(content, footer, viewport);
+
+      // bb reserves room for a context card on the scroll content. Its header and glass are ancestors.
+      const container = footer.parentElement;
+      if (!container || container.parentElement !== viewport) continue;
+      nextObserved.add(container);
+      const inset = container.style.paddingInlineEnd;
+      const pane = footer.closest<HTMLElement>("[data-split-pane-id]") ?? footer.closest<HTMLElement>("[data-thread-window]");
+      if (pane && inset) {
+        if (pane.style.getPropertyValue(insetProperty) !== inset) pane.style.setProperty(insetProperty, inset);
+        nextInsetPanes.add(pane);
+      }
     }
     for (const home of root.querySelectorAll("[data-testid=root-compose-compact-home]")) {
       const composer = home.querySelector("[data-testid=root-compose-compact-composer]");
@@ -39,6 +53,10 @@ export function mountScrollClip(): () => void {
         if (child instanceof HTMLElement) clip(child, composer, viewport);
       }
     }
+    for (const pane of insetPanes) {
+      if (!nextInsetPanes.has(pane)) pane.style.removeProperty(insetProperty);
+    }
+    insetPanes = nextInsetPanes;
     for (const element of clipped) {
       if (!nextClipped.has(element)) clear(element);
     }
@@ -70,6 +88,7 @@ export function mountScrollClip(): () => void {
   return () => {
     cancelAnimationFrame(frame);
     resize.disconnect();
+    for (const pane of insetPanes) pane.style.removeProperty(insetProperty);
     mutations.disconnect();
     document.removeEventListener("scroll", schedule, true);
     window.removeEventListener("resize", schedule);

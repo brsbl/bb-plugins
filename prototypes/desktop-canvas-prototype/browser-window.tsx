@@ -175,12 +175,7 @@ export function BrowserWindow({ window: desktopWindow, threadId, tabId }: { wind
 
   return (
     <WindowFrame window={desktopWindow} title={pageTitle} icon="Globe" keepMounted overview={{ detail: hostname || undefined }}
-      titleActions={thread === undefined ? undefined : (
-        <button type="button" className="cdc-title-button" aria-label={`Show ${thread.displayTitle}`} title={`From ${thread.displayTitle}`}
-          onClick={() => desktop.openThread(threadId)}>
-          <Icon name="ArrowTurnBackward" />
-        </button>
-      )}
+      menu={() => thread === undefined ? [] : [{ label: `Show ${thread.displayTitle}`, icon: "ArrowTurnBackward", run: () => desktop.openThread(threadId) }]}
       statusBar={<span className="cdc-statusbar-note">{browser === null ? "Browser windows need the bb desktop app." : state?.errorText ?? (loading ? `Opening ${hostname}…` : thread === undefined ? hostname : `From ${thread.displayTitle}`)}</span>}>
       <div className="cdc-browser">
         <form className="cdc-toolbar" onSubmit={go}>

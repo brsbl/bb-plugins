@@ -2,7 +2,6 @@ import { useMemo, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import {
   experimental_Icon as Icon,
-  experimental_ProviderIcon as ProviderIcon,
   experimental_useProviders as useProviders,
   experimental_useSidebarThreadActions as useSidebarThreadActions,
   experimental_useSidebarThreadPullRequest as useSidebarThreadPullRequest,
@@ -84,7 +83,6 @@ export function InfoWindow({ window: desktopWindow, threadId }: { window: Deskto
       {thread === undefined ? <div className="cdc-empty"><p>This thread isn’t available.</p></div> : (
         <div className="cdc-info">
           <header className="cdc-info-header">
-            <ProviderIcon providerKind="agent" provider={{ id: thread.providerId }} />
             <div>
               <strong>{thread.displayTitle}</strong>
               <span>{activityLine(thread, agent)}</span>
