@@ -1,6 +1,7 @@
 // The veil thins bb's own backgrounds so the scene shows through, and puts frosted glass behind
 // text. It is one static stylesheet, injected once while Ambient is on; the user's controls reach
 // it through custom properties on <body>, so moving a slider never rebuilds or re-parses CSS.
+import { mountPageMark, PAGE_ATTRIBUTE } from "./page-mark.js";
 import { mountScrollClip } from "./scroll-clip.js";
 
 export const VEIL_STYLE_ID = "bb-ambient-veil";
@@ -49,8 +50,10 @@ export function mountVeil(): () => void {
   }
   const mounted = style;
   const stopScrollClip = mountScrollClip();
+  const stopPageMark = mountPageMark();
   return () => {
     stopScrollClip();
+    stopPageMark();
     mounted.remove();
     const { body } = document;
     body.style.removeProperty("--ambient-keep");
@@ -67,8 +70,9 @@ const PANES = `${ROOT}, [data-testid="secondary-panel-shelf"]`;
 const OVERLAY = `${SHELL} [data-bb-portaled-overlay]:is([role="dialog"], [role="menu"], [role="listbox"])`;
 // The compact right-panel shelf is a portaled dialog too; its sticky headers stay solid glass, unlike menus.
 const THREAD = `${ROOT} [data-thread-window]`;
-const PAGE_MAIN =
-  '[data-testid="app-layout-content-shell"] > main:not(:has([data-thread-window], [data-app-composer], [role="img"][aria-label="bb"]))';
+/** A page's <main>, marked by page-mark.ts. A :not(:has()) here restyled all of <main> on every node bb added to it; the
+    attribute is doubled to keep that selector's specificity. */
+const PAGE_MAIN = `[data-testid="app-layout-content-shell"] > main[${PAGE_ATTRIBUTE}][${PAGE_ATTRIBUTE}]`;
 const PAGE = `${ROOT} ${PAGE_MAIN}`;
 const RIGHT_PANEL = `${ROOT} #thread-detail-secondary-panel-handle + [data-panel] > aside`;
 const COMPACT_HOME = `${ROOT} [data-testid="root-compose-compact-home"]:has([data-root-compose-mobile-recents])`;
