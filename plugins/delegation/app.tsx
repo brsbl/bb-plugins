@@ -60,9 +60,9 @@ const SPAWN_POLICIES: Option[] = [
   { value: "free", label: "Whenever it helps" },
 ];
 const SPAWN_NOTES: Record<DelegationSettings["spawnPolicy"], string> = {
-  ask: "Every new worker is a proposal card first.",
-  followthrough: "QA, review, and CI on approved work; new scope is a proposal card.",
-  approved: "Anything inside approved scope; new scope is a proposal card.",
+  ask: "Ask before starting a worker unless you requested it.",
+  followthrough: "QA, review, and CI on approved work; ask before starting new scope.",
+  approved: "Anything inside approved scope; ask before starting new scope.",
   free: "Whenever delegating helps.",
 };
 const REASONING: Option[] = [

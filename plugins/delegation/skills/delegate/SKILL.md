@@ -1,6 +1,6 @@
 ---
 name: delegate
-description: Decide whether to hand a task to another bb thread, then launch and parent the worker with a self-contained prompt and the user's Delegation settings, or propose it first when the spawn policy requires. Use when the user says "launch an agent for this", "spin up a worker", "parent it", "have another thread do X", or when a separable task would block this thread. spawn owns machine capacity, and handoff owns transferring work already in progress; this skill owns the lead–worker contract.
+description: Decide whether to hand a task to another bb thread, then launch and parent the worker with a self-contained prompt and the user's Agent Channels settings, or propose it first when the spawn policy requires. Use when the user says "launch an agent for this", "spin up a worker", "parent it", "have another thread do X", or when a separable task would block this thread. Optional spawn and handoff skills can extend the native bb workflow below; this skill owns the lead–worker contract.
 ---
 
 # Delegate
@@ -14,7 +14,7 @@ passes only what matters back to the user. This skill covers the start.
 bb delegation settings --json
 ```
 
-Use the values it prints. The values come from the user's own instructions first. If `bb delegation sources --json` shows `checkedAt` as null, or `~/.bb/AGENTS.md`, `~/.claude/CLAUDE.md`, or a memory note changed after it, refresh them with `delegation-defaults` before using them, but only on the machine its `host` names (this machine is `thread.environment.hostId` in `bb status --json`). On any other machine, use the recorded values as they are: its files aren't the ones they came from. Anything the user says in the current request overrides a setting.
+Use the values it prints. The values come from the user's own instructions first. If `bb delegation sources --json` shows `checkedAt` as null, or `~/.bb/AGENTS.md`, `~/.claude/CLAUDE.md`, or a memory note changed after it, refresh them with `delegation-defaults` before using them, but only on the machine its `host` names, or this machine when `host` is null (this machine is `thread.environment.hostId` in `bb status --json`). On any other machine, use the recorded values as they are: its files aren't the ones they came from. Anything the user says in the current request overrides a setting.
 Don't restate the values to the user.
 
 ## Delegate, propose, or do it yourself
@@ -40,11 +40,16 @@ Then apply `spawnPolicy`:
 | `approved` | For anything inside scope the user approved | Propose |
 | `free` | Whenever delegation helps | — |
 
-To propose, create one action card through `inline-action-cards` that names
-the job, the worker's role and tier, and what it would change, then wait. New
+To propose, name the job, the worker's role and configuration, and what it
+would change, then wait for approval. Use `inline-action-cards` if installed;
+otherwise ask one concise question in the conversation. New
 scope, including a follow-up the user didn't ask for, is always a proposal.
 
-To move work already in progress to a new owner, use `handoff` instead.
+To transfer existing work, use `handoff` if installed. Otherwise include the
+current branch, environment, completed work, remaining steps, evidence, and
+blockers in the successor prompt. Wait for the old worker to be idle, attach
+the successor to that environment, and confirm it has taken over before
+following `thread-lifecycle`.
 
 ## Choose the worker's configuration
 
@@ -52,26 +57,30 @@ Pick the worker's role first; it decides the tier.
 
 | Role | Tier |
 | --- | --- |
-| Org lead | `leadProvider`, `leadModel`, `leadReasoningLevel` |
+| Team lead | `leadProvider`, `leadModel`, `leadReasoningLevel` |
 | Parent: will have reports of its own | `parentProvider`, `parentModel`, `parentReasoningLevel` |
 | Leaf: one bounded job, no reports | `provider`, `model`, `reasoningLevel` |
 | QA or smoke test that only exercises the product | `qaProvider` (blank: the leaf provider), `qaModel` (blank: the leaf model; `cheapest`: the cheapest generally available model in `bb provider models <provider> --json`; if that fails, add `--machine <host>` with this thread's host from `bb status --json`), `qaReasoningLevel` |
 
-A blank tier field falls back to the leaf value, then to spawn's normal tier.
-Always pass `--provider`, `--model`, and `--reasoning-level` explicitly, with
-the resolved values; never let bb pick the project default. A thread's
-provider can't change later, so spawn a worker that will get reports at the
-parent tier from the start. If a leaf later gains reports, tell the user it
-needs a handoff to the parent tier.
+A blank role field falls back to the leaf value. If `spawn` is installed,
+use its configuration and capacity guidance for remaining blanks. Otherwise
+read the lead with `bb thread show "$BB_THREAD_ID" --json` and inherit its
+provider, model, and reasoning where compatible. Verify available models with
+`bb provider models <provider> --json`; never invent model IDs or price ranks.
+If `cheapest` cannot be established from available metadata, ask which model
+to use. Pass resolved provider/model values explicitly; omit a reasoning flag
+when the provider has no such option. If no compatible configuration can be
+resolved, ask before spawning. A worker that will have reports should use the
+parent role from the start.
 
 | Choice | Rule |
 | --- | --- |
 | Models to avoid | Never spawn a model listed in `avoidModels`. |
-| Machine | The one the user names, else `machine`. When blank, use the lead's machine unless spawn's capacity check offloads the job. |
-| Environment | `environment`: `worktree` → `--new-environment worktree`; `personal` → `--new-environment personal`; `lead` → `--environment "$BB_ENVIRONMENT_ID"`; blank → spawn's choice for the job. Review or QA of another thread's change attaches to that thread's environment. Personal workspaces only work in the personal project: elsewhere, `personal` fails, so give research-only workers the lead's environment and code workers a worktree, and say so in one line. |
+| Machine | The one the user names, else `machine`. When blank, use the lead's machine unless an installed capacity skill recommends another connected machine. |
+| Environment | `environment`: `worktree` → `--new-environment worktree`; `personal` → `--new-environment personal`; `lead` → `--environment "$BB_ENVIRONMENT_ID"`; blank → a worktree for code changes or the lead environment for read-only work. Review or QA of another thread's change attaches to that thread's environment. Personal workspaces only work in the personal project: elsewhere, `personal` fails, so give research-only workers the lead's environment and code workers a worktree, and say so in one line. |
 | Parent | When `parentWorkers` is true, pass `--parent-thread "$BB_THREAD_ID"` so bb tells the lead when the worker finishes. |
 | Section | When `section` is set, pass `--section <id>`. When blank, use the lead's section from `bb thread show "$BB_THREAD_ID" --json` (`.thread.sectionId`), and omit the flag when that is null. |
-| Permissions | spawn's defaults. |
+| Permissions | Follow explicit user instructions or an installed spawn skill; otherwise omit `--permission-mode` and use bb’s default. Never infer broader permissions from delegation approval. |
 | Title | A short, human-facing name for the job, such as "Fix timeline scroll arrow cursor". No bracketed prefixes or suffixes, model names, or roles. |
 
 ## Write a self-contained prompt
@@ -87,10 +96,9 @@ shape, and nothing it doesn't:
 - <@thread:thr_… links, PR URLs, file paths, notes, attached screenshots>
 - <Decisions already made, quoting the user where their wording matters>
 
-## Org
-- You report to <@thread:lead>. <Your reports, if any: @thread:…>
-- Message only your manager and your direct reports. Reach a peer through your
-  shared manager, and another org through its lead.
+## Coordination
+- You report to <lead thread reference>. <Your reports, if any.>
+- State which threads may be contacted and who owns decisions.
 
 ## Constraints
 - Scope: <what to touch and what not to>. Build only what is approved here;
@@ -98,14 +106,12 @@ shape, and nothing it doesn't:
 - Never act on another thread's PRs, branches, or threads, including closing
   or rebasing them.
 - Don't archive or stop any thread.
-- Merge gate, in order: CI green → review → a passing QA run (qa-agent, in the
-  right browsers; the marketing site needs Chrome for Testing and real Safari)
-  on the exact head → full-window before/after screenshots of that head → the
-  user's sign-off → only then a merge card. If the head moves, redo QA and the
-  screenshots. Never merge yourself.
+- Follow the repository's required checks, review, and QA rules on the final
+  revision. Include evidence the reviewer needs. Never merge without explicit
+  user approval.
 
 ## Done when
-- [ ] <Observable condition, such as "PR open on brsbl/bb-plugins with CI green".>
+- [ ] <Observable condition, such as "PR open in the target repository with CI green".>
 
 ## Report
 Your final reply is your report; bb shows it to <the lead | the user>. Don't
@@ -121,7 +127,7 @@ Fill it from the settings:
   line to: "Put any decision you need in your report; the lead raises it with
   the user. Don't create action cards yourself."
 - With `reportTo` set to `user`, the report goes to the user. Set the decisions
-  line to: "Ask for decisions with action cards in your own thread."
+  line to: "Ask for decisions in your own thread; use action cards if installed, otherwise one concise question."
 - Keep the "Don't archive or stop" line in every prompt: archiving belongs to
   the lead (`thread-lifecycle`).
 
@@ -136,7 +142,6 @@ Pass the prompt through stdin so the shell can't rewrite it:
 bb thread spawn \
   --project "$BB_PROJECT_ID" \
   --provider '<provider>' --model '<model>' --reasoning-level '<level>' \
-  --permission-mode auto \
   --title "<title>" \
   --new-environment worktree \
   --parent-thread "$BB_THREAD_ID" \
@@ -145,8 +150,10 @@ bb thread spawn \
 PROMPT
 ```
 
-Add `--machine`, `--section`, `--file`, or `--image` as the tables above
-require.
+Confirm current flags with `bb thread spawn --help` first. Replace the
+example’s environment, parent, and configuration flags with the resolved
+settings above; omit blank reasoning. Add `--machine`, `--section`, `--file`,
+or `--image` as needed. Do not copy placeholders literally.
 
 Then tell the user in one line which worker started, its tier, and what it will
 do, as `@thread:<id>`. Keep working or end the turn; `collect-results` covers

@@ -1,18 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { buildChannels, counterpartIds, incoming, messageBody, needsYouBody, outgoing, type ChannelInputs } from "./dispatch-model";
 
-const SELF = "thr_ops";
+const SELF = "thr_coordinator";
 
 function row(id: string, at: number, fields: Record<string, unknown>) {
   return { id, kind: "conversation", role: "user", createdAt: at, text: "", ...fields };
 }
 
 const selfRows = [
-  row("u1", 1, { initiator: "user", text: "Make Dispatch operational." }),
-  row("g1", 5, { initiator: "agent", senderThreadId: "thr_growth", text: "[bb message from thread:thr_growth]\n\nQA is a hard gate. Pass it to your reports." }),
-  row("d1", 7, { initiator: "system", systemMessageKind: "child-completed", systemMessageSubject: { kind: "thread", threadId: "thr_dispatch", threadName: "Dispatch" }, text: "[bb system]\n\n@thread:thr_dispatch completed:\n\nThe e2e run is done." }),
-  row("c1", 9, { initiator: "system", systemMessageKind: "child-needs-attention", systemMessageSubject: { kind: "thread", threadId: "thr_carousel", threadName: "Image carousel" }, text: "Which file format should #418 accept?" }),
-  row("x1", 10, { initiator: "system", systemMessageKind: "ownership-assigned", systemMessageSubject: { kind: "thread", threadId: "thr_moss", threadName: "Moss viewer" }, text: "assigned" }),
+  row("u1", 1, { initiator: "user", text: "Make CSV export operational." }),
+  row("g1", 5, { initiator: "agent", senderThreadId: "thr_planning", text: "[bb message from thread:thr_planning]\n\nQA is a hard gate. Pass it to your reports." }),
+  row("d1", 7, { initiator: "system", systemMessageKind: "child-completed", systemMessageSubject: { kind: "thread", threadId: "thr_export", threadName: "CSV export" }, text: "[bb system]\n\n@thread:thr_export completed:\n\nThe e2e run is done." }),
+  row("c1", 9, { initiator: "system", systemMessageKind: "child-needs-attention", systemMessageSubject: { kind: "thread", threadId: "thr_search", threadName: "Search filters" }, text: "Which file format should the export accept?" }),
+  row("x1", 10, { initiator: "system", systemMessageKind: "ownership-assigned", systemMessageSubject: { kind: "thread", threadId: "thr_docs", threadName: "User guide" }, text: "assigned" }),
   { id: "a1", kind: "conversation", role: "assistant", createdAt: 11, text: "Reply to the user" },
   { id: "t1", kind: "turn", createdAt: 12 },
 ];
@@ -21,18 +21,18 @@ function inputs(overrides: Partial<ChannelInputs> = {}): ChannelInputs {
   return {
     selfId: SELF,
     parentId: null,
-    childIds: ["thr_dispatch", "thr_carousel", "thr_moss"],
-    titles: new Map([["thr_dispatch", "Dispatch"], ["thr_carousel", "Image carousel"], ["thr_moss", "Moss viewer"], ["thr_growth", "🎯 Growth"]]),
+    childIds: ["thr_export", "thr_search", "thr_docs"],
+    titles: new Map([["thr_export", "CSV export"], ["thr_search", "Search filters"], ["thr_docs", "User guide"], ["thr_planning", "Planning"]]),
     pending: new Set(),
     lastSeen: new Map(),
     selfRows,
     counterpartRows: new Map([
-      ["thr_dispatch", [
+      ["thr_export", [
         row("p1", 2, { initiator: "agent", senderThreadId: SELF, text: "Build the Ladle stories." }),
         row("p2", 8, { initiator: "agent", senderThreadId: SELF, text: "Rerun QA.", turnRequest: { kind: "steer", status: "accepted" } }),
-        row("p3", 3, { initiator: "agent", senderThreadId: "thr_someone_else", text: "Not from Ops Tools" }),
+        row("p3", 3, { initiator: "agent", senderThreadId: "thr_someone_else", text: "From another worker" }),
       ]],
-      ["thr_growth", [row("p4", 6, { initiator: "agent", senderThreadId: SELF, text: "Passed to all reports.", turnRequest: { kind: "message", status: "pending" } })]],
+      ["thr_planning", [row("p4", 6, { initiator: "agent", senderThreadId: SELF, text: "Passed to all reports.", turnRequest: { kind: "message", status: "pending" } })]],
     ]),
     ...overrides,
   };
@@ -63,55 +63,55 @@ describe("channels", () => {
 
   it("keeps only agent messages and child notices, keyed by the other thread", () => {
     const byThread = incoming(selfRows);
-    expect([...byThread.keys()].sort()).toEqual(["thr_carousel", "thr_dispatch", "thr_growth"]);
-    expect(byThread.get("thr_dispatch")?.[0]).toMatchObject({ dir: "finished", text: "The e2e run is done." });
+    expect([...byThread.keys()].sort()).toEqual(["thr_export", "thr_planning", "thr_search"]);
+    expect(byThread.get("thr_export")?.[0]).toMatchObject({ dir: "finished", text: "The e2e run is done." });
   });
 
   it("reads what this thread sent from the counterpart's own rows, with persisted delivery state", () => {
-    const sent = outgoing(inputs().counterpartRows.get("thr_dispatch")!, SELF);
+    const sent = outgoing(inputs().counterpartRows.get("thr_export")!, SELF);
     expect(sent.map((message) => message.id)).toEqual(["p1", "p2"]);
     expect(sent[1]).toMatchObject({ steer: true, status: "accepted" });
-    expect(outgoing(inputs().counterpartRows.get("thr_growth")!, SELF)[0]?.status).toBe("pending");
+    expect(outgoing(inputs().counterpartRows.get("thr_planning")!, SELF)[0]?.status).toBe("pending");
   });
 
   it("finds reports, the parent, and anyone who wrote in", () => {
-    expect(counterpartIds({ selfId: SELF, parentId: "thr_root", childIds: ["thr_dispatch"], selfRows })).toEqual(["thr_root", "thr_dispatch", "thr_growth", "thr_carousel"]);
+    expect(counterpartIds({ selfId: SELF, parentId: "thr_root", childIds: ["thr_export"], selfRows })).toEqual(["thr_root", "thr_export", "thr_planning", "thr_search"]);
   });
 
   it("merges both directions in order, and marks new activity and needs-you", () => {
-    const channels = buildChannels(inputs({ lastSeen: new Map([["thr_growth", 100]]) }));
-    const dispatch = channels.find((channel) => channel.counterpartId === "thr_dispatch")!;
+    const channels = buildChannels(inputs({ lastSeen: new Map([["thr_planning", 100]]) }));
+    const dispatch = channels.find((channel) => channel.counterpartId === "thr_export")!;
     expect(dispatch.messages.map((message) => `${message.dir}:${message.id}`)).toEqual(["out:p1", "finished:d1", "out:p2"]);
     expect(dispatch).toMatchObject({ relation: "report", unread: true, needsYou: false });
-    const growth = channels.find((channel) => channel.counterpartId === "thr_growth")!;
-    expect(growth).toMatchObject({ relation: "peer", unread: false, title: "🎯 Growth" });
-    const carousel = channels.find((channel) => channel.counterpartId === "thr_carousel")!;
-    expect(carousel).toMatchObject({ needsYou: true, question: "Which file format should #418 accept?" });
-    const moss = channels.find((channel) => channel.counterpartId === "thr_moss")!;
-    expect(moss.messages).toEqual([]);
+    const planning = channels.find((channel) => channel.counterpartId === "thr_planning")!;
+    expect(planning).toMatchObject({ relation: "peer", unread: false, title: "Planning" });
+    const carousel = channels.find((channel) => channel.counterpartId === "thr_search")!;
+    expect(carousel).toMatchObject({ needsYou: true, question: "Which file format should the export accept?" });
+    const docs = channels.find((channel) => channel.counterpartId === "thr_docs")!;
+    expect(docs.messages).toEqual([]);
   });
 
   it("splits a batched outcome notice per report and fills each from the report's last reply", () => {
-    const batch = row("b1", 30, { initiator: "system", systemMessageKind: "child-outcome-batch", systemMessageSubject: { kind: "thread-batch", count: 2, outcomes: [{ threadId: "thr_dispatch", status: "completed" }, { threadId: "thr_moss", status: "failed" }] }, text: "Child thread updates" });
+    const batch = row("b1", 30, { initiator: "system", systemMessageKind: "child-outcome-batch", systemMessageSubject: { kind: "thread-batch", count: 2, outcomes: [{ threadId: "thr_export", status: "completed" }, { threadId: "thr_docs", status: "failed" }] }, text: "Child thread updates" });
     const channels = buildChannels(inputs({
       selfRows: [...selfRows, batch],
-      counterpartRows: new Map([["thr_dispatch", [{ id: "r1", kind: "conversation", role: "assistant", createdAt: 29, text: "Stories are ready." }, { id: "r2", kind: "conversation", role: "assistant", createdAt: 40, text: "Later reply" }]]]),
+      counterpartRows: new Map([["thr_export", [{ id: "r1", kind: "conversation", role: "assistant", createdAt: 29, text: "Stories are ready." }, { id: "r2", kind: "conversation", role: "assistant", createdAt: 40, text: "Later reply" }]]]),
     }));
-    expect(channels.find((channel) => channel.counterpartId === "thr_dispatch")!.messages.at(-1)).toMatchObject({ id: "b1:thr_dispatch", dir: "finished", text: "Stories are ready." });
-    expect(channels.find((channel) => channel.counterpartId === "thr_moss")!.messages.at(-1)).toMatchObject({ dir: "failed", text: "" });
+    expect(channels.find((channel) => channel.counterpartId === "thr_export")!.messages.at(-1)).toMatchObject({ id: "b1:thr_export", dir: "finished", text: "Stories are ready." });
+    expect(channels.find((channel) => channel.counterpartId === "thr_docs")!.messages.at(-1)).toMatchObject({ dir: "failed", text: "" });
   });
 
   it("follows bb's live pending state once it's known, even when the notice is still the latest message", () => {
     const answeredInReport = inputs({ pendingKnown: true });
-    expect(buildChannels(answeredInReport).find((channel) => channel.counterpartId === "thr_carousel")!.needsYou).toBe(false);
-    const stillWaiting = inputs({ pendingKnown: true, pending: new Set(["thr_carousel"]) });
-    expect(buildChannels(stillWaiting).find((channel) => channel.counterpartId === "thr_carousel")).toMatchObject({ needsYou: true, question: "Which file format should #418 accept?" });
+    expect(buildChannels(answeredInReport).find((channel) => channel.counterpartId === "thr_search")!.needsYou).toBe(false);
+    const stillWaiting = inputs({ pendingKnown: true, pending: new Set(["thr_search"]) });
+    expect(buildChannels(stillWaiting).find((channel) => channel.counterpartId === "thr_search")).toMatchObject({ needsYou: true, question: "Which file format should the export accept?" });
   });
 
   it("clears a needs-attention notice once something newer happens, unless bb still shows a pending interaction", () => {
-    const answered = inputs({ counterpartRows: new Map([["thr_carousel", [row("r1", 20, { initiator: "agent", senderThreadId: SELF, text: "PNG and WebP." })]]]) });
-    expect(buildChannels(answered).find((channel) => channel.counterpartId === "thr_carousel")!.needsYou).toBe(false);
-    const stillPending = { ...answered, pending: new Set(["thr_carousel"]) };
-    expect(buildChannels(stillPending).find((channel) => channel.counterpartId === "thr_carousel")!.needsYou).toBe(true);
+    const answered = inputs({ counterpartRows: new Map([["thr_search", [row("r1", 20, { initiator: "agent", senderThreadId: SELF, text: "PNG and WebP." })]]]) });
+    expect(buildChannels(answered).find((channel) => channel.counterpartId === "thr_search")!.needsYou).toBe(false);
+    const stillPending = { ...answered, pending: new Set(["thr_search"]) };
+    expect(buildChannels(stillPending).find((channel) => channel.counterpartId === "thr_search")!.needsYou).toBe(true);
   });
 });

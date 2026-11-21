@@ -1,6 +1,6 @@
 ---
 name: thread-lifecycle
-description: Rules for archiving, stopping, deleting, unparenting, and moving delegated bb threads, following the user's own instructions as recorded in the Delegation settings. Use before running `bb thread archive`, `stop`, or `delete`, or `bb thread update` with `--clear-parent-thread`, `--parent-thread`, or `--section`; when a worker finishes or its final report has been read; or when the user asks to clean up, archive, stop, or reorganize workers. tidy owns post-merge cleanup once the user asks for it.
+description: Rules for archiving, stopping, deleting, unparenting, and moving delegated bb threads, following the user's own instructions as recorded in the Agent Channels settings. Use before running `bb thread archive`, `stop`, or `delete`, or `bb thread update` with `--clear-parent-thread`, `--parent-thread`, or `--section`; when a worker finishes or its final report has been read; or when the user asks to clean up, archive, stop, or reorganize workers. Use tidy if installed for requested post-merge cleanup; otherwise limit cleanup to the verified thread lifecycle steps below and leave repository, branch, and environment deletion to a separate explicit request.
 ---
 
 # Thread lifecycle
@@ -11,14 +11,22 @@ description: Rules for archiving, stopping, deleting, unparenting, and moving de
 bb delegation settings --json
 ```
 
-The values come from the user's own instructions first. If `bb delegation sources --json` shows `checkedAt` as null, or `~/.bb/AGENTS.md`, `~/.claude/CLAUDE.md`, or a memory note changed after it, refresh them with `delegation-defaults` before using them, but only on the machine its `host` names (this machine is `thread.environment.hostId` in `bb status --json`). On any other machine, use the recorded values as they are: its files aren't the ones they came from.
+The values come from the user's own instructions first. If `bb delegation sources --json` shows `checkedAt` as null, or `~/.bb/AGENTS.md`, `~/.claude/CLAUDE.md`, or a memory note changed after it, refresh them with `delegation-defaults` before using them, but only on the machine its `host` names, or this machine when `host` is null (this machine is `thread.environment.hostId` in `bb status --json`). On any other machine, use the recorded values as they are: its files aren't the ones they came from.
 
 This skill uses `mayArchiveOrStop` from its output.
+
+## Optional integrations
+
+Use `inline-action-cards` if installed for decisions below; otherwise ask one
+concise question in the conversation and wait for an explicit answer. For
+evidence, use `screenshots` if installed, otherwise verify a durable artifact
+link before archiving. If no persistent copy is possible, leave the thread
+and its environment intact and report the blocker.
 
 ## Finished workers
 
 `mayArchiveOrStop` covers only workers a lead spawned for one bounded job.
-It never covers a thread with a standing role: one named in an org chart, a
+It never covers a thread with a standing role: one assigned ongoing coordination work, a
 report assigned to the lead, or any thread that has returned more than one
 report for ongoing work. Those stay until the user asks.
 
@@ -43,8 +51,9 @@ When the user moves a thread to a new owner, for example to switch its model
 or provider:
 
 1. Wait until the old thread is idle (`bb thread wait <id>`).
-2. Start the successor with `handoff`, in the same environment, told to read
-   the old thread's full history first.
+2. Use `handoff` if installed, otherwise the bundled `delegate` skill’s
+   transfer procedure. Start the successor in the same environment with the
+   old thread’s history, current work, evidence, and remaining steps.
 3. Move the old thread's children to the successor
    (`bb thread update <child> --parent-thread <successor>`), and re-pin its
    pinned files and links there.
