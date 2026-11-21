@@ -52,7 +52,7 @@ Memory is not one pool. Each project directory under `~/.claude/projects/`
 holds notes for that project; a note can also name its scope, such as "the
 Growth, Ops Tools, and Strategy & Fundraising orgs". Delegation settings apply
 to every thread on this bb, and the threads that delegate are the user's org
-leads and their reports, wherever this refresh runs. So read every project's
+leads and the threads under them, wherever this refresh runs. So read every project's
 notes, and resolve them in this order:
 
 1. A note scoped to the user's orgs, or to the project they delegate in, beats
@@ -76,11 +76,11 @@ thread they came from, such as `--from 'brsbl via 🧰 Ops Tools (thr_…)'`.
 | --- | --- |
 | `provider`, `model`, `reasoningLevel` | Provider, model, and reasoning for leaf workers, or for all workers when the sources don't split them by role |
 | `leadProvider`, `leadModel`, `leadReasoningLevel` | The tier for org leads |
-| `parentProvider`, `parentModel`, `parentReasoningLevel` | The tier for threads that have reports |
+| `parentProvider`, `parentModel`, `parentReasoningLevel` | The tier for leads with threads under them |
 | `avoidModels` | Models the user says never to spawn; record model IDs, comma-separated, from `bb provider models <provider> --json` (add `--machine <host>` from `bb status --json` if it fails) |
 | `qaProvider`, `qaModel`, `qaReasoningLevel` | Models for QA, smoke tests, or test-only threads; `cheapest` when they ask for the cheapest |
 | `machine`, `environment`, `section` | Where workers run, worktree versus personal, sidebar filing |
-| `parentWorkers` | Whether a coordinating thread parents its workers |
+| `parentWorkers` | Whether workers are placed under their lead |
 | `workerReportLines` | How long a worker's final report may be |
 | `reportMaxBullets`, `reportStyle` | How reports to the user are shaped |
 | `decisionsAsActionCards`, `evidenceInline` | How decisions and screenshot evidence reach the user |

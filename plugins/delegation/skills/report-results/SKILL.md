@@ -25,7 +25,7 @@ own report unless it changes what the user should do now.
 ## Who reports what
 
 With `reportTo` set to `lead`, workers put decisions in their reports and the
-lead raises them. Gather every pending decision from your reports into one set
+lead raises them. Gather every pending decision from the threads under you into one set
 of cards in your own thread, then resolve any copies a worker posted in its
 thread (`bb action-cards resolve <id> --thread <worker>`) so the user answers
 each decision once, in one place.

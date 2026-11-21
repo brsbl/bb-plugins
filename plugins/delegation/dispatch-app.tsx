@@ -59,7 +59,7 @@ function markSeen(threadId: string, counterpartId: string) {
   localStorage.setItem(lastSeenKey(threadId), JSON.stringify(Object.fromEntries(seen)));
 }
 
-/** Spawned reports only; bb's sidebar also links forks by parentThreadId. */
+/** Spawned threads only; bb's sidebar also links forks by parentThreadId. */
 function isReportOf(thread: SidebarThread, threadId: string) {
   return thread.parentThreadId === threadId && thread.originKind === null && !thread.isArchived;
 }
@@ -329,7 +329,7 @@ export function DispatchHeaderButton({ threadId }: { threadId: string }) {
     >
       <Icon name="delegation/agent-channels" className="dp-header-icon" aria-hidden />
       Agent Channels
-      {attention ? <span className="dp-dot dp-dot-attention" aria-label="A report needs you" /> : null}
+      {attention ? <span className="dp-dot dp-dot-attention" aria-label="A thread under you needs you" /> : null}
     </button>
   );
 }
