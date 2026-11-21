@@ -22,7 +22,7 @@ For small carousels, pass the JSON on a single line with `--carousel-stdin`; it 
 
 ```sh
 bb image-carousel create --carousel-stdin <<'JSON'
-{"kind":"research","title":"Workspace switchers","slides":[{"image":"research/linear.png","title":"Linear: search first","description":"Typing filters the list immediately.","source":"https://linear.app"},{"image":"research/slack.png","title":"Slack: icons in the rail","description":"One click per workspace; no menu."}]}
+{"kind":"research","title":"Sample layouts","slides":[{"image":"research/sample-a.png","title":"Sample A: search first","description":"Typing filters the list immediately.","source":"https://example.com/layout-a"},{"image":"research/sample-b.png","title":"Sample B: icons in the rail","description":"One click per workspace; no menu."}]}
 JSON
 ```
 

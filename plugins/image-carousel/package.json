@@ -9,7 +9,8 @@
     "dist",
     "docs",
     "README.md",
-    "skills"
+    "skills",
+    "PLUGIN_OVERVIEW.md"
   ],
   "scripts": {
     "build": "node ../../tooling/build-plugin.mjs",
