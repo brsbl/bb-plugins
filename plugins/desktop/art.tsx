@@ -259,6 +259,24 @@ export function NewThreadArt({ size = 40 }: { size?: number }) {
   );
 }
 
+export function AppsArt({ size = 40 }: { size?: number }) {
+  return (
+    <IconSvg size={size}>
+      <MiniWindow x={12} y={4} width={32} height={26} />
+      <MiniWindow x={4} y={14} width={32} height={26} />
+    </IconSvg>
+  );
+}
+
+export function NewAppArt({ size = 40 }: { size?: number }) {
+  return (
+    <IconSvg size={size}>
+      <MiniWindow x={3} y={10} width={36} height={30} />
+      <Sparkle x={37} y={12} scale={0.95} />
+    </IconSvg>
+  );
+}
+
 export function ThreadsArt({ size = 40 }: { size?: number }) {
   return (
     <IconSvg size={size}>

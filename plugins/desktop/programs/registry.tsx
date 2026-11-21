@@ -10,6 +10,7 @@ import {
   MediaPlayerArt,
   MinesweeperArt,
   NewFolderArt,
+  NewAppArt,
   NewThreadArt,
   MazeArt,
   PaintArt,
@@ -38,7 +39,7 @@ import { BuddyListWindow, buddyListTitle } from "./threads/buddy-list";
 import { DesktopFinderWindow, FinderWindow, MoreWindow, RecycleBinWindow, ThreadsWindow } from "./threads/explorer";
 import { ThreadWindow } from "./threads/instant-message";
 import { NewFolderWindow } from "./threads/new-folder";
-import { NewThreadWindow } from "./threads/new-thread";
+import { NewAppWindow, NewThreadWindow } from "./threads/new-thread";
 import { ThreadTabWindow, closeThreadTab, threadTabTitle } from "./threads/thread-tab";
 
 type WindowOf<K extends WindowKind> = DesktopWindow & { spec: SpecOf<K> };
@@ -231,6 +232,12 @@ const PROGRAMS: { [K in WindowKind]: ProgramDefinition<K> } = {
     title: () => "New thread",
     art: (_spec, _desktop, size) => <NewThreadArt size={size} />,
     Window: ({ window }) => <NewThreadWindow window={window} groupKey={window.spec.groupKey} />,
+  },
+  "new-app": {
+    size: fixed(720, 420),
+    title: () => "New app",
+    art: (_spec, _desktop, size) => <NewAppArt size={size} />,
+    Window: NewAppWindow,
   },
   "media-player": {
     size: fixed(480, 380),
