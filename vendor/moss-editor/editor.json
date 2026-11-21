@@ -1,0 +1,221 @@
+{
+  "name": "@moss-multi/editor",
+  "version": "0.2.0",
+  "api": 1,
+  "features": [
+    "selection-1",
+    "share-with-agent-1"
+  ],
+  "entry": "moss-editor.js",
+  "css": "moss-editor.css",
+  "hostEntry": "moss-editor-host.js",
+  "htmlFrame": {
+    "file": "moss-html-frame.html",
+    "policy": "sandbox allow-scripts"
+  },
+  "moss": {
+    "upstream": "brsbl/moss",
+    "pin": "762abb777",
+    "commit": "762abb7770714a49d912f6081384aabb958a7ea6"
+  },
+  "source": {
+    "repo": "brsbl/moss-multi",
+    "commit": "31f3f265db773f1d082e608214172f49377171f6",
+    "headSha": "31f3f265db773f1d082e608214172f49377171f6",
+    "dirty": false,
+    "diffHash": ""
+  },
+  "build": {
+    "run": "https://github.com/brsbl/moss-multi/actions/runs/37462706158"
+  },
+  "bundleHash": "58fb45526f2a0edec654b018aecb314dd1d230d7d45fe20a8e4594781697cc72",
+  "files": {
+    "assets/charter_bold-DWf1YoLo.woff2": {
+      "bytes": 15028,
+      "sha256": "ca7c6aadefb1318729ac10048a85faeb6eccfbe4d4ecb2e582747663a3915792"
+    },
+    "assets/charter_bold_italic-ClSdSXq_.woff2": {
+      "bytes": 16108,
+      "sha256": "192919b5cdf9180894546fa74b206885b4e6af737189ec43601d382017f89b60"
+    },
+    "assets/charter_italic-DbLksRKf.woff2": {
+      "bytes": 15376,
+      "sha256": "35b98e2d6da9ab1d3580aee832f6d8ddfc3687cfd8e12e4e699aa202a70446e2"
+    },
+    "assets/charter_regular-Bg9AUai9.woff2": {
+      "bytes": 14648,
+      "sha256": "8e7630ba96aeed2974bfd9ab9bde2d3159e4cba98dfdb5757584e3542f1ac962"
+    },
+    "assets/inter-cyrillic-ext-wght-italic-B5xAaiFk.woff2": {
+      "bytes": 27380,
+      "sha256": "39689184132e9fba8fb1066f429125d14445352a566f47f4edcae7c3c90e486d"
+    },
+    "assets/inter-cyrillic-ext-wght-normal-BOeWTOD4.woff2": {
+      "bytes": 25960,
+      "sha256": "ca157063339ac4ad418f214f3abfed119b0798ab4d377386ce5c9e5a7a435ebd"
+    },
+    "assets/inter-cyrillic-wght-italic-DzZdc28x.woff2": {
+      "bytes": 19980,
+      "sha256": "47d42151dff6d13f1c2b9a1f278290f625593c1f01c89612ee4ae7f063167f7a"
+    },
+    "assets/inter-cyrillic-wght-normal-DqGufNeO.woff2": {
+      "bytes": 18748,
+      "sha256": "71d5ee93cc1e9f1d520a3a8b66456de18c7879d8df09d57fcd2eaff75fef0075"
+    },
+    "assets/inter-greek-ext-wght-italic-DcOpz6Lw.woff2": {
+      "bytes": 12096,
+      "sha256": "787fc783f35c913334445a7c4502bb272f94a8328426578776eac5e4ebd03ba1"
+    },
+    "assets/inter-greek-ext-wght-normal-DlzME5K_.woff2": {
+      "bytes": 11232,
+      "sha256": "6e9e020a25f9b56d418f2c085b1d3c09725a4da23fe693a5b463064606732190"
+    },
+    "assets/inter-greek-wght-italic-CILZdfAp.woff2": {
+      "bytes": 20484,
+      "sha256": "29e273a42cac8240f37fbdd94c684f8a255e61c8076942d9b8f18a0e2c014991"
+    },
+    "assets/inter-greek-wght-normal-CkhJZR-_.woff2": {
+      "bytes": 18996,
+      "sha256": "1be3448e292fbf05ffe176fe1e43f135013d50b1e7d324ad1a558f623d3bb6f6"
+    },
+    "assets/inter-latin-ext-wght-italic-0pjOp8NU.woff2": {
+      "bytes": 91900,
+      "sha256": "71254244ccb1ec21e14db3480fef6f6826d1136dc4aca1c7d3ca7ce31294fcce"
+    },
+    "assets/inter-latin-ext-wght-normal-DO1Apj_S.woff2": {
+      "bytes": 85068,
+      "sha256": "34b9c504cab7a73e37b746343a449132e56cf7b5481af2cb81dc74dcff25c956"
+    },
+    "assets/inter-latin-wght-italic-DpCbqKDY.woff2": {
+      "bytes": 51832,
+      "sha256": "7291b5970da2237441273c03b424a504b70b18f09791473fab99687dcc314720"
+    },
+    "assets/inter-latin-wght-normal-Dx4kXJAl.woff2": {
+      "bytes": 48256,
+      "sha256": "3100e775e8616cd2611beecfa23a4263d7037586789b43f035236a2e6fbd4c62"
+    },
+    "assets/inter-vietnamese-wght-italic-K3WlGtc8.woff2": {
+      "bytes": 10596,
+      "sha256": "1991ed5832eb07f7523f22a843ca9a8aa83c51c8e87062ce77794855d2f5dee8"
+    },
+    "assets/inter-vietnamese-wght-normal-CBcvBZtf.woff2": {
+      "bytes": 10252,
+      "sha256": "5c66f9e07e90c6d4ac4922cc68d60de26c17b1858e677fb5e603fce3952b3ff2"
+    },
+    "assets/jetbrains-mono-cyrillic-ext-wght-normal-EocZY2iu.woff2": {
+      "bytes": 2028,
+      "sha256": "593ccd6fe36e299e151aeae4521be9bfe83ac487d96d7cdb44f50be4a04041c7"
+    },
+    "assets/jetbrains-mono-cyrillic-wght-normal-D73BlboJ.woff2": {
+      "bytes": 12108,
+      "sha256": "d274604c40757f98f07df623a8b8fb5194508a6fa4f5413a7a107f09e3b7452a"
+    },
+    "assets/jetbrains-mono-greek-wght-normal-Bw9x6K1M.woff2": {
+      "bytes": 9004,
+      "sha256": "ee863198077f3093ffa81c072581cc4bd608a04e60a8a9c0b846396ce4f14109"
+    },
+    "assets/jetbrains-mono-latin-400-normal-6-qcROiO.woff": {
+      "bytes": 27496,
+      "sha256": "658b9ee07b0249cf910a8d6f3d812d46c962bae81d7379a0355b1db35c61586f"
+    },
+    "assets/jetbrains-mono-latin-400-normal-V6pRDFza.woff2": {
+      "bytes": 21168,
+      "sha256": "14425ba9c695763c1547f48a206b7aa60350a33ae23de09f0407877f3fcd89eb"
+    },
+    "assets/jetbrains-mono-latin-500-normal-BWZEU5yA.woff2": {
+      "bytes": 21832,
+      "sha256": "cb182feeed4d798ff6961d3c79f7026279448fca0676438aaecb21f3fc39553a"
+    },
+    "assets/jetbrains-mono-latin-500-normal-CJOVTJB7.woff": {
+      "bytes": 28208,
+      "sha256": "a270dd0bf13d91053b8999b7c120ffadb59680cfd63fe1a6b388a13bf2809fe1"
+    },
+    "assets/jetbrains-mono-latin-ext-wght-normal-DBQx-q_a.woff2": {
+      "bytes": 15196,
+      "sha256": "79bfdab9ba467e26eea4122e6f2567e188dd8a09a8c730d501fc487c4ab99c6e"
+    },
+    "assets/jetbrains-mono-latin-wght-normal-B9CIFXIH.woff2": {
+      "bytes": 40404,
+      "sha256": "18be452724bfdc236c074ca94a249a7f41a86752c7d04ab258ce9ed5651f6a7e"
+    },
+    "assets/jetbrains-mono-vietnamese-wght-normal-Bt-aOZkq.woff2": {
+      "bytes": 7504,
+      "sha256": "2288795da89dd97e648954b96e22b4501bd85dfc453264460b252f888b582ca2"
+    },
+    "assets/moss-sprout-icon-C8pYQGx2.png": {
+      "bytes": 41137,
+      "sha256": "f1fe0f8c318abea2359506fa620aeb1e77909a1a1b73b5c01a277d524e772a72"
+    },
+    "assets/x-logo-black-BIVm9hpF.png": {
+      "bytes": 102327,
+      "sha256": "391a3a86f40e253b584defa5f284c7402a2175a705ebb2b4b9460112fc92dc77"
+    },
+    "moss-editor-host.js": {
+      "bytes": 13893,
+      "sha256": "ae52e46cbf41e8d1a59828be18d48b617d3bbe76437bab00bc0b7c1f0dd79c52"
+    },
+    "moss-editor.css": {
+      "bytes": 190148,
+      "sha256": "2ad4e078d040c5ca410bb29bb9ea918ca40a7952088c9db57d870c66cca9fdbf"
+    },
+    "moss-editor.js": {
+      "bytes": 2472109,
+      "sha256": "3eb5ee2ace35a33fc9571fa571b9e2dc369d125b8b2b6a3826cd26af7e4ae122"
+    },
+    "moss-html-frame.html": {
+      "bytes": 405,
+      "sha256": "21680b881f1cdd687dd899e13a5add0c22994c140a8ff1ab7bc6dba6a60c81e1"
+    }
+  },
+  "editableScopes": [
+    "internal"
+  ],
+  "csp": {
+    "default-src": [
+      "'none'"
+    ],
+    "script-src": [
+      "'self'"
+    ],
+    "style-src": [
+      "'self'",
+      "'unsafe-inline'"
+    ],
+    "font-src": [
+      "'self'"
+    ],
+    "img-src": [
+      "'self'",
+      "data:",
+      "blob:",
+      "https:",
+      "<asset-origin>"
+    ],
+    "media-src": [
+      "'self'",
+      "data:",
+      "blob:",
+      "<asset-origin>"
+    ],
+    "frame-src": [
+      "data:",
+      "https:",
+      "<html-frame-origin>"
+    ],
+    "connect-src": [
+      "'none'"
+    ],
+    "worker-src": [
+      "'none'"
+    ],
+    "object-src": [
+      "'none'"
+    ],
+    "base-uri": [
+      "'none'"
+    ],
+    "form-action": [
+      "'none'"
+    ]
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "repository": "https://github.com/get-bb/bb",
+  "commit": "32efd2e3f2cd5fe072d56c880c6c94db61612089",
+  "registryItems": [
+    "overlay-trigger",
+    "portal-scope",
+    "tooltip",
+    "utils"
+  ],
+  "adaptations": [
+    "app.tsx: the note header copies FilePreviewHeader's row, path button, and OpenInEditorButton classes; the error panel copies EmptyStatePanel's classes."
+  ]
+}
